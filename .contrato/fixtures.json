@@ -1,0 +1,143 @@
+{
+  "_leia": "Dados fictícios. Mesmos valores em todas as páginas. Não altere este arquivo; peça acréscimo a quem coordena.",
+  "base_url": "https://core.clubtrack.com.br",
+  "chave_api": "ttk_SUA_CHAVE_AQUI",
+  "ids": {
+    "partner_hub": "019a0f3c-0000-7a36-8f98-0b409e8a22c8",
+    "partner_branch": "019a0f3c-1000-75ca-90a8-53b1c0baf89a",
+    "user_owner": "019a0f3c-2000-7ff2-876c-1b9717c83a0c",
+    "user_operador": "019a0f3c-3000-796a-bf3a-59a68c81a1ae",
+    "customer_pf": "019a0f3c-4000-7f9e-9687-b620b4389874",
+    "customer_pj": "019a0f3c-5000-765e-80f3-5b910b23203d",
+    "address_pf_principal": "019a0f3c-6000-7fda-ae85-e6b5e5ab3350",
+    "address_pf_comercial": "019a0f3c-7000-7a74-8771-cf329113e5e9",
+    "device_a": "019a0f3c-8000-78d6-8995-8bf9b9e561a5",
+    "device_b": "019a0f3c-9000-7bea-ad46-da90612bbeb8",
+    "binding_a": "019a0f3c-a000-7d36-b6e0-c918528fd00a",
+    "binding_b": "019a0f3c-b000-7306-ac8b-4c308157ddd2",
+    "plan_mensal": "019a0f3c-c000-7f57-9da6-e983620124d1",
+    "subscription_a": "019a0f3c-e000-7182-a6cd-bb7e5dcde111",
+    "device_order_a": "019a0f3c-f000-7530-bf2b-3c92a45c2d1d",
+    "field_placa": "019a0f3d-0000-7d48-ace5-9e6190fd83c8",
+    "field_chassi": "019a0f3d-1000-7f4e-9eb3-70555a4d9693",
+    "field_condutor": "019a0f3d-2000-7021-80e7-961680966262",
+    "geofence_a": "019a0f3d-3000-754d-9e43-38dd864bc4d3",
+    "api_key_id": "019a0f3d-4000-7dd6-b971-d9a7b8abcc2f",
+    "asset_a": "019a0f3d-5000-7a2c-8e41-2f6b9d3c7a15",
+    "binding_antigo_pf": "019a0f3e-1000-7c1b-9a47-3d5e8f2b6a90",
+    "device_c": "019a0f3e-2000-7e2a-9c45-6b1f8d3a5e27",
+    "plan_mensal_2": "019a0f3c-d000-7933-bcd0-866e874f946b"
+  },
+  "parceiro": {
+    "hub": "Exemplo Mobilidade Ltda",
+    "filial": "Exemplo Mobilidade Filial Sul"
+  },
+  "usuarios": [
+    {
+      "id": "019a0f3c-2000-7ff2-876c-1b9717c83a0c",
+      "name": "Carla Menezes Exemplo",
+      "email": "carla@parceiro.example",
+      "role": "owner"
+    },
+    {
+      "id": "019a0f3c-3000-796a-bf3a-59a68c81a1ae",
+      "name": "Rafael Tavares Exemplo",
+      "email": "rafael@parceiro.example",
+      "role": "operador (confirmar o valor real no código)"
+    }
+  ],
+  "clientes": [
+    {
+      "id": "019a0f3c-4000-7f9e-9687-b620b4389874",
+      "external_id": "CLI-000184",
+      "name": "Marina Souza Exemplo",
+      "email": "marina@cliente.example",
+      "phone": "11987654321",
+      "cpf_cnpj": "52998224725",
+      "document_type": "pessoa_fisica (confirmar o valor real no código)"
+    },
+    {
+      "id": "019a0f3c-5000-765e-80f3-5b910b23203d",
+      "external_id": "CLI-000201",
+      "name": "Locadora Horizonte Exemplo Ltda",
+      "email": "contato@locadora.example",
+      "phone": "1133334444",
+      "cpf_cnpj": "11222333000181",
+      "document_type": "pessoa_juridica (confirmar o valor real no código)"
+    }
+  ],
+  "dispositivos": [
+    {
+      "id": "019a0f3c-8000-78d6-8995-8bf9b9e561a5",
+      "serial": "000000050000001",
+      "imei": "860000000000001",
+      "observacao": "serial numérico de até 15 dígitos (o código completa com zeros à esquerda)"
+    },
+    {
+      "id": "019a0f3c-9000-7bea-ad46-da90612bbeb8",
+      "serial": "000000050000002",
+      "imei": "860000000000002"
+    },
+    {
+      "id": "019a0f3e-2000-7e2a-9c45-6b1f8d3a5e27",
+      "serial": "000000050000003",
+      "imei": "860000000000003",
+      "observacao": "aparelho do vínculo antigo (desfeito) do cliente PF"
+    }
+  ],
+  "posicao_exemplo": {
+    "latitude": -23.561414,
+    "longitude": -46.655881,
+    "descricao": "região da Av. Paulista, São Paulo"
+  },
+  "campos_personalizados": [
+    {
+      "id": "019a0f3d-0000-7d48-ace5-9e6190fd83c8",
+      "key": "placa",
+      "label": "Placa"
+    },
+    {
+      "id": "019a0f3d-1000-7f4e-9eb3-70555a4d9693",
+      "key": "chassi",
+      "label": "Chassi"
+    },
+    {
+      "id": "019a0f3d-2000-7021-80e7-961680966262",
+      "key": "condutor",
+      "label": "Condutor"
+    }
+  ],
+  "valores_exemplo": {
+    "placa": "ABC1D23",
+    "chassi": "9BWZZZ377VT004251",
+    "condutor": "João Pereira Exemplo"
+  },
+  "endereco_exemplo": {
+    "zip": "01310-100",
+    "street": "Avenida Paulista",
+    "number": "1000",
+    "district": "Bela Vista",
+    "city": "São Paulo",
+    "state": "SP"
+  },
+  "plano_exemplo": {
+    "mensal": "019a0f3c-c000-7f57-9da6-e983620124d1",
+    "mensal_2": "019a0f3c-d000-7933-bcd0-866e874f946b",
+    "observacao": "o único ciclo de cobrança que existe é mensal"
+  },
+  "datas": {
+    "agora": "2026-10-19T14:32:10-03:00",
+    "observacao": "use o formato exato que a API devolve (fuso e sufixo)"
+  },
+  "ligacoes": {
+    "binding_a": {
+      "device": "device_a",
+      "customer": "customer_pf"
+    },
+    "binding_b": {
+      "device": "device_b",
+      "customer": "customer_pj"
+    },
+    "observacao": "ligações usadas nos exemplos; asset_a é o bem do binding_a"
+  }
+}

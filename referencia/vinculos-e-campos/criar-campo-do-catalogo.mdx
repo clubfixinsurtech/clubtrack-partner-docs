@@ -1,0 +1,300 @@
+---
+title: "Criar campo no catálogo"
+description: "Cria um campo personalizado no catálogo do hub, com chave, rótulo, valor padrão, ordem e regras de visibilidade e edição pelo cliente."
+api: "POST /api/b2b/v1/custom-fields"
+---
+
+Esta chamada cria um campo no catálogo de campos personalizados da sua rede, como placa, chassi ou condutor. Depois de criado,
+o campo passa a existir para todas as Tags dos clientes do hub e das filiais, e você pode gravar um valor nele em cada Tag com
+[Gravar os campos de um vínculo](/referencia/vinculos-e-campos/gravar-campos-do-vinculo). Todo valor é um texto de até
+255 caracteres. O conceito completo está no guia de [campos personalizados](/guias/campos-personalizados).
+
+Só o hub cria campos. A chave do campo, uma vez criada, não muda, e o campo não pode ser excluído: o que existe é desativar.
+
+<Warning>
+  Esta chamada grava de verdade e não existe ambiente de teste. O campo criado vale para toda a rede, conta no teto de campos
+  mesmo que você o desative depois e não pode ser removido. Com `customer_visible` igual a `true`, os clientes passam a ver
+  o campo nas Tags deles; com `customer_editable` igual a `true`, passam a poder preenchê-lo.
+</Warning>
+
+## Quando usar
+
+- Para começar a coletar uma informação nova por Tag, como o chassi do veículo.
+- Para ter um campo que só a sua equipe preenche (`customer_visible` igual a `false`) ou que o cliente vê mas não altera
+  (`customer_visible` igual a `true` e `customer_editable` igual a `false`).
+- Para dar um valor padrão a um campo, copiado para cada Tag que ainda não tem valor nenhum.
+
+## Autenticação e permissões
+
+Use a chave de API. Só o parceiro principal (o hub)
+cria campos: a chave ou o usuário de uma filial recebe 403. Parceiro suspenso também recebe 403. Se a funcionalidade de campos
+personalizados não estiver ligada para o seu parceiro, a resposta é 404, sem dizer o motivo. O guia de
+[autenticação](/guias/autenticacao) explica a chave de API.
+
+## Parâmetros
+
+### Cabeçalhos
+
+Toda chamada leva a sua chave de API no cabeçalho `X-Api-Key`, que o campo de testes (Try it) pede no campo de autorização. Também vale enviá-la como `Authorization: Bearer <chave>`. Veja [Autenticação](/guias/autenticacao).
+
+<ParamField header="Content-Type" type="string" default="application/json">
+  Envie `application/json`. O corpo da chamada é um objeto JSON.
+</ParamField>
+
+### Corpo
+
+O hub é sempre o do parceiro autenticado. Campos como `hub_id`, `partner_id` e `catalog_hub_id`, se enviados, são ignorados.
+
+<ParamField body="key" type="string" required>
+  Chave do campo, de 1 a 50 caracteres: começa por letra minúscula e segue só com letras minúsculas, números e sublinhado
+  (`^[a-z][a-z0-9_]{0,49}$`). É o nome que você usa dentro de `values` ao gravar o campo numa Tag. Precisa ser única no
+  catálogo, contando os campos inativos, e não pode ser alterada depois. Exemplo: `chassi`.
+</ParamField>
+
+<ParamField body="label" type="string" required>
+  Nome do campo como as pessoas o veem, de 1 a 100 caracteres. Pode ser alterado depois. Exemplo: `Chassi`.
+</ParamField>
+
+<ParamField body="default_value" type="string">
+  Valor padrão, até 255 caracteres. Quando uma Tag recebe o primeiro valor de qualquer campo (seu ou do cliente), cada campo
+  ativo que tem valor padrão é preenchido com ele nessa Tag, uma única vez. Omitido ou `null`: sem valor padrão. O valor
+  padrão só é devolvido a quem administra o catálogo, o hub.
+</ParamField>
+
+<ParamField body="is_active" type="boolean" default="true">
+  Se o campo já nasce ativo. Campo inativo não recebe valor novo de ninguém. Aceita `true` ou `false`.
+</ParamField>
+
+<ParamField body="sort_order" type="integer">
+  Posição do campo na lista, de 0 a 1000000. Menor aparece primeiro; empate se resolve pela `key`. Omitido, o campo vai para o
+  fim: ganha o número seguinte ao maior que existe no catálogo (0 se for o primeiro).
+</ParamField>
+
+<ParamField body="customer_visible" type="boolean" default="false">
+  Se o cliente enxerga o campo e o valor na própria Tag. `false`: o campo é só do parceiro.
+</ParamField>
+
+<ParamField body="customer_editable" type="boolean" default="false">
+  Se o cliente pode preencher e alterar o valor. Exige `customer_visible` igual a `true`; enviar `true` aqui com a visibilidade
+  desligada responde 422. Nos campos editáveis pelo cliente o valor é do cliente: o parceiro lê, mas não grava pela API.
+</ParamField>
+
+## Resposta
+
+Status `201`. O corpo traz o campo criado em `data`, com a mesma forma de um item de
+[Listar o catálogo de campos](/referencia/vinculos-e-campos/listar-campos-do-catalogo).
+
+<ResponseField name="data.id" type="string (UUID)">
+  Identificador do campo no catálogo. É o valor que a chamada de [editar campo](/referencia/vinculos-e-campos/editar-campo-do-catalogo) pede em `{id}`.
+</ResponseField>
+
+<ResponseField name="data.key" type="string">
+  A chave enviada. Não muda depois de criada.
+</ResponseField>
+
+<ResponseField name="data.label" type="string">
+  O rótulo enviado, de 1 a 100 caracteres, como as pessoas verão o campo. Pode ser alterado depois.
+</ResponseField>
+
+<ResponseField name="data.kind" type="string">
+  Sempre `custom`: todo campo do catálogo é um campo personalizado.
+</ResponseField>
+
+<ResponseField name="data.sort_order" type="integer">
+  A posição do campo na lista: a que você enviou ou, se omitiu, a que o servidor calculou.
+</ResponseField>
+
+<ResponseField name="data.is_active" type="boolean">
+  Se o campo está ativo. `true` quando você não enviou `is_active`.
+</ResponseField>
+
+<ResponseField name="data.customer_visible" type="boolean">
+  Se o cliente enxerga o campo. `false` quando você não enviou o parâmetro.
+</ResponseField>
+
+<ResponseField name="data.customer_editable" type="boolean">
+  Se o cliente pode preencher o campo. `false` quando você não enviou o parâmetro.
+</ResponseField>
+
+<ResponseField name="data.default_value" type="string">
+  O valor padrão enviado, ou `null` quando não há.
+</ResponseField>
+
+## Erros
+
+| Status | Quando acontece | O que fazer |
+|---|---|---|
+| 401 | Não há chave, a chave é inválida, foi revogada ou expirou. | Confira a credencial. Revogação leva até 60 segundos para valer. |
+| 403 | O parceiro está suspenso ou inativo (`Parceiro inativo ou suspenso.`). Também: chamada feita por filial (`Você não tem permissão para administrar o catálogo.`). | Para criar campos, chame com a credencial do hub. |
+| 404 | `Recurso indisponível.`: a funcionalidade de campos personalizados ainda não está ligada para o seu parceiro. A resposta não diz o motivo. | Peça à ClubTrack para ligar a funcionalidade no parceiro principal. |
+| 409 | `Já existe um campo com esta chave.` A chave vale também para campos inativos. | Escolha outra chave ou [edite o campo](/referencia/vinculos-e-campos/editar-campo-do-catalogo) existente. |
+| 422 | Corpo inválido: `key` ausente ou fora do formato, `label` ausente ou com mais de 100 caracteres, `default_value` com mais de 255, `sort_order` negativo, acima de 1000000 ou não inteiro, ou `is_active`, `customer_visible` ou `customer_editable` que não são `true` ou `false`. A mensagem de `key` vem em português; as outras vêm em inglês. O nome do campo está em `errors`. | Corrija o corpo e envie de novo. |
+| 422 | `Um campo editável pelo cliente precisa ser visível.` | Envie `customer_visible` igual a `true`, ou `customer_editable` igual a `false`. |
+| 422 | `O limite de campos personalizados foi atingido.` Campos inativos contam. | Veja `meta.limit` e `meta.count` na listagem do catálogo. Para abrir espaço, fale com a ClubTrack. |
+| 429 | Passou de 1000 chamadas por minuto com a chave. | Espere o tempo do cabeçalho `Retry-After` e repita. |
+| 500 | `Não foi possível salvar o catálogo agora.` Nada foi criado. | Tente de novo; se persistir, fale com a ClubTrack. |
+
+Os status 401, 403 e 429 valem para qualquer chamada. O corpo é sempre `{"message": "..."}`, e o 422 de formato acrescenta `errors`;
+o guia de [erros](/guias/erros) traz os textos exatos. Nenhuma mensagem repete a chave, o rótulo ou o valor padrão que você enviou.
+
+## Exemplos
+
+<RequestExample>
+
+```bash cURL
+curl --request POST "https://core.clubtrack.com.br/api/b2b/v1/custom-fields" \
+  --header "X-Api-Key: $CLUBTRACK_API_KEY" \
+  --header "Accept: application/json" \
+  --header "Content-Type: application/json" \
+  --data '{
+    "key": "chassi",
+    "label": "Chassi",
+    "sort_order": 1,
+    "customer_visible": true,
+    "customer_editable": false
+  }'
+```
+
+```javascript JavaScript
+const resposta = await fetch("https://core.clubtrack.com.br/api/b2b/v1/custom-fields", {
+  method: "POST",
+  headers: {
+    "X-Api-Key": process.env.CLUBTRACK_API_KEY,
+    Accept: "application/json",
+    "Content-Type": "application/json",
+  },
+  body: JSON.stringify({
+    key: "chassi",
+    label: "Chassi",
+    sort_order: 1,
+    customer_visible: true,
+    customer_editable: false,
+  }),
+});
+
+const campo = await resposta.json();
+```
+
+```python Python
+import os
+import requests
+
+resposta = requests.post(
+    "https://core.clubtrack.com.br/api/b2b/v1/custom-fields",
+    headers={
+        "X-Api-Key": os.environ["CLUBTRACK_API_KEY"],
+        "Accept": "application/json",
+    },
+    json={
+        "key": "chassi",
+        "label": "Chassi",
+        "sort_order": 1,
+        "customer_visible": True,
+        "customer_editable": False,
+    },
+    timeout=30,
+)
+
+campo = resposta.json()
+```
+
+```php PHP
+use GuzzleHttp\Client;
+
+$http = new Client(['base_uri' => 'https://core.clubtrack.com.br']);
+
+$resposta = $http->post('/api/b2b/v1/custom-fields', [
+    'headers' => [
+        'X-Api-Key' => getenv('CLUBTRACK_API_KEY'),
+        'Accept' => 'application/json',
+    ],
+    'json' => [
+        'key' => 'chassi',
+        'label' => 'Chassi',
+        'sort_order' => 1,
+        'customer_visible' => true,
+        'customer_editable' => false,
+    ],
+]);
+
+$campo = json_decode((string) $resposta->getBody(), true);
+```
+
+</RequestExample>
+
+<ResponseExample>
+
+```json 201
+{
+  "data": {
+    "id": "019a0f3d-1000-7f4e-9eb3-70555a4d9693",
+    "key": "chassi",
+    "label": "Chassi",
+    "kind": "custom",
+    "sort_order": 1,
+    "is_active": true,
+    "customer_visible": true,
+    "customer_editable": false,
+    "default_value": null
+  }
+}
+```
+
+```json 401
+{
+  "message": "API key inválida ou revogada."
+}
+```
+
+```json 403
+{
+  "message": "Você não tem permissão para administrar o catálogo."
+}
+```
+
+```json 404
+{
+  "message": "Recurso indisponível."
+}
+```
+
+```json 409
+{
+  "message": "Já existe um campo com esta chave."
+}
+```
+
+```json 422 formato
+{
+  "message": "A chave deve começar com letra minúscula e ter só letras minúsculas, números e sublinhado (até 50).",
+  "errors": {
+    "key": [
+      "A chave deve começar com letra minúscula e ter só letras minúsculas, números e sublinhado (até 50)."
+    ]
+  }
+}
+```
+
+```json 422 regra de negócio
+{
+  "message": "Um campo editável pelo cliente precisa ser visível."
+}
+```
+
+```json 500
+{
+  "message": "Não foi possível salvar o catálogo agora."
+}
+```
+
+</ResponseExample>
+
+## Detalhes que ajudam
+
+- Os erros de formato (422) aparecem antes dos de permissão: uma filial que manda corpo inválido recebe 422, e só com o corpo
+  válido recebe 403.
+- O valor padrão só é copiado para a Tag no momento em que ela recebe o primeiro valor de qualquer campo. Tags que já passaram
+  por esse momento não ganham o padrão de um campo criado depois.
+- O teto de campos vem em `meta.limit` na [listagem do catálogo](/referencia/vinculos-e-campos/listar-campos-do-catalogo) e vale
+  para o hub inteiro. Criar um campo já inativo (`is_active` igual a `false`) também ocupa uma vaga.
+- Repetir a mesma criação responde 409, e nada é duplicado.

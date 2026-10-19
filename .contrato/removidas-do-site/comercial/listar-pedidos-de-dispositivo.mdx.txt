@@ -1,0 +1,341 @@
+---
+title: "Listar pedidos de dispositivo"
+description: "Devolve, em páginas, os pedidos de aparelhos do seu parceiro à ClubTrack, com a situação, o valor e o endereço de pagamento."
+api: "GET /api/b2b/v1/device-orders"
+---
+
+Esta chamada devolve os pedidos de aparelhos que o seu parceiro fez à ClubTrack, do mais novo para o mais antigo. Você usa para acompanhar o andamento de um pedido feito com [Criar pedido de dispositivo](/referencia/comercial/criar-pedido-de-dispositivo): se já foi aprovado, quanto custa e onde pagar.
+
+A lista tem uma limitação importante: **só aparecem os pedidos cujo destinatário é o próprio parceiro** (`recipient_type` igual a `partner`). Pedido feito em nome de um cliente, com `customer_id`, não aparece aqui, e esta API não tem consulta de um pedido pelo `id`. Para esses pedidos, fale com a ClubTrack. A resposta também não traz os dados do destinatário nem a remessa.
+
+## Quando usar
+
+- Acompanhar o `status` de um pedido: `pending` (em análise), `approved` (aprovado, aguardando pagamento), `fulfilled` (atendido) ou `rejected` (recusado).
+- Pegar o `checkout_url` de um pedido aprovado com valor a pagar, junto de `total_cents` e `allowed_payment_methods`.
+- Conferir se um pedido foi mesmo registrado depois de uma falha de conexão em [Criar pedido de dispositivo](/referencia/comercial/criar-pedido-de-dispositivo).
+
+## Autenticação e permissões
+
+Aceita chave de API ou login humano. Qualquer usuário da equipe do parceiro pode consultar. Parceiro suspenso ou inativo recebe 403. Com chave de API, a lista é a do parceiro dono da chave; com login humano, a da filial ativa. A matriz e as filiais não se misturam: cada uma vê só os pedidos feitos em nome dela. O guia de [autenticação](/guias/autenticacao) explica as duas formas e como escolher a filial quando o usuário tem mais de uma.
+
+## Parâmetros
+
+### Cabeçalhos
+
+<ParamField header="X-Api-Key" type="string" required>
+  Sua chave de API, no formato `ttk_` seguido de 40 caracteres. Você pode enviá-la também como
+  `Authorization: Bearer <chave>`. Se estiver chamando com o token de um usuário da equipe, envie só o `Authorization`.
+</ParamField>
+
+<ParamField header="X-Partner-Branch-Id" type="string (UUID)">
+  Filial em nome da qual o usuário está consultando. Só tem efeito no login humano, e só é obrigatório quando o usuário
+  pertence a mais de uma filial. Com chave de API, o cabeçalho é ignorado.
+</ParamField>
+
+### Consulta
+
+O único filtro é `status`. Mais detalhes em [Paginação, filtros e ordenação](/guias/paginacao-filtros-ordenacao). Esta lista
+não aceita ordenação por parâmetro: ela vem sempre do pedido mais novo para o mais antigo. Não envie `sort`, porque um `sort` na
+chamada desliga essa ordem sem pôr outra no lugar.
+
+<ParamField query="filter[status]" type="string">
+  Situação do pedido, comparação exata. Valores: `pending` (aguardando a análise da ClubTrack), `approved` (aprovado, com
+  pagamento pendente), `rejected` (recusado) e `fulfilled` (atendido). Aceita vários separados por vírgula:
+  `filter[status]=pending,approved`. Um valor que não existe não dá erro: a lista volta vazia.
+</ParamField>
+
+<ParamField query="per_page" type="integer" default="25">
+  Quantos pedidos vêm por página. Envie um inteiro positivo. Não há teto no servidor, mas páginas grandes ficam lentas:
+  prefira até 100 e vá paginando.
+</ParamField>
+
+<ParamField query="page" type="integer" default="1">
+  Número da página, começando em 1. Para percorrer tudo, siga `links.next` em vez de montar o número à mão.
+</ParamField>
+
+## Resposta
+
+Status `200`. O corpo traz a lista em `data`, os endereços de navegação em `links` e os totais em `meta`. Os campos de cada
+pedido são os mesmos de [Criar pedido de dispositivo](/referencia/comercial/criar-pedido-de-dispositivo), onde está o
+significado completo de cada um; aqui valem os desta lista e o que muda ao longo do pedido.
+
+<ResponseField name="data" type="object[]">
+  Os pedidos da página. Vem vazio (`[]`) quando nenhum pedido atende ao filtro.
+</ResponseField>
+
+<ResponseField name="data[].id" type="string (UUID)">
+  Identificador do pedido, o mesmo devolvido na criação.
+</ResponseField>
+
+<ResponseField name="data[].recipient_type" type="string">
+  Nesta lista, sempre `partner`: só entram os pedidos cujo destinatário é o seu parceiro.
+</ResponseField>
+
+<ResponseField name="data[].recipient_id" type="string (UUID)">
+  O `id` do seu parceiro, ou da filial ativa no login humano.
+</ResponseField>
+
+<ResponseField name="data[].model" type="string">
+  O modelo de aparelho que foi pedido.
+</ResponseField>
+
+<ResponseField name="data[].quantity" type="integer">
+  A quantidade de aparelhos pedida, um inteiro de 1 em diante.
+</ResponseField>
+
+<ResponseField name="data[].acquisition_model" type="string">
+  `comodato` (aparelhos emprestados pela ClubTrack ao seu parceiro) ou `purchased` (aparelhos comprados pelo seu parceiro).
+</ResponseField>
+
+<ResponseField name="data[].status" type="string">
+  `pending`: em análise. `approved`: aprovado; só aparece quando há valor a pagar e dura até a confirmação do pagamento.
+  `fulfilled`: atendido, com os aparelhos no estoque. `rejected`: recusado. Pedido aprovado sem nada a pagar passa direto
+  de `pending` a `fulfilled`.
+</ResponseField>
+
+<ResponseField name="data[].requested_by" type="string (UUID)">
+  O usuário da equipe do parceiro que fez o pedido.
+</ResponseField>
+
+<ResponseField name="data[].notes" type="string | null">
+  A observação enviada no pedido, ou `null`.
+</ResponseField>
+
+<ResponseField name="data[].identifier_from" type="string | null">
+  Primeiro identificador do intervalo de aparelhos reservado para o pedido. `null` até a aprovação.
+</ResponseField>
+
+<ResponseField name="data[].identifier_to" type="string | null">
+  Último identificador do intervalo reservado. `null` até a aprovação.
+</ResponseField>
+
+<ResponseField name="data[].unit_price_cents" type="integer | null">
+  Preço de cada aparelho, em centavos, definido na aprovação e só em `purchased`. `null` em `comodato` e antes da aprovação.
+</ResponseField>
+
+<ResponseField name="data[].shipping_cents" type="integer">
+  Frete em centavos, definido na aprovação. `0` antes disso e quando não há frete.
+</ResponseField>
+
+<ResponseField name="data[].total_cents" type="integer | null">
+  Valor a pagar, em centavos: preço da unidade vezes a quantidade, mais o frete. `0` quando não há nada a pagar. `null`
+  antes da aprovação.
+</ResponseField>
+
+<ResponseField name="data[].allowed_payment_methods" type="string[] | null">
+  Formas de pagamento liberadas, entre `card`, `boleto`, `pix_manual` e `pix_automatico`. `null` até a aprovação e quando
+  não há valor a pagar.
+</ResponseField>
+
+<ResponseField name="data[].payment_method" type="string | null">
+  Forma de pagamento usada, depois que o pagamento é feito. `null` antes disso.
+</ResponseField>
+
+<ResponseField name="data[].checkout_url" type="string">
+  Endereço da página de pagamento do pedido. Só vem no pedido aprovado com valor a pagar e que ainda não foi pago; nos demais
+  o campo não existe. Use o endereço exatamente como veio e nunca monte nem fixe esse endereço.
+</ResponseField>
+
+<ResponseField name="data[].created_at" type="string (data e hora ISO 8601)">
+  Quando o pedido foi criado, em UTC.
+</ResponseField>
+
+<ResponseField name="data[].updated_at" type="string (data e hora ISO 8601)">
+  Última alteração do pedido, em UTC.
+</ResponseField>
+
+<ResponseField name="links" type="object">
+  Endereços prontos para navegar: `first`, `last`, `prev` e `next`. Já trazem o filtro da chamada atual.
+  `prev` é `null` na primeira página e `next` é `null` na última.
+</ResponseField>
+
+<ResponseField name="meta" type="object">
+  `current_page`, `last_page`, `per_page`, `from`, `to` e `total` (quantos pedidos existem com esse filtro, somando todas
+  as páginas). `from` e `to` vêm `null` quando a lista está vazia. `meta.links` repete a navegação em formato de botões para
+  interfaces; quem integra por código usa o objeto `links`.
+</ResponseField>
+
+## Erros
+
+| Status | Quando acontece | O que fazer |
+|---|---|---|
+| 400 | Você enviou um filtro que a rota não aceita. A mensagem lista o nome aceito, em inglês. | Use só `filter[status]`. |
+| 400 | Login humano com usuário que tem mais de uma filial e sem `X-Partner-Branch-Id`. | Envie o cabeçalho com a filial desejada. |
+| 401 | Não há chave, a chave é inválida, foi revogada ou expirou. Com login humano: usuário inativo ou token expirado. | Confira a credencial. Revogação leva até 60 segundos para valer. |
+| 403 | O parceiro está suspenso ou inativo, ou a filial informada não pertence ao usuário. | Fale com a ClubTrack se o parceiro deveria estar ativo. |
+| 429 | Passou de 1000 chamadas por minuto com a chave. | Espere o tempo do cabeçalho `Retry-After` e repita. |
+
+Os status 401, 403 e 429 valem para qualquer chamada. O corpo é sempre `{"message": "..."}`; o guia de [erros](/guias/erros)
+traz os textos exatos.
+
+## Exemplos
+
+<RequestExample>
+
+```bash cURL
+curl --get "https://core.clubtrack.com.br/api/b2b/v1/device-orders" \
+  --header "X-Api-Key: $CLUBTRACK_API_KEY" \
+  --header "Accept: application/json" \
+  --data-urlencode "filter[status]=pending,approved" \
+  --data-urlencode "per_page=2"
+```
+
+```javascript JavaScript
+const params = new URLSearchParams({
+  "filter[status]": "pending,approved",
+  per_page: "2",
+});
+
+const resposta = await fetch(
+  `https://core.clubtrack.com.br/api/b2b/v1/device-orders?${params}`,
+  {
+    headers: {
+      "X-Api-Key": process.env.CLUBTRACK_API_KEY,
+      Accept: "application/json",
+    },
+  },
+);
+
+const pedidos = await resposta.json();
+```
+
+```python Python
+import os
+import requests
+
+resposta = requests.get(
+    "https://core.clubtrack.com.br/api/b2b/v1/device-orders",
+    headers={
+        "X-Api-Key": os.environ["CLUBTRACK_API_KEY"],
+        "Accept": "application/json",
+    },
+    params={
+        "filter[status]": "pending,approved",
+        "per_page": 2,
+    },
+    timeout=30,
+)
+
+pedidos = resposta.json()
+```
+
+```php PHP
+use GuzzleHttp\Client;
+
+$http = new Client(['base_uri' => 'https://core.clubtrack.com.br']);
+
+$resposta = $http->get('/api/b2b/v1/device-orders', [
+    'headers' => [
+        'X-Api-Key' => getenv('CLUBTRACK_API_KEY'),
+        'Accept' => 'application/json',
+    ],
+    'query' => [
+        'filter' => ['status' => 'pending,approved'],
+        'per_page' => 2,
+    ],
+]);
+
+$pedidos = json_decode((string) $resposta->getBody(), true);
+```
+
+</RequestExample>
+
+<ResponseExample>
+
+```json 200
+{
+  "data": [
+    {
+      "id": "019a0f3c-f000-7530-bf2b-3c92a45c2d1d",
+      "recipient_type": "partner",
+      "recipient_id": "019a0f3c-0000-7a36-8f98-0b409e8a22c8",
+      "model": "ClubTrack Tag v3",
+      "quantity": 5,
+      "acquisition_model": "comodato",
+      "status": "pending",
+      "requested_by": "019a0f3c-2000-7ff2-876c-1b9717c83a0c",
+      "notes": "Reposição de estoque da filial Sul",
+      "identifier_from": null,
+      "identifier_to": null,
+      "unit_price_cents": null,
+      "shipping_cents": 0,
+      "total_cents": null,
+      "allowed_payment_methods": null,
+      "payment_method": null,
+      "created_at": "2026-10-19T17:41:03+00:00",
+      "updated_at": "2026-10-19T17:41:03+00:00"
+    },
+    {
+      "id": "019a0f3c-f100-7530-bf2b-3c92a45c2d1e",
+      "recipient_type": "partner",
+      "recipient_id": "019a0f3c-0000-7a36-8f98-0b409e8a22c8",
+      "model": "ClubTrack Tag v3",
+      "quantity": 10,
+      "acquisition_model": "purchased",
+      "status": "approved",
+      "requested_by": "019a0f3c-2000-7ff2-876c-1b9717c83a0c",
+      "notes": null,
+      "identifier_from": "000000050000011",
+      "identifier_to": "000000050000020",
+      "unit_price_cents": 8900,
+      "shipping_cents": 3500,
+      "total_cents": 92500,
+      "allowed_payment_methods": [
+        "boleto",
+        "pix_manual"
+      ],
+      "payment_method": null,
+      "checkout_url": "https://exemplo.clubtrack.example/pedidos/checkout/?token=3b9f6d21-8a47-4c05-b1e2-6d0a7f4c9e58",
+      "created_at": "2026-10-14T12:10:27+00:00",
+      "updated_at": "2026-10-15T14:02:51+00:00"
+    }
+  ],
+  "links": {
+    "first": "https://core.clubtrack.com.br/api/b2b/v1/device-orders?filter%5Bstatus%5D=pending%2Capproved&per_page=2&page=1",
+    "last": "https://core.clubtrack.com.br/api/b2b/v1/device-orders?filter%5Bstatus%5D=pending%2Capproved&per_page=2&page=1",
+    "prev": null,
+    "next": null
+  },
+  "meta": {
+    "current_page": 1,
+    "from": 1,
+    "last_page": 1,
+    "links": [
+      { "url": null, "label": "&laquo; Previous", "active": false },
+      { "url": "https://core.clubtrack.com.br/api/b2b/v1/device-orders?filter%5Bstatus%5D=pending%2Capproved&per_page=2&page=1", "label": "1", "active": true },
+      { "url": null, "label": "Next &raquo;", "active": false }
+    ],
+    "path": "https://core.clubtrack.com.br/api/b2b/v1/device-orders",
+    "per_page": 2,
+    "to": 2,
+    "total": 2
+  }
+}
+```
+
+```json 400
+{
+  "message": "Requested filter(s) `situacao` are not allowed. Allowed filter(s) are `status`."
+}
+```
+
+```json 401
+{
+  "message": "API key inválida ou revogada."
+}
+```
+
+```json 403
+{
+  "message": "Parceiro inativo ou suspenso."
+}
+```
+
+</ResponseExample>
+
+## Detalhes que ajudam
+
+- O `status` só anda para frente: `pending` vira `approved` ou `rejected`, e `approved` vira `fulfilled`. `fulfilled` e `rejected` não mudam mais.
+- A API não avisa quando o status muda. Consulte a lista de tempos em tempos, respeitando o limite de 1000 chamadas por minuto.
+- Quando o pedido chega a `fulfilled`, os aparelhos aparecem em [Listar dispositivos](/referencia/rastreamento/listar-dispositivos), prontos para [vincular a um cliente](/referencia/vinculos-e-campos/vincular-dispositivo).
+- Uma lista vazia não é erro: volta `200` com `data` vazio.

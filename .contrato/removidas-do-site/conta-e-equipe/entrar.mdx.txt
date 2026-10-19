@@ -1,0 +1,186 @@
+---
+title: "Entrar com e-mail e senha"
+description: "Troca o e-mail e a senha de um usuário da equipe do parceiro por um token, que serve de credencial nas demais chamadas."
+api: "POST /api/b2b/v1/auth/login"
+---
+
+Esta chamada autentica uma pessoa da equipe do parceiro e devolve um token. Você a usa quando constrói uma tela de acesso: a pessoa digita e-mail e senha, o seu sistema chama esta rota e guarda o token para as chamadas seguintes, enviado em `Authorization: Bearer <token>`.
+
+Um sistema que fala com a ClubTrack sozinho, sem ninguém na frente, usa chave de API e não precisa desta chamada. O guia de [autenticação](/guias/autenticacao) explica quando escolher cada forma.
+
+<Warning>
+  Cada chamada que dá certo cria um token novo e não cancela os anteriores. Guarde o token e reaproveite-o em vez de entrar de novo a cada requisição.
+</Warning>
+
+## Quando usar
+
+- Num painel ou aplicativo do parceiro em que a equipe entra com a própria conta.
+- Para ler `user.role` e decidir se a tela mostra a gestão de usuários, que só o `owner` faz.
+- Depois de [definir uma senha pelo link recebido por e-mail](/referencia/conta-e-equipe/definir-senha-do-usuario), para confirmar que a senha nova funciona.
+
+## Autenticação e permissões
+
+Rota pública: não envie chave de API nem token. Qualquer usuário ativo da equipe, `owner` ou `operator`, pode entrar. A chamada não olha a situação do parceiro: se ele estiver suspenso, o login devolve o token e as chamadas seguintes respondem 403. Esta rota não entra na contagem de 1000 chamadas por minuto da chave de API. O guia de [autenticação](/guias/autenticacao) explica o token, os papéis e o uso de `X-Partner-Branch-Id`.
+
+## Parâmetros
+
+### Corpo
+
+Envie JSON, com `Content-Type: application/json`.
+
+<ParamField body="email" type="string" required>
+  E-mail do usuário, o mesmo que está cadastrado na conta. Precisa ter formato de e-mail válido; senão a resposta é 422. A busca é exata e diferencia maiúscula de minúscula, então envie o e-mail como foi cadastrado.
+</ParamField>
+
+<ParamField body="password" type="string" required>
+  Senha do usuário. Qualquer texto não vazio passa pela validação do formato; quem decide é a conferência com a conta. Não registre esse valor em log do seu sistema.
+</ParamField>
+
+## Resposta
+
+Status `200`. O corpo traz o token e os dados do usuário. Diferente das listas de usuários, `user` não traz `status` nem `created_at`.
+
+<ResponseField name="token" type="string">
+  Token de acesso do usuário, um texto opaco que você envia em `Authorization: Bearer <token>`. Não tem prazo próprio. Deixa de valer quando o usuário é desativado ou quando o acesso dele expira, e a API passa a responder 401 com `Usuário inativo.`. Trate-o como segredo e não dependa do formato do texto.
+</ResponseField>
+
+<ResponseField name="user" type="object">
+  Dados do usuário que entrou.
+</ResponseField>
+
+<ResponseField name="user.id" type="string (UUID)">
+  Identificador do usuário. É o mesmo `id` que aparece em [Listar usuários da equipe](/referencia/conta-e-equipe/listar-usuarios).
+</ResponseField>
+
+<ResponseField name="user.partner_id" type="string (UUID)">
+  Parceiro de origem do usuário, o principal ou uma filial. Quando o usuário tem acesso a mais de uma filial, a filial de cada chamada é a que você informa em `X-Partner-Branch-Id`. [Listar o hub e as filiais](/referencia/conta-e-equipe/listar-filiais) devolve os identificadores.
+</ResponseField>
+
+<ResponseField name="user.name" type="string">
+  Nome do usuário, com até 150 caracteres.
+</ResponseField>
+
+<ResponseField name="user.email" type="string">
+  E-mail do usuário, como está cadastrado.
+</ResponseField>
+
+<ResponseField name="user.role" type="string">
+  Papel do usuário. `owner` opera e também gerencia usuários. `operator` opera o dia a dia e não gerencia usuários.
+</ResponseField>
+
+## Erros
+
+| Status | Quando acontece | O que fazer |
+|---|---|---|
+| 401 | E-mail que não existe ou senha errada. A mensagem é a mesma nos dois casos: `Credenciais inválidas.` | Confira os dois campos. Se a pessoa esqueceu a senha, use [Recuperar acesso por e-mail](/referencia/conta-e-equipe/recuperar-senha). |
+| 401 | E-mail e senha corretos, mas o usuário foi desativado: `Usuário inativo.` | Fale com quem administra a conta do parceiro ou com a ClubTrack. |
+| 422 | `email` ou `password` ausente, ou `email` sem formato de e-mail. A mensagem vem em inglês. | Corrija o campo citado em `errors`. |
+
+Esta rota não devolve 403 nem 429. O corpo de erro é sempre `{"message": "..."}`; o guia de [erros](/guias/erros) traz os textos exatos.
+
+## Exemplos
+
+<RequestExample>
+
+```bash cURL
+curl --request POST "https://core.clubtrack.com.br/api/b2b/v1/auth/login" \
+  --header "Content-Type: application/json" \
+  --header "Accept: application/json" \
+  --data "{\"email\": \"carla@parceiro.example\", \"password\": \"$CLUBTRACK_USER_PASSWORD\"}"
+```
+
+```javascript JavaScript
+const resposta = await fetch("https://core.clubtrack.com.br/api/b2b/v1/auth/login", {
+  method: "POST",
+  headers: {
+    "Content-Type": "application/json",
+    Accept: "application/json",
+  },
+  body: JSON.stringify({
+    email: "carla@parceiro.example",
+    password: process.env.CLUBTRACK_USER_PASSWORD,
+  }),
+});
+
+const { token, user } = await resposta.json();
+```
+
+```python Python
+import os
+import requests
+
+resposta = requests.post(
+    "https://core.clubtrack.com.br/api/b2b/v1/auth/login",
+    headers={"Accept": "application/json"},
+    json={
+        "email": "carla@parceiro.example",
+        "password": os.environ["CLUBTRACK_USER_PASSWORD"],
+    },
+    timeout=30,
+)
+
+dados = resposta.json()
+```
+
+```php PHP
+use GuzzleHttp\Client;
+
+$http = new Client(['base_uri' => 'https://core.clubtrack.com.br']);
+
+$resposta = $http->post('/api/b2b/v1/auth/login', [
+    'headers' => ['Accept' => 'application/json'],
+    'json' => [
+        'email' => 'carla@parceiro.example',
+        'password' => getenv('CLUBTRACK_USER_PASSWORD'),
+    ],
+]);
+
+$dados = json_decode((string) $resposta->getBody(), true);
+```
+
+</RequestExample>
+
+<ResponseExample>
+
+```json 200
+{
+  "token": "1873|Tq4xN7vK2mB9cRzW5dLfHs8YpJgE3aUo1iXn6VbCe7a1b2c3",
+  "user": {
+    "id": "019a0f3c-2000-7ff2-876c-1b9717c83a0c",
+    "partner_id": "019a0f3c-0000-7a36-8f98-0b409e8a22c8",
+    "name": "Carla Menezes Exemplo",
+    "email": "carla@parceiro.example",
+    "role": "owner"
+  }
+}
+```
+
+```json 401
+{
+  "message": "Credenciais inválidas."
+}
+```
+
+```json 401
+{
+  "message": "Usuário inativo."
+}
+```
+
+```json 422
+{
+  "message": "The email field is required. (and 1 more error)",
+  "errors": {
+    "email": ["The email field is required."],
+    "password": ["The password field is required."]
+  }
+}
+```
+
+</ResponseExample>
+
+## Detalhes que ajudam
+
+- O token não é renovado nem encerrado por chamada. Para encerrar uma sessão, descarte o token no seu lado.
+- Se o acesso do usuário tem data de validade e ela já passou, o login ainda responde 200, mas a primeira chamada com o token responde 401 com `Usuário inativo.`.
+- O login não informa quais filiais o usuário pode acessar. Um usuário com mais de uma filial precisa de `X-Partner-Branch-Id` em toda chamada; sem ele, a resposta é 400.

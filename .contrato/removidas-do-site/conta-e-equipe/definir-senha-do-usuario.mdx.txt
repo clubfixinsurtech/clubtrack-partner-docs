@@ -1,0 +1,166 @@
+---
+title: "Definir senha pelo convite"
+description: "Define a senha de um usuário a partir do link assinado recebido por e-mail. Quem chama é a página do link, e não o seu sistema."
+api: "POST /api/b2b/v1/partner-users/{id}/password"
+---
+
+Esta chamada grava a senha escolhida por um usuário da equipe. Ela não é uma chamada de integração comum: não leva chave de API nem token. O que a autoriza é o próprio endereço, que a ClubTrack assina e entrega à pessoa por e-mail, no link de recuperação de senha ou no de boas-vindas enviado pela equipe da ClubTrack.
+
+Na prática, o seu sistema normalmente não chama esta rota. A pessoa clica no link do e-mail, abre uma página do Portal do Parceiro, digita a senha nova, e essa página faz a chamada. Esta página de referência serve a quem precisa entender o fluxo ou monta uma tela própria que recebe o endereço assinado.
+
+<Warning>
+  A chamada troca a senha de uma pessoa de verdade. Não existe ambiente de teste. Quem tiver o endereço assinado e ainda dentro do prazo consegue definir a senha dessa conta: trate-o como um segredo.
+</Warning>
+
+## Quando usar
+
+- Quase nunca pelo seu sistema. O caso comum é a página do Portal do Parceiro, aberta pelo link do e-mail.
+- Em uma tela sua que substitui a página do Portal e recebe o endereço assinado do e-mail de recuperação, para pedir a senha nova e enviá-la.
+
+## Autenticação e permissões
+
+Rota pública, protegida pela assinatura do endereço. Não envie `X-Api-Key` nem `Authorization`. O endereço traz `expires` e `signature` na consulta: sem os dois, com qualquer alteração no endereço ou depois do prazo, a resposta é 403. A chamada não olha a situação do parceiro. O guia de [autenticação](/guias/autenticacao) explica como o login funciona depois.
+
+## Parâmetros
+
+O endereço completo chega pronto no e-mail e tem este formato:
+
+```text
+https://core.clubtrack.com.br/api/b2b/v1/partner-users/019a0f3c-2000-7ff2-876c-1b9717c83a0c/password?expires=1792517530&signature=7087053776608fce6bb9b9bfb1a81e2e2a4c4dec898ca1469f4f0128777ebb43
+```
+
+Use-o exatamente como veio. A assinatura cobre o endereço inteiro, inclusive o servidor, a ordem e os valores da consulta: mudar qualquer parte invalida o link. O link do e-mail em si é o da página do Portal do Parceiro e carrega este endereço assinado no parâmetro `url`.
+
+### Caminho
+
+<ParamField path="id" type="string (UUID)" required>
+  Identificador do usuário que vai receber a senha nova. Vem dentro do endereço assinado e não pode ser trocado: o valor faz parte do que foi assinado.
+</ParamField>
+
+### Consulta
+
+<ParamField query="expires" type="integer" required>
+  Momento em que o link deixa de valer, como número de segundos desde 1º de janeiro de 1970, em UTC (timestamp Unix). Já vem no endereço. O link de recuperação de senha vale por 24 horas; o de boas-vindas, enviado pela equipe da ClubTrack, vale por 7 dias. Depois do prazo, a resposta é 403.
+</ParamField>
+
+<ParamField query="signature" type="string" required>
+  Assinatura do endereço, um texto hexadecimal de 64 caracteres. Já vem no endereço. O seu sistema não a calcula nem a gera: só a repassa como chegou.
+</ParamField>
+
+### Corpo
+
+Envie JSON, com `Content-Type: application/json`.
+
+<ParamField body="password" type="string" required>
+  Senha nova, com no mínimo 8 caracteres. A API não exige letras, números nem símbolos. Substitui a senha atual, se houver. Não registre esse valor em log.
+</ParamField>
+
+## Resposta
+
+Status `200`. A senha foi gravada. A chamada não faz login: a pessoa entra depois, com [e-mail e senha](/referencia/conta-e-equipe/entrar).
+
+<ResponseField name="message" type="string">
+  Texto fixo: `Senha definida com sucesso.`
+</ResponseField>
+
+## Erros
+
+| Status | Quando acontece | O que fazer |
+|---|---|---|
+| 403 | A assinatura não confere: o endereço foi alterado, falta `expires` ou `signature`, ou o prazo venceu. A mensagem é `Invalid signature.` | Peça um link novo em [Recuperar acesso por e-mail](/referencia/conta-e-equipe/recuperar-senha). Não tente corrigir o endereço à mão. |
+| 404 | O endereço é válido, mas o usuário não existe mais. | Fale com quem administra a conta do parceiro. |
+| 422 | `password` ausente ou com menos de 8 caracteres. A mensagem vem em inglês. | Corrija o campo citado em `errors`. O mesmo link continua valendo até o prazo. |
+
+Esta rota não devolve 401 nem 429. O corpo de erro é sempre `{"message": "..."}`; o guia de [erros](/guias/erros) traz os textos exatos.
+
+## Exemplos
+
+Nos exemplos, `CLUBTRACK_SIGNED_URL` guarda o endereço assinado completo, como veio no e-mail.
+
+<RequestExample>
+
+```bash cURL
+curl --request POST "$CLUBTRACK_SIGNED_URL" \
+  --header "Content-Type: application/json" \
+  --header "Accept: application/json" \
+  --data "{\"password\": \"$CLUBTRACK_NEW_PASSWORD\"}"
+```
+
+```javascript JavaScript
+const resposta = await fetch(process.env.CLUBTRACK_SIGNED_URL, {
+  method: "POST",
+  headers: {
+    "Content-Type": "application/json",
+    Accept: "application/json",
+  },
+  body: JSON.stringify({ password: process.env.CLUBTRACK_NEW_PASSWORD }),
+});
+
+const resultado = await resposta.json();
+```
+
+```python Python
+import os
+import requests
+
+resposta = requests.post(
+    os.environ["CLUBTRACK_SIGNED_URL"],
+    headers={"Accept": "application/json"},
+    json={"password": os.environ["CLUBTRACK_NEW_PASSWORD"]},
+    timeout=30,
+)
+
+resultado = resposta.json()
+```
+
+```php PHP
+use GuzzleHttp\Client;
+
+$http = new Client();
+
+$resposta = $http->post(getenv('CLUBTRACK_SIGNED_URL'), [
+    'headers' => ['Accept' => 'application/json'],
+    'json' => ['password' => getenv('CLUBTRACK_NEW_PASSWORD')],
+]);
+
+$resultado = json_decode((string) $resposta->getBody(), true);
+```
+
+</RequestExample>
+
+<ResponseExample>
+
+```json 200
+{
+  "message": "Senha definida com sucesso."
+}
+```
+
+```json 403
+{
+  "message": "Invalid signature."
+}
+```
+
+```json 404
+{
+  "message": "Recurso não encontrado."
+}
+```
+
+```json 422
+{
+  "message": "The password field must be at least 8 characters.",
+  "errors": {
+    "password": ["The password field must be at least 8 characters."]
+  }
+}
+```
+
+</ResponseExample>
+
+## Detalhes que ajudam
+
+- Dentro do prazo, o mesmo link aceita nova chamada, e cada uma troca a senha outra vez. Depois do prazo, só um link novo resolve.
+- A mensagem do 403 vem em inglês e é igual para link adulterado e para link vencido. Trate pelo status e, na sua tela, ofereça pedir um link novo.
+- O navegador não consegue executar esta chamada abrindo o endereço assinado, porque a rota só aceita `POST`. É por isso que o link do e-mail leva a uma página que pede a senha e a envia.

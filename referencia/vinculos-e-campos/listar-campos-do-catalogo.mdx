@@ -1,0 +1,250 @@
+---
+title: "Listar o catálogo de campos"
+description: "Devolve os campos personalizados do catálogo da sua rede, com ordem, visibilidade para o cliente, o teto de campos e se você pode administrá-lo."
+api: "GET /api/b2b/v1/custom-fields"
+---
+
+O catálogo é a lista de campos extras que o parceiro define para as Tags dos clientes, como placa, chassi ou condutor. Cada
+campo tem uma chave, um rótulo e regras sobre quem o vê e quem o preenche. Esta chamada devolve o catálogo inteiro, em uma
+só resposta, sem paginação.
+
+O catálogo pertence ao parceiro principal da rede, chamado de hub. As filiais leem o mesmo catálogo do hub e não o alteram.
+Por isso a resposta muda um pouco conforme quem chama: o hub recebe também o `default_value` de cada campo e `meta.can_manage`
+igual a `true`; a filial recebe os mesmos campos sem `default_value` e `meta.can_manage` igual a `false`. O conceito completo,
+com exemplos de uso, está no guia de [campos personalizados](/guias/campos-personalizados).
+
+## Quando usar
+
+- Para montar, no seu sistema, a lista de campos que existem antes de [criar um campo](/referencia/vinculos-e-campos/criar-campo-do-catalogo)
+  ou [editar um campo](/referencia/vinculos-e-campos/editar-campo-do-catalogo).
+- Para descobrir as chaves (`key`) que você pode gravar nas Tags com
+  [Gravar os campos de um vínculo](/referencia/vinculos-e-campos/gravar-campos-do-vinculo).
+- Para conferir quantos campos já existem (`meta.count`) e qual é o teto (`meta.limit`) antes de criar um novo.
+
+## Autenticação e permissões
+
+Use a chave de API. Parceiro
+suspenso recebe 403. A funcionalidade de campos personalizados é ligada pela ClubTrack para o parceiro principal: enquanto não
+estiver ligada, esta chamada responde 404 para o hub e para as filiais, sem dizer o motivo. O guia de
+[autenticação](/guias/autenticacao) explica a chave de API.
+
+## Parâmetros
+
+### Cabeçalhos
+
+Toda chamada leva a sua chave de API no cabeçalho `X-Api-Key`, que o campo de testes (Try it) pede no campo de autorização. Também vale enviá-la como `Authorization: Bearer <chave>`. Veja [Autenticação](/guias/autenticacao).
+
+### Consulta
+
+Esta chamada não tem filtros, ordenação nem paginação. Parâmetros de consulta enviados são ignorados.
+
+## Resposta
+
+Status `200`. O corpo traz a lista em `data` e os totais em `meta`. Sem nenhum campo criado ainda, `data` vem vazio (`[]`) e
+`meta.count` vem `0`. Os campos saem por `sort_order` crescente e, em caso de empate, por `key` em ordem alfabética. Campos
+inativos também aparecem.
+
+<ResponseField name="data" type="object[]">
+  Os campos do catálogo, todos, ativos e inativos.
+</ResponseField>
+
+<ResponseField name="data[].id" type="string (UUID)">
+  Identificador do campo no catálogo. É o valor que a chamada de [editar campo](/referencia/vinculos-e-campos/editar-campo-do-catalogo) pede em `{id}`.
+</ResponseField>
+
+<ResponseField name="data[].key" type="string">
+  Chave do campo: de 1 a 50 caracteres, começando por letra minúscula, só com letras minúsculas, números e sublinhado. É
+  o nome que você usa dentro de `values` ao gravar ou ler os campos de uma Tag. A chave não muda depois de criada.
+</ResponseField>
+
+<ResponseField name="data[].label" type="string">
+  Nome do campo como as pessoas o veem, de 1 a 100 caracteres. Pode ser alterado a qualquer momento.
+</ResponseField>
+
+<ResponseField name="data[].kind" type="string">
+  Sempre `custom`. Todo campo do catálogo é um campo personalizado, criado por parceiro, e tem a mesma forma: um texto de
+  até 255 caracteres por Tag.
+</ResponseField>
+
+<ResponseField name="data[].sort_order" type="integer">
+  Posição do campo na lista, a partir de 0. Menor aparece primeiro. Dois campos podem ter o mesmo número.
+</ResponseField>
+
+<ResponseField name="data[].is_active" type="boolean">
+  `true` quando o campo aceita novos valores; `false` quando foi desativado. Campo inativo continua no catálogo e continua
+  aparecendo nas Tags que já têm valor nele, mas ninguém grava valor novo.
+</ResponseField>
+
+<ResponseField name="data[].customer_visible" type="boolean">
+  `true` quando o cliente enxerga o campo e o valor na própria Tag. `false` quando o campo é só do parceiro.
+</ResponseField>
+
+<ResponseField name="data[].customer_editable" type="boolean">
+  `true` quando o cliente pode preencher e alterar o valor. Só pode ser `true` em campo com `customer_visible` igual a `true`.
+  O valor de campo que o cliente edita é do cliente: você lê, mas não grava pela API.
+</ResponseField>
+
+<ResponseField name="data[].default_value" type="string">
+  Texto de até 255 caracteres que passa a ser o valor do campo numa Tag quando ela recebe o primeiro valor de qualquer campo
+  (pelo parceiro ou pelo cliente), ou `null` quando não há valor padrão. Só o hub recebe este campo; na resposta de uma
+  filial ele não existe (nem como `null`).
+</ResponseField>
+
+<ResponseField name="meta" type="object">
+  Totais do catálogo: `limit`, `count` e `can_manage`.
+</ResponseField>
+
+<ResponseField name="meta.limit" type="integer">
+  Quantos campos o catálogo do seu hub pode ter, contando os inativos. Ao chegar nesse número, criar um campo novo responde 422.
+</ResponseField>
+
+<ResponseField name="meta.count" type="integer">
+  Quantos campos existem agora no catálogo, ativos e inativos. É o tamanho de `data`.
+</ResponseField>
+
+<ResponseField name="meta.can_manage" type="boolean">
+  `true` quando quem chama é o hub e pode criar e editar campos; `false` quando é uma filial, que só lê. É uma informação
+  para a sua tela: a permissão de criar e editar é conferida em cada chamada.
+</ResponseField>
+
+## Erros
+
+| Status | Quando acontece | O que fazer |
+|---|---|---|
+| 401 | Não há chave, a chave é inválida, foi revogada ou expirou. | Confira a credencial. Revogação leva até 60 segundos para valer. |
+| 403 | O parceiro está suspenso ou inativo. | Fale com a ClubTrack se o parceiro deveria estar ativo. |
+| 404 | `Recurso indisponível.`: a funcionalidade de campos personalizados ainda não está ligada para o seu parceiro. A resposta é a mesma para o hub e para a filial e não diz o motivo. | Peça à ClubTrack para ligar a funcionalidade no parceiro principal. |
+| 429 | Passou de 1000 chamadas por minuto com a chave. | Espere o tempo do cabeçalho `Retry-After` e repita. |
+
+Os status 401, 403 e 429 valem para qualquer chamada. O corpo é sempre `{"message": "..."}`; o guia de [erros](/guias/erros)
+traz os textos exatos.
+
+## Exemplos
+
+<RequestExample>
+
+```bash cURL
+curl --get "https://core.clubtrack.com.br/api/b2b/v1/custom-fields" \
+  --header "X-Api-Key: $CLUBTRACK_API_KEY" \
+  --header "Accept: application/json"
+```
+
+```javascript JavaScript
+const resposta = await fetch("https://core.clubtrack.com.br/api/b2b/v1/custom-fields", {
+  headers: {
+    "X-Api-Key": process.env.CLUBTRACK_API_KEY,
+    Accept: "application/json",
+  },
+});
+
+const catalogo = await resposta.json();
+```
+
+```python Python
+import os
+import requests
+
+resposta = requests.get(
+    "https://core.clubtrack.com.br/api/b2b/v1/custom-fields",
+    headers={
+        "X-Api-Key": os.environ["CLUBTRACK_API_KEY"],
+        "Accept": "application/json",
+    },
+    timeout=30,
+)
+
+catalogo = resposta.json()
+```
+
+```php PHP
+use GuzzleHttp\Client;
+
+$http = new Client(['base_uri' => 'https://core.clubtrack.com.br']);
+
+$resposta = $http->get('/api/b2b/v1/custom-fields', [
+    'headers' => [
+        'X-Api-Key' => getenv('CLUBTRACK_API_KEY'),
+        'Accept' => 'application/json',
+    ],
+]);
+
+$catalogo = json_decode((string) $resposta->getBody(), true);
+```
+
+</RequestExample>
+
+<ResponseExample>
+
+```json 200
+{
+  "data": [
+    {
+      "id": "019a0f3d-0000-7d48-ace5-9e6190fd83c8",
+      "key": "placa",
+      "label": "Placa",
+      "kind": "custom",
+      "sort_order": 0,
+      "is_active": true,
+      "customer_visible": true,
+      "customer_editable": true,
+      "default_value": null
+    },
+    {
+      "id": "019a0f3d-1000-7f4e-9eb3-70555a4d9693",
+      "key": "chassi",
+      "label": "Chassi",
+      "kind": "custom",
+      "sort_order": 1,
+      "is_active": true,
+      "customer_visible": true,
+      "customer_editable": false,
+      "default_value": null
+    },
+    {
+      "id": "019a0f3d-2000-7021-80e7-961680966262",
+      "key": "condutor",
+      "label": "Condutor",
+      "kind": "custom",
+      "sort_order": 2,
+      "is_active": true,
+      "customer_visible": false,
+      "customer_editable": false,
+      "default_value": null
+    }
+  ],
+  "meta": {
+    "limit": 20,
+    "count": 3,
+    "can_manage": true
+  }
+}
+```
+
+```json 401
+{
+  "message": "API key inválida ou revogada."
+}
+```
+
+```json 403
+{
+  "message": "Parceiro inativo ou suspenso."
+}
+```
+
+```json 404
+{
+  "message": "Recurso indisponível."
+}
+```
+
+</ResponseExample>
+
+## Detalhes que ajudam
+
+- Chamada de filial devolve os mesmos campos, na mesma ordem, mas cada item sai sem a chave `default_value`. Trate a ausência da
+  chave como "não informado", e não como `null`.
+- O catálogo não tem chamada de exclusão. Para tirar um campo de uso, [desative-o](/referencia/vinculos-e-campos/editar-campo-do-catalogo):
+  o campo e os valores já gravados são preservados.
+- A listagem de uma Tag, em [Ler os campos de um vínculo](/referencia/vinculos-e-campos/ler-campos-do-vinculo), mostra o valor de
+  cada campo naquela Tag. Esta página mostra a definição dos campos, sem valores.

@@ -1,0 +1,337 @@
+---
+title: "Listar clientes"
+description: "Devolve, em páginas, os clientes do seu parceiro, com filtros por nome, e-mail, situação e vínculo com Tag."
+api: "GET /api/b2b/v1/customers"
+---
+
+Esta chamada devolve os clientes cadastrados no seu parceiro, do mais novo para o mais antigo. Você usa para montar uma
+tela de busca, conferir se alguém já existe antes de cadastrar ou sincronizar a base da ClubTrack com a do seu sistema.
+
+Ela mostra só os clientes do parceiro dono da credencial. Cliente de outro parceiro não aparece, nem com filtro.
+Para ver as Tags de um cliente, use [Listar as Tags de um cliente](/referencia/clientes-e-enderecos/listar-tags-do-cliente).
+
+## Quando usar
+
+- Antes de [cadastrar um cliente](/referencia/clientes-e-enderecos/cadastrar-cliente): procure pelo `external_id` do seu sistema
+  ou pelo e-mail e evite criar o mesmo cliente duas vezes.
+- Para exibir a lista de clientes ativos que ainda não têm nenhuma Tag vinculada, e começar o vínculo.
+- Para uma rotina que lê a base inteira, página por página, até `links.next` vir `null`.
+
+## Autenticação e permissões
+
+Use a chave de API. Parceiro suspenso recebe 403.
+O guia de [autenticação](/guias/autenticacao) explica a chave de API.
+
+## Parâmetros
+
+### Cabeçalhos
+
+Toda chamada leva a sua chave de API no cabeçalho `X-Api-Key`, que o campo de testes (Try it) pede no campo de autorização. Também vale enviá-la como `Authorization: Bearer <chave>`. Veja [Autenticação](/guias/autenticacao).
+
+### Consulta
+
+Os filtros se combinam: cada filtro a mais restringe o resultado. Dentro de um mesmo filtro, separe valores por vírgula para
+aceitar qualquer um deles. Mais detalhes em [Paginação, filtros e ordenação](/guias/paginacao-filtros-ordenacao).
+
+<ParamField query="filter[name]" type="string">
+  Parte do nome do cliente. A busca encontra o texto em qualquer posição e não diferencia maiúscula de minúscula:
+  `filter[name]=souza` acha "Marina Souza Exemplo". Para razão social de empresa, vale a mesma regra.
+</ParamField>
+
+<ParamField query="filter[searchName]" type="string">
+  Também procura parte do nome, sem diferenciar maiúscula de minúscula. Na prática responde igual a `filter[name]`; use
+  o que preferir, mas não envie os dois ao mesmo tempo.
+</ParamField>
+
+<ParamField query="filter[email]" type="string">
+  E-mail do cliente, comparado por igualdade exata. "Marina@cliente.example" e "marina@cliente.example" são valores
+  diferentes, então envie o e-mail como o cadastrou. Aceita vários separados por vírgula.
+</ParamField>
+
+<ParamField query="filter[external_id]" type="string">
+  O identificador do cliente no **seu** sistema, que você enviou no cadastro. Comparação exata. É o jeito mais seguro de
+  ligar um cliente seu a um cliente da ClubTrack.
+</ParamField>
+
+<ParamField query="filter[phone]" type="string">
+  Parte do telefone, em qualquer posição. Compara o texto como foi cadastrado, então `filter[phone]=98765` acha
+  "11987654321", mas não acha "(11) 98765-4321" se ele tiver sido cadastrado com máscara.
+</ParamField>
+
+<ParamField query="filter[status]" type="string">
+  Situação do cliente, comparação exata. Valores: `active` (cliente em uso) e `inactive` (cliente desativado).
+  Aceita os dois separados por vírgula, mas aí o filtro não restringe nada.
+</ParamField>
+
+<ParamField query="filter[active]" type="string">
+  Atalho para clientes com situação `active`. O valor que você envia é ignorado (`filter[active]=1` basta), e não existe
+  forma de usar o atalho ao contrário: para ver os inativos, use `filter[status]=inactive`.
+</ParamField>
+
+<ParamField query="filter[withBinding]" type="string">
+  Devolve só os clientes que têm pelo menos uma Tag vinculada e ativa. O valor é ignorado (`filter[withBinding]=1`).
+  Note o nome em camelCase.
+</ParamField>
+
+<ParamField query="filter[withoutBinding]" type="string">
+  O oposto: clientes sem nenhuma Tag ativa, que ainda esperam o vínculo. O valor é ignorado.
+</ParamField>
+
+<ParamField query="sort" type="string" default="-created_at">
+  Campo de ordenação. Aceita `created_at`, `name` e `status`. Prefixe com `-` para ordem decrescente: `sort=name` vai de A a Z,
+  `sort=-created_at` traz os mais novos primeiro. Aceita mais de um campo separado por vírgula.
+</ParamField>
+
+<ParamField query="include" type="string">
+  Aceita `tagBindings` e `activeTagBindings`, mas hoje a resposta do cliente não traz as Tags. Para ver as Tags de um cliente,
+  use [Listar as Tags de um cliente](/referencia/clientes-e-enderecos/listar-tags-do-cliente).
+</ParamField>
+
+<ParamField query="per_page" type="integer" default="25">
+  Quantos clientes vêm por página. Envie um inteiro positivo. Não há teto no servidor, mas páginas grandes ficam lentas:
+  prefira até 100 e vá paginando.
+</ParamField>
+
+<ParamField query="page" type="integer" default="1">
+  Número da página, começando em 1. Para percorrer tudo, siga `links.next` em vez de montar o número à mão.
+</ParamField>
+
+## Resposta
+
+Status `200`. O corpo traz a lista em `data`, os endereços de navegação em `links` e os totais em `meta`.
+
+<ResponseField name="data" type="object[]">
+  Os clientes da página. Vem vazio (`[]`) quando nenhum cliente atende aos filtros.
+</ResponseField>
+
+<ResponseField name="data[].id" type="string (UUID)">
+  Identificador do cliente na ClubTrack. É o valor que você usa nas chamadas que pedem `customer_id` ou `{id}` de cliente.
+</ResponseField>
+
+<ResponseField name="data[].partner_id" type="string (UUID)">
+  Parceiro dono do cliente: sempre o seu.
+</ResponseField>
+
+<ResponseField name="data[].external_id" type="string">
+  O identificador que você deu ao cliente no cadastro. `null` quando não foi informado.
+</ResponseField>
+
+<ResponseField name="data[].name" type="string">
+  Nome da pessoa ou razão social da empresa, com até 150 caracteres.
+</ResponseField>
+
+<ResponseField name="data[].email" type="string">
+  E-mail do cliente. `null` quando não foi informado.
+</ResponseField>
+
+<ResponseField name="data[].phone" type="string">
+  Telefone como foi cadastrado, com até 20 caracteres. `null` quando não foi informado.
+</ResponseField>
+
+<ResponseField name="data[].cpf_cnpj" type="string">
+  CPF ou CNPJ do cliente, como foi cadastrado. `null` quando não foi informado.
+</ResponseField>
+
+<ResponseField name="data[].document_type" type="string">
+  Tipo do documento: `pessoa_fisica` ou `pessoa_juridica`.
+</ResponseField>
+
+<ResponseField name="data[].status" type="string">
+  Situação do cliente: `active` ou `inactive`.
+</ResponseField>
+
+<ResponseField name="data[].created_at" type="string (data e hora ISO 8601)">
+  Quando o cliente foi cadastrado, em UTC.
+</ResponseField>
+
+<ResponseField name="data[].updated_at" type="string (data e hora ISO 8601)">
+  Última alteração do cadastro, em UTC.
+</ResponseField>
+
+<ResponseField name="links" type="object">
+  Endereços prontos para navegar: `first`, `last`, `prev` e `next`. Já trazem os filtros e a ordenação da chamada atual.
+  `prev` é `null` na primeira página e `next` é `null` na última.
+</ResponseField>
+
+<ResponseField name="meta" type="object">
+  `current_page`, `last_page`, `per_page`, `from`, `to` e `total` (quantos clientes existem com esses filtros, somando todas
+  as páginas). `from` e `to` vêm `null` quando a lista está vazia. `meta.links` repete a navegação em formato de botões para
+  interfaces; quem integra por código usa o objeto `links`.
+</ResponseField>
+
+## Erros
+
+| Status | Quando acontece | O que fazer |
+|---|---|---|
+| 400 | Você enviou um filtro, uma ordenação ou uma inclusão que a rota não aceita. A mensagem lista os nomes aceitos, em inglês. | Corrija o nome do parâmetro. Os nomes diferenciam maiúscula de minúscula, e os filtros de vínculo usam camelCase. |
+| 401 | Não há chave, a chave é inválida, foi revogada ou expirou. | Confira a credencial. Revogação leva até 60 segundos para valer. |
+| 403 | O parceiro está suspenso ou inativo. | Fale com a ClubTrack se o parceiro deveria estar ativo. |
+| 429 | Passou de 1000 chamadas por minuto com a chave. | Espere o tempo do cabeçalho `Retry-After` e repita. |
+
+Os status 401, 403 e 429 valem para qualquer chamada. O corpo é sempre `{"message": "..."}`; o guia de [erros](/guias/erros)
+traz os textos exatos.
+
+## Exemplos
+
+<RequestExample>
+
+```bash cURL
+curl --get "https://core.clubtrack.com.br/api/b2b/v1/customers" \
+  --header "X-Api-Key: $CLUBTRACK_API_KEY" \
+  --header "Accept: application/json" \
+  --data-urlencode "filter[status]=active" \
+  --data-urlencode "filter[withoutBinding]=1" \
+  --data-urlencode "sort=name" \
+  --data-urlencode "per_page=2"
+```
+
+```javascript JavaScript
+const params = new URLSearchParams({
+  "filter[status]": "active",
+  "filter[withoutBinding]": "1",
+  sort: "name",
+  per_page: "2",
+});
+
+const resposta = await fetch(
+  `https://core.clubtrack.com.br/api/b2b/v1/customers?${params}`,
+  {
+    headers: {
+      "X-Api-Key": process.env.CLUBTRACK_API_KEY,
+      Accept: "application/json",
+    },
+  },
+);
+
+const clientes = await resposta.json();
+```
+
+```python Python
+import os
+import requests
+
+resposta = requests.get(
+    "https://core.clubtrack.com.br/api/b2b/v1/customers",
+    headers={
+        "X-Api-Key": os.environ["CLUBTRACK_API_KEY"],
+        "Accept": "application/json",
+    },
+    params={
+        "filter[status]": "active",
+        "filter[withoutBinding]": "1",
+        "sort": "name",
+        "per_page": 2,
+    },
+    timeout=30,
+)
+
+clientes = resposta.json()
+```
+
+```php PHP
+use GuzzleHttp\Client;
+
+$http = new Client(['base_uri' => 'https://core.clubtrack.com.br']);
+
+$resposta = $http->get('/api/b2b/v1/customers', [
+    'headers' => [
+        'X-Api-Key' => getenv('CLUBTRACK_API_KEY'),
+        'Accept' => 'application/json',
+    ],
+    'query' => [
+        'filter' => ['status' => 'active', 'withoutBinding' => '1'],
+        'sort' => 'name',
+        'per_page' => 2,
+    ],
+]);
+
+$clientes = json_decode((string) $resposta->getBody(), true);
+```
+
+</RequestExample>
+
+<ResponseExample>
+
+```json 200
+{
+  "data": [
+    {
+      "id": "019a0f3c-5000-765e-80f3-5b910b23203d",
+      "partner_id": "019a0f3c-0000-7a36-8f98-0b409e8a22c8",
+      "external_id": "CLI-000201",
+      "name": "Locadora Horizonte Exemplo Ltda",
+      "email": "contato@locadora.example",
+      "phone": "1133334444",
+      "cpf_cnpj": "11222333000181",
+      "document_type": "pessoa_juridica",
+      "status": "active",
+      "created_at": "2026-10-12T13:05:44+00:00",
+      "updated_at": "2026-10-12T13:05:44+00:00"
+    },
+    {
+      "id": "019a0f3c-4000-7f9e-9687-b620b4389874",
+      "partner_id": "019a0f3c-0000-7a36-8f98-0b409e8a22c8",
+      "external_id": "CLI-000184",
+      "name": "Marina Souza Exemplo",
+      "email": "marina@cliente.example",
+      "phone": "11987654321",
+      "cpf_cnpj": "52998224725",
+      "document_type": "pessoa_fisica",
+      "status": "active",
+      "created_at": "2026-10-05T18:22:09+00:00",
+      "updated_at": "2026-10-07T11:40:31+00:00"
+    }
+  ],
+  "links": {
+    "first": "https://core.clubtrack.com.br/api/b2b/v1/customers?filter%5Bstatus%5D=active&filter%5BwithoutBinding%5D=1&sort=name&per_page=2&page=1",
+    "last": "https://core.clubtrack.com.br/api/b2b/v1/customers?filter%5Bstatus%5D=active&filter%5BwithoutBinding%5D=1&sort=name&per_page=2&page=3",
+    "prev": null,
+    "next": "https://core.clubtrack.com.br/api/b2b/v1/customers?filter%5Bstatus%5D=active&filter%5BwithoutBinding%5D=1&sort=name&per_page=2&page=2"
+  },
+  "meta": {
+    "current_page": 1,
+    "from": 1,
+    "last_page": 3,
+    "links": [
+      { "url": null, "label": "&laquo; Previous", "active": false },
+      { "url": "https://core.clubtrack.com.br/api/b2b/v1/customers?filter%5Bstatus%5D=active&filter%5BwithoutBinding%5D=1&sort=name&per_page=2&page=1", "label": "1", "active": true },
+      { "url": "https://core.clubtrack.com.br/api/b2b/v1/customers?filter%5Bstatus%5D=active&filter%5BwithoutBinding%5D=1&sort=name&per_page=2&page=2", "label": "2", "active": false },
+      { "url": "https://core.clubtrack.com.br/api/b2b/v1/customers?filter%5Bstatus%5D=active&filter%5BwithoutBinding%5D=1&sort=name&per_page=2&page=3", "label": "3", "active": false },
+      { "url": "https://core.clubtrack.com.br/api/b2b/v1/customers?filter%5Bstatus%5D=active&filter%5BwithoutBinding%5D=1&sort=name&per_page=2&page=2", "label": "Next &raquo;", "active": false }
+    ],
+    "path": "https://core.clubtrack.com.br/api/b2b/v1/customers",
+    "per_page": 2,
+    "to": 2,
+    "total": 5
+  }
+}
+```
+
+```json 400
+{
+  "message": "Requested filter(s) `with_binding` are not allowed. Allowed filter(s) are `name, email, status, external_id, phone, active, searchName, withBinding, withoutBinding`."
+}
+```
+
+```json 401
+{
+  "message": "API key inválida ou revogada."
+}
+```
+
+```json 403
+{
+  "message": "Parceiro inativo ou suspenso."
+}
+```
+
+</ResponseExample>
+
+## Detalhes que ajudam
+
+- A resposta não traz endereços nem Tags do cliente. Cada um tem a sua chamada.
+- O `total` conta os clientes que atendem aos filtros, e não a base inteira. Uma lista vazia não é erro: volta `200` com
+  `data` vazio.
+- Para sincronizar a base inteira, percorra as páginas seguindo `links.next` e guarde o `id` de cada cliente junto do seu
+  `external_id`. Se você mudar a ordenação no meio do percurso, comece de novo.
+- A mensagem do erro `400` vem em inglês e cita os nomes aceitos. Trate pelo status, não pelo texto.

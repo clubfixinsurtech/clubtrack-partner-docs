@@ -1,0 +1,213 @@
+{
+  "$schema": "https://mintlify.com/docs.json",
+  "theme": "mint",
+  "name": "ClubTrack para parceiros",
+  "description": "Documentação da API B2B da ClubTrack: autenticação, clientes, Tags, assinaturas, localização e cercas virtuais.",
+  "colors": {
+    "primary": "#2357E6",
+    "light": "#8FB0FF",
+    "dark": "#2357E6"
+  },
+  "favicon": "/favicon.png",
+  "logo": {
+    "light": "/logo/clubtrack-horizontal.png",
+    "dark": "/logo/clubtrack-horizontal-branco.png",
+    "href": "https://clubtrack.com.br"
+  },
+  "appearance": {
+    "default": "light",
+    "strict": false
+  },
+  "background": {
+    "color": {
+      "light": "#F7F9FC",
+      "dark": "#0B1220"
+    }
+  },
+  "fonts": {
+    "family": "Manrope"
+  },
+  "styling": {
+    "eyebrows": "breadcrumbs",
+    "codeblocks": "system"
+  },
+  "api": {
+    "mdx": {
+      "server": "https://core.clubtrack.com.br",
+      "auth": {
+        "method": "key",
+        "name": "X-Api-Key"
+      }
+    },
+    "playground": {
+      "display": "interactive",
+      "proxy": false,
+      "credentials": false
+    },
+    "examples": {
+      "languages": [
+        "curl",
+        "javascript",
+        "python",
+        "php"
+      ],
+      "prefill": false
+    }
+  },
+  "navigation": {
+    "languages": [
+      {
+        "language": "pt-BR",
+        "tabs": [
+          {
+            "tab": "Guias",
+            "icon": "book-open",
+            "groups": [
+              {
+                "group": "Comece aqui",
+                "icon": "rocket",
+                "pages": [
+                  "index",
+                  "primeira-chamada"
+                ]
+              },
+              {
+                "group": "Como a API funciona",
+                "icon": "compass",
+                "pages": [
+                  "guias/autenticacao",
+                  "guias/convencoes",
+                  "guias/paginacao-filtros-ordenacao",
+                  "guias/erros",
+                  "guias/limites-e-boas-praticas"
+                ]
+              },
+              {
+                "group": "Integrações completas",
+                "icon": "diagram-project",
+                "pages": [
+                  "guias/fluxo-de-venda",
+                  "guias/campos-personalizados",
+                  "guias/webhook"
+                ]
+              },
+              {
+                "group": "Acompanhe",
+                "icon": "clock-rotate-left",
+                "pages": [
+                  "historico-de-mudancas"
+                ]
+              }
+            ]
+          },
+          {
+            "tab": "Referência da API",
+            "icon": "code",
+            "groups": [
+              {
+                "group": "Visão geral",
+                "icon": "list",
+                "pages": [
+                  "referencia/index"
+                ]
+              },
+              {
+                "group": "Parceiro e filiais",
+                "icon": "building",
+                "pages": [
+                  "referencia/conta-e-equipe/consultar-perfil",
+                  "referencia/conta-e-equipe/listar-filiais"
+                ]
+              },
+              {
+                "group": "Clientes e endereços",
+                "icon": "address-book",
+                "pages": [
+                  "referencia/clientes-e-enderecos/cadastrar-cliente",
+                  "referencia/clientes-e-enderecos/listar-clientes",
+                  "referencia/clientes-e-enderecos/consultar-cliente",
+                  "referencia/clientes-e-enderecos/listar-tags-do-cliente",
+                  "referencia/clientes-e-enderecos/cadastrar-endereco",
+                  "referencia/clientes-e-enderecos/listar-enderecos",
+                  "referencia/clientes-e-enderecos/definir-endereco-principal"
+                ]
+              },
+              {
+                "group": "Vínculos e campos personalizados",
+                "icon": "link",
+                "pages": [
+                  "referencia/vinculos-e-campos/vincular-dispositivo",
+                  "referencia/vinculos-e-campos/listar-campos-do-catalogo",
+                  "referencia/vinculos-e-campos/criar-campo-do-catalogo",
+                  "referencia/vinculos-e-campos/editar-campo-do-catalogo",
+                  "referencia/vinculos-e-campos/ler-campos-do-vinculo",
+                  "referencia/vinculos-e-campos/gravar-campos-do-vinculo"
+                ]
+              },
+              {
+                "group": "Tags, dispositivos e posições",
+                "icon": "location-dot",
+                "pages": [
+                  "referencia/rastreamento/listar-tags",
+                  "referencia/rastreamento/consultar-trajeto",
+                  "referencia/rastreamento/consultar-distancia",
+                  "referencia/rastreamento/listar-dispositivos",
+                  "referencia/rastreamento/consultar-dispositivo",
+                  "referencia/rastreamento/listar-posicoes",
+                  "referencia/rastreamento/ultima-posicao"
+                ]
+              },
+              {
+                "group": "Planos, assinaturas e pedidos",
+                "icon": "file-invoice-dollar",
+                "pages": [
+                  "referencia/comercial/listar-planos",
+                  "referencia/comercial/criar-assinatura",
+                  "referencia/comercial/listar-assinaturas",
+                  "referencia/comercial/consultar-assinatura",
+                  "referencia/comercial/reenviar-link-de-pagamento"
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  "navbar": {
+    "links": [
+      {
+        "label": "Site da ClubTrack",
+        "href": "https://clubtrack.com.br"
+      }
+    ]
+  },
+  "footer": {
+    "socials": {}
+  },
+  "thumbnails": {
+    "appearance": "light",
+    "background": "/images/og-fundo.png",
+    "fonts": {
+      "family": "Manrope"
+    }
+  },
+  "contextual": {
+    "options": [
+      "copy",
+      "view",
+      "chatgpt",
+      "claude"
+    ]
+  },
+  "seo": {
+    "organization": {
+      "name": "ClubTrack",
+      "url": "https://clubtrack.com.br"
+    }
+  },
+  "banner": {
+    "content": "**API em BETA.** Para dúvidas, bugs ou ajuda na integração, fale com a ClubTrack pelos canais que você já conhece.",
+    "dismissible": false
+  }
+}

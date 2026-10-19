@@ -1,0 +1,210 @@
+---
+title: "Enviar o logo do parceiro"
+description: "Troca o logo do parceiro principal por uma imagem de até 2 MB. As filiais passam a mostrar o mesmo logo."
+api: "POST /api/b2b/v1/partner/logo"
+---
+
+Esta chamada envia a imagem do logo do parceiro. O arquivo vai no corpo da requisição, em `multipart/form-data`, no campo `logo`. A resposta é o perfil do parceiro, com o novo `logo_url`.
+
+Só o parceiro principal (o hub) tem logo próprio. As filiais usam o do principal e não conseguem enviar um logo à parte. Quem lê o logo é a tela do Portal do Parceiro e o seu sistema, pelo campo `logo_url` de [Consultar o perfil do parceiro](/referencia/conta-e-equipe/consultar-perfil).
+
+<Warning>
+  A chamada troca o logo de verdade: a imagem nova substitui a anterior, que é apagada, e passa a aparecer para o parceiro principal e para todas as suas filiais. Não existe ambiente de teste. Se enviar uma imagem errada, envie a certa em seguida.
+</Warning>
+
+## Quando usar
+
+- Na tela de configuração do parceiro, quando a equipe sobe a marca nova.
+- Para manter o logo do Portal do Parceiro igual ao que o seu sistema usa, sem pedir a troca à equipe da ClubTrack.
+
+## Autenticação e permissões
+
+Aceita chave de API ou login humano. Com chave de API, qualquer chave do parceiro **principal** pode enviar o logo. Com login, só o usuário `owner`; um `operator` recebe 403. Uma chave de filial, ou um login em nome de uma filial, recebe 422 porque a filial não tem logo próprio. Parceiro suspenso recebe 403. O guia de [autenticação](/guias/autenticacao) explica as duas formas e como escolher a filial.
+
+## Parâmetros
+
+### Cabeçalhos
+
+<ParamField header="X-Api-Key" type="string" required>
+  Sua chave de API, no formato `ttk_` seguido de 40 caracteres. Você pode enviá-la também como
+  `Authorization: Bearer <chave>`. Se estiver chamando com o token de um usuário da equipe, envie só o `Authorization`.
+</ParamField>
+
+<ParamField header="X-Partner-Branch-Id" type="string (UUID)">
+  Filial em nome da qual o usuário está chamando. Só tem efeito no login humano, e só é obrigatório quando o usuário
+  pertence a mais de uma filial. Para enviar o logo, o valor precisa ser o do parceiro principal. Com chave de API, o cabeçalho é ignorado.
+</ParamField>
+
+<ParamField header="Content-Type" type="string">
+  `multipart/form-data`. A maioria dos clientes HTTP o define sozinha, com o separador correto, quando você passa o arquivo como parte de um formulário. Não monte esse cabeçalho à mão.
+</ParamField>
+
+### Corpo
+
+<ParamField body="logo" type="file" required>
+  O arquivo de imagem. Formatos aceitos: JPG, JPEG, PNG, GIF, BMP, WEBP, AVIF, HEIC e HEIF. SVG não é aceito. O tamanho máximo é 2048 KB (2 MB). A API não limita largura nem altura e não recorta nem redimensiona a imagem: envie no tamanho e na proporção em que ela deve aparecer.
+</ParamField>
+
+## Resposta
+
+Status `200`. O corpo traz o perfil do parceiro, no mesmo formato de [Consultar o perfil do parceiro](/referencia/conta-e-equipe/consultar-perfil).
+
+<ResponseField name="data.id" type="string (UUID)">
+  Identificador do parceiro principal.
+</ResponseField>
+
+<ResponseField name="data.name" type="string">
+  Nome do parceiro principal, como está cadastrado.
+</ResponseField>
+
+<ResponseField name="data.logo_url" type="string">
+  Endereço público completo do logo que acabou de ser salvo. É um endereço novo a cada envio, e o anterior deixa de existir.
+</ResponseField>
+
+<ResponseField name="data.is_hub" type="boolean">
+  Sempre `true` neste retorno, porque só o parceiro principal envia logo.
+</ResponseField>
+
+<ResponseField name="data.billing_model" type="string">
+  Modelo de cobrança do parceiro: `per_subscription` ou `consolidated_postpaid`. Está descrito em [Consultar o perfil do parceiro](/referencia/conta-e-equipe/consultar-perfil). O envio do logo não o altera.
+</ResponseField>
+
+## Erros
+
+| Status | Quando acontece | O que fazer |
+|---|---|---|
+| 400 | Login humano com usuário que tem mais de uma filial e sem `X-Partner-Branch-Id`. | Envie o cabeçalho com o parceiro principal. |
+| 401 | Não há chave, a chave é inválida, foi revogada ou expirou. Com login humano: usuário inativo ou token expirado. | Confira a credencial. Revogação leva até 60 segundos para valer. |
+| 403 | Login de usuário `operator`: `Papel 'operator' não pode alterar a logo do parceiro.` Ou o parceiro está suspenso ou inativo, ou a filial informada não pertence ao usuário. | Use um usuário `owner` ou uma chave de API. Se o parceiro deveria estar ativo, fale com a ClubTrack. |
+| 422 | O arquivo falta, não é imagem de um formato aceito, ou passa de 2048 KB. A mensagem vem em inglês. | Corrija o arquivo. O campo citado em `errors` é sempre `logo`. |
+| 422 | A credencial é de uma filial: o texto está logo abaixo da tabela. | Envie o logo com a credencial do parceiro principal. |
+| 429 | Passou de 1000 chamadas por minuto com a chave. | Espere o tempo do cabeçalho `Retry-After` e repita. |
+
+Mensagem exata do 422 para filial:
+
+```text
+Só o hub pode ter logo própria — filial herda a do hub.
+```
+
+Os status 401, 403 e 429 valem para qualquer chamada. O corpo é sempre `{"message": "..."}`; o guia de [erros](/guias/erros)
+traz os textos exatos.
+
+## Exemplos
+
+<RequestExample>
+
+```bash cURL
+curl --request POST "https://core.clubtrack.com.br/api/b2b/v1/partner/logo" \
+  --header "X-Api-Key: $CLUBTRACK_API_KEY" \
+  --header "Accept: application/json" \
+  --form "logo=@logo-exemplo-mobilidade.png"
+```
+
+```javascript JavaScript
+import { readFile } from "node:fs/promises";
+
+const arquivo = await readFile("logo-exemplo-mobilidade.png");
+
+const formulario = new FormData();
+formulario.append(
+  "logo",
+  new Blob([arquivo], { type: "image/png" }),
+  "logo-exemplo-mobilidade.png",
+);
+
+const resposta = await fetch("https://core.clubtrack.com.br/api/b2b/v1/partner/logo", {
+  method: "POST",
+  headers: {
+    "X-Api-Key": process.env.CLUBTRACK_API_KEY,
+    Accept: "application/json",
+  },
+  body: formulario,
+});
+
+const { data: parceiro } = await resposta.json();
+```
+
+```python Python
+import os
+import requests
+
+with open("logo-exemplo-mobilidade.png", "rb") as arquivo:
+    resposta = requests.post(
+        "https://core.clubtrack.com.br/api/b2b/v1/partner/logo",
+        headers={
+            "X-Api-Key": os.environ["CLUBTRACK_API_KEY"],
+            "Accept": "application/json",
+        },
+        files={"logo": ("logo-exemplo-mobilidade.png", arquivo, "image/png")},
+        timeout=60,
+    )
+
+parceiro = resposta.json()["data"]
+```
+
+```php PHP
+use GuzzleHttp\Client;
+
+$http = new Client(['base_uri' => 'https://core.clubtrack.com.br']);
+
+$resposta = $http->post('/api/b2b/v1/partner/logo', [
+    'headers' => [
+        'X-Api-Key' => getenv('CLUBTRACK_API_KEY'),
+        'Accept' => 'application/json',
+    ],
+    'multipart' => [
+        [
+            'name' => 'logo',
+            'contents' => fopen('logo-exemplo-mobilidade.png', 'r'),
+            'filename' => 'logo-exemplo-mobilidade.png',
+        ],
+    ],
+]);
+
+$parceiro = json_decode((string) $resposta->getBody(), true)['data'];
+```
+
+</RequestExample>
+
+<ResponseExample>
+
+```json 200
+{
+  "data": {
+    "id": "019a0f3c-0000-7a36-8f98-0b409e8a22c8",
+    "name": "Exemplo Mobilidade Ltda",
+    "logo_url": "https://core.clubtrack.com.br/storage/partner-logos/q8W3nKd7Zt1LxYb4RcPv0HsJe9GmUaF2oTiNh5Vb.png",
+    "is_hub": true,
+    "billing_model": "per_subscription"
+  }
+}
+```
+
+```json 403
+{
+  "message": "Papel 'operator' não pode alterar a logo do parceiro."
+}
+```
+
+```json 422
+{
+  "message": "The logo field must be an image.",
+  "errors": {
+    "logo": ["The logo field must be an image."]
+  }
+}
+```
+
+```json 422
+{
+  "message": "Só o hub pode ter logo própria — filial herda a do hub."
+}
+```
+
+</ResponseExample>
+
+## Detalhes que ajudam
+
+- Enviar o mesmo arquivo duas vezes gera dois endereços diferentes; o primeiro deixa de existir. Guarde só o `logo_url` mais recente.
+- A resposta traz o perfil, não o arquivo. Para exibir o logo, use `logo_url` direto numa tag de imagem.
+- Se o arquivo passar de 2048 KB, a resposta é 422. Reduza o arquivo antes de enviar.

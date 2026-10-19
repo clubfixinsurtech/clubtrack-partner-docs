@@ -1,0 +1,344 @@
+---
+title: "Cadastrar cliente"
+description: "Cria um cliente no seu parceiro. Com e-mail, a ClubTrack envia a ele o convite para definir a senha. Valida CPF e CNPJ."
+api: "POST /api/b2b/v1/customers"
+---
+
+Esta chamada cadastra uma pessoa ou uma empresa como cliente do seu parceiro. O cliente é o titular a quem você depois
+[vincula um dispositivo](/referencia/vinculos-e-campos/vincular-dispositivo) e para quem
+[cria a assinatura](/referencia/comercial/criar-assinatura). Só o nome é obrigatório. Os outros dados ajudam a ligar o cliente ao seu
+sistema (`external_id`), a cobrar (`cpf_cnpj`) e a falar com ele (`email` e `phone`).
+
+O cliente nasce com `status` igual a `active` e sempre dentro do parceiro dono da credencial: a chamada não aceita informar outro parceiro.
+Ela cadastra só o cliente. Endereço e Tags têm chamadas próprias, em
+[Cadastrar endereço](/referencia/clientes-e-enderecos/cadastrar-endereco) e em
+[Vincular dispositivo a um cliente](/referencia/vinculos-e-campos/vincular-dispositivo).
+
+<Warning>
+  Esta chamada grava de verdade e não existe ambiente de teste. Se você informar `email`, a ClubTrack envia ao cliente, na hora,
+  uma mensagem com o assunto "Defina a senha da sua conta Clubtrack" e um botão "Definir senha". O link vale 60 minutos e leva o
+  cliente a criar a senha de acesso dele. Sem `email`, nada é enviado. Esta API não tem chamada para alterar nem para excluir um
+  cliente: use dados reais e confira tudo antes de enviar. Para corrigir um cadastro, fale com a ClubTrack.
+</Warning>
+
+## Quando usar
+
+- Quando uma pessoa ou empresa do seu sistema ainda não existe na ClubTrack, antes de vincular o primeiro dispositivo a ela.
+  Procure primeiro em [Listar clientes](/referencia/clientes-e-enderecos/listar-clientes), pelo `external_id` ou pelo e-mail.
+- Para cadastrar uma empresa como cliente, com `document_type` igual a `pessoa_juridica` e o CNPJ em `cpf_cnpj`.
+- Para cadastrar um cliente sem e-mail, quando você só precisa identificá-lo no seu sistema e não quer que ele receba o convite
+  de acesso.
+
+## Autenticação e permissões
+
+Use a chave de API. Parceiro suspenso recebe 403.
+O guia de [autenticação](/guias/autenticacao) explica a chave de API.
+
+## Parâmetros
+
+### Cabeçalhos
+
+Toda chamada leva a sua chave de API no cabeçalho `X-Api-Key`, que o campo de testes (Try it) pede no campo de autorização. Também vale enviá-la como `Authorization: Bearer <chave>`. Veja [Autenticação](/guias/autenticacao).
+
+<ParamField header="Content-Type" type="string" default="application/json">
+  Envie `application/json`. O corpo da chamada é um objeto JSON.
+</ParamField>
+
+### Corpo
+
+Campo que a chamada não conhece é ignorado, sem erro. É o caso de `partner_id` (o cliente sempre entra no parceiro da credencial)
+e de `cpf`: o documento vai em `cpf_cnpj`.
+
+<ParamField body="name" type="string" required>
+  Nome da pessoa ou razão social da empresa, com 1 a 150 caracteres. É o único campo obrigatório. É o texto que a busca por nome
+  de [Listar clientes](/referencia/clientes-e-enderecos/listar-clientes) procura. Exemplo: `Marina Souza Exemplo`.
+</ParamField>
+
+<ParamField body="external_id" type="string">
+  O identificador do cliente no **seu** sistema, com até 100 caracteres. Volta na resposta e permite achar o cliente depois com
+  `filter[external_id]`. A ClubTrack não confere se ele é único: dois clientes podem ter o mesmo `external_id`, então a
+  checagem de duplicidade é sua (veja "Detalhes que ajudam"). Envie como texto: um número JSON, como `184`, é recusado.
+  Omitido ou vazio fica `null`. Exemplo: `CLI-000184`.
+</ParamField>
+
+<ParamField body="email" type="string">
+  E-mail do cliente, com formato válido e até 150 caracteres. Omitido ou vazio fica `null`. Duas coisas dependem dele.
+  Primeiro, o convite para definir a senha só é enviado se houver e-mail. Segundo, o e-mail é único em toda a ClubTrack:
+  um e-mail que já pertence a um cliente, seu ou de outro parceiro, é recusado com `422`. A comparação é feita com o texto
+  exatamente como você enviou e diferencia maiúscula de minúscula, então padronize no seu sistema (por exemplo, sempre em
+  minúsculas). Exemplo: `marina@cliente.example`.
+</ParamField>
+
+<ParamField body="phone" type="string">
+  Telefone do cliente. A validação aceita até 20 caracteres, mas envie só dígitos, com DDD e sem máscara: `11987654321` (11
+  dígitos) ou `5511987654321` (13 dígitos, com o 55 na frente). Não passe de 13 caracteres. A ClubTrack lê este número quando precisa
+  mandar um SMS ao cliente, como o aviso de que uma Tag entrou ou saiu de uma cerca, e só envia para celular brasileiro nesses
+  formatos. Fixo ou número em outro formato fica gravado, mas não recebe SMS. Omitido ou vazio fica `null`.
+  Exemplo: `11987654321`.
+</ParamField>
+
+<ParamField body="cpf_cnpj" type="string">
+  CPF ou CNPJ do cliente, com até 14 caracteres. A ClubTrack confere os dígitos verificadores, e a regra aplicada depende de
+  `document_type`. Com `pessoa_fisica` (ou sem `document_type`), o valor precisa ser um CPF válido: 11 dígitos, e sequências
+  como `11111111111` são recusadas. Com `pessoa_juridica`, precisa ser um CNPJ válido de 14 caracteres. O CNPJ pode ser o
+  alfanumérico: os 12 primeiros caracteres aceitam números e letras maiúsculas, e os 2 últimos são sempre números. O valor é gravado exatamente como você enviou. Envie sem pontos,
+  barra nem hífen: um CNPJ com máscara passa de 14 caracteres e é recusado. Omitido ou vazio fica `null`.
+  Exemplo: `52998224725`.
+</ParamField>
+
+<ParamField body="document_type" type="string" default="pessoa_fisica">
+  Tipo do documento, que diz como `cpf_cnpj` é validado. Valores: `pessoa_fisica` (pessoa, valida como CPF) e
+  `pessoa_juridica` (empresa, valida como CNPJ). Omitido ou `null` vale `pessoa_fisica`. Se você enviar um CNPJ sem declarar
+  `pessoa_juridica`, ele é validado como CPF e recusado. Outro valor responde `422`. Exemplo: `pessoa_fisica`.
+</ParamField>
+
+## Resposta
+
+Status `201`. O corpo traz o cliente criado em `data`. Guarde o `id`: é ele que as outras chamadas pedem como `customer_id`
+ou `{id}` de cliente.
+
+<ResponseField name="data.id" type="string (UUID)">
+  Identificador do cliente na ClubTrack. Use-o em [Consultar cliente](/referencia/clientes-e-enderecos/consultar-cliente), em
+  [Vincular dispositivo](/referencia/vinculos-e-campos/vincular-dispositivo) e nas chamadas de endereço.
+</ResponseField>
+
+<ResponseField name="data.partner_id" type="string (UUID)">
+  Parceiro dono do cliente: sempre o dono da credencial que fez a chamada.
+</ResponseField>
+
+<ResponseField name="data.external_id" type="string">
+  O `external_id` que você enviou, ou `null` quando não foi informado.
+</ResponseField>
+
+<ResponseField name="data.name" type="string">
+  O nome ou a razão social enviados, até 150 caracteres.
+</ResponseField>
+
+<ResponseField name="data.email" type="string">
+  O e-mail enviado, sem alteração, ou `null` quando não foi informado.
+</ResponseField>
+
+<ResponseField name="data.phone" type="string">
+  O telefone enviado, sem alteração, ou `null` quando não foi informado.
+</ResponseField>
+
+<ResponseField name="data.cpf_cnpj" type="string">
+  O CPF ou CNPJ enviado, exatamente como foi gravado, ou `null` quando não foi informado.
+</ResponseField>
+
+<ResponseField name="data.document_type" type="string">
+  `pessoa_fisica` ou `pessoa_juridica`. Num cadastro novo o campo sempre vem preenchido: quando você não envia o tipo, vem `pessoa_fisica`.
+</ResponseField>
+
+<ResponseField name="data.status" type="string">
+  Situação do cliente. Um cliente recém-cadastrado vem sempre `active`.
+</ResponseField>
+
+<ResponseField name="data.created_at" type="string (data e hora ISO 8601)">
+  Quando o cliente foi cadastrado, em UTC.
+</ResponseField>
+
+<ResponseField name="data.updated_at" type="string (data e hora ISO 8601)">
+  Última alteração do cadastro, em UTC. Num cliente novo é igual a `created_at`.
+</ResponseField>
+
+## Erros
+
+| Status | Quando acontece | O que fazer |
+|---|---|---|
+| 401 | Não há chave, a chave é inválida, foi revogada ou expirou. | Confira a credencial. Revogação leva até 60 segundos para valer. |
+| 403 | O parceiro está suspenso ou inativo. | Fale com a ClubTrack se o parceiro deveria estar ativo. |
+| 422 | Dado inválido. Falta `name`; `name`, `email`, `phone` ou `external_id` passam do tamanho; `email` fora do formato; `document_type` com valor que não existe; `cpf_cnpj` com mais de 14 caracteres ou com dígito verificador errado (`CPF inválido -- confira os dígitos verificadores.` ou `CNPJ inválido -- confira os dígitos verificadores.`). As mensagens de formato vêm em inglês, com o nome do campo em `errors`. | Corrija o campo indicado em `errors` e envie de novo. |
+| 422 | `Já existe um cliente cadastrado com este e-mail.`: o e-mail já pertence a um cliente da ClubTrack. A mensagem é a mesma para cliente seu e para cliente de outro parceiro. | Procure o e-mail em [Listar clientes](/referencia/clientes-e-enderecos/listar-clientes) com `filter[email]`. Se o cliente for seu, use o `id` dele. Se não for, cadastre sem e-mail ou com outro e-mail. |
+| 429 | Passou de 1000 chamadas por minuto com a chave. | Espere o tempo do cabeçalho `Retry-After` e repita. |
+| 429 | `Limite de tentativas de cadastro atingido. Tente novamente mais tarde.`: o parceiro fez 20 tentativas de cadastro com e-mail repetido em 10 minutos. Enquanto o bloqueio dura, todo cadastro do parceiro recebe esta resposta, inclusive o que usa e-mail novo. | Espere o tempo do cabeçalho `Retry-After`. Para evitar o bloqueio, procure o cliente antes de cadastrar. |
+
+Os status 401, 403 e 429 valem para qualquer chamada. O corpo é sempre `{"message": "..."}`, e o 422 acrescenta `errors`;
+o guia de [erros](/guias/erros) traz os textos exatos. Quando há mais de um campo inválido, o `message` do topo mostra o
+primeiro erro e termina com `(and N more errors)`.
+
+## Exemplos
+
+<RequestExample>
+
+```bash cURL
+curl --request POST "https://core.clubtrack.com.br/api/b2b/v1/customers" \
+  --header "X-Api-Key: $CLUBTRACK_API_KEY" \
+  --header "Accept: application/json" \
+  --header "Content-Type: application/json" \
+  --data '{
+    "name": "Marina Souza Exemplo",
+    "external_id": "CLI-000184",
+    "email": "marina@cliente.example",
+    "phone": "11987654321",
+    "cpf_cnpj": "52998224725",
+    "document_type": "pessoa_fisica"
+  }'
+```
+
+```javascript JavaScript
+const resposta = await fetch("https://core.clubtrack.com.br/api/b2b/v1/customers", {
+  method: "POST",
+  headers: {
+    "X-Api-Key": process.env.CLUBTRACK_API_KEY,
+    Accept: "application/json",
+    "Content-Type": "application/json",
+  },
+  body: JSON.stringify({
+    name: "Marina Souza Exemplo",
+    external_id: "CLI-000184",
+    email: "marina@cliente.example",
+    phone: "11987654321",
+    cpf_cnpj: "52998224725",
+    document_type: "pessoa_fisica",
+  }),
+});
+
+const cliente = await resposta.json();
+```
+
+```python Python
+import os
+import requests
+
+resposta = requests.post(
+    "https://core.clubtrack.com.br/api/b2b/v1/customers",
+    headers={
+        "X-Api-Key": os.environ["CLUBTRACK_API_KEY"],
+        "Accept": "application/json",
+    },
+    json={
+        "name": "Marina Souza Exemplo",
+        "external_id": "CLI-000184",
+        "email": "marina@cliente.example",
+        "phone": "11987654321",
+        "cpf_cnpj": "52998224725",
+        "document_type": "pessoa_fisica",
+    },
+    timeout=30,
+)
+
+cliente = resposta.json()
+```
+
+```php PHP
+use GuzzleHttp\Client;
+
+$http = new Client(['base_uri' => 'https://core.clubtrack.com.br']);
+
+$resposta = $http->post('/api/b2b/v1/customers', [
+    'headers' => [
+        'X-Api-Key' => getenv('CLUBTRACK_API_KEY'),
+        'Accept' => 'application/json',
+    ],
+    'json' => [
+        'name' => 'Marina Souza Exemplo',
+        'external_id' => 'CLI-000184',
+        'email' => 'marina@cliente.example',
+        'phone' => '11987654321',
+        'cpf_cnpj' => '52998224725',
+        'document_type' => 'pessoa_fisica',
+    ],
+]);
+
+$cliente = json_decode((string) $resposta->getBody(), true);
+```
+
+</RequestExample>
+
+<ResponseExample>
+
+```json 201
+{
+  "data": {
+    "id": "019a0f3c-4000-7f9e-9687-b620b4389874",
+    "partner_id": "019a0f3c-0000-7a36-8f98-0b409e8a22c8",
+    "external_id": "CLI-000184",
+    "name": "Marina Souza Exemplo",
+    "email": "marina@cliente.example",
+    "phone": "11987654321",
+    "cpf_cnpj": "52998224725",
+    "document_type": "pessoa_fisica",
+    "status": "active",
+    "created_at": "2026-10-05T18:22:09+00:00",
+    "updated_at": "2026-10-05T18:22:09+00:00"
+  }
+}
+```
+
+```json 401
+{
+  "message": "API key inválida ou revogada."
+}
+```
+
+```json 403
+{
+  "message": "Parceiro inativo ou suspenso."
+}
+```
+
+```json 422 dado inválido
+{
+  "message": "CPF inválido -- confira os dígitos verificadores.",
+  "errors": {
+    "cpf_cnpj": [
+      "CPF inválido -- confira os dígitos verificadores."
+    ]
+  }
+}
+```
+
+```json 422 e-mail repetido
+{
+  "message": "Já existe um cliente cadastrado com este e-mail.",
+  "errors": {
+    "email": [
+      "Já existe um cliente cadastrado com este e-mail."
+    ]
+  }
+}
+```
+
+```json 429 limite da chave
+{
+  "message": "Limite de requisições atingido. Tente novamente em 12s."
+}
+```
+
+```json 429 tentativas repetidas
+{
+  "message": "Limite de tentativas de cadastro atingido. Tente novamente mais tarde."
+}
+```
+
+</ResponseExample>
+
+## Detalhes que ajudam
+
+- A API não tem chave de idempotência. Repetir a chamada com os mesmos dados não devolve o cliente que já foi criado: com
+  e-mail, a segunda chamada responde `422` por e-mail repetido; sem e-mail, ela cria um segundo cliente com os mesmos dados.
+  O `external_id` não impede isso, porque a ClubTrack não exige que ele seja único.
+
+Para não duplicar, faça este caminho antes de cadastrar e depois de qualquer falha sem resposta, como tempo esgotado ou
+queda de conexão:
+
+<Steps>
+  <Step title="Procure pelo seu identificador">
+    Chame [Listar clientes](/referencia/clientes-e-enderecos/listar-clientes) com `filter[external_id]=CLI-000184`.
+  </Step>
+  <Step title="Procure pelo e-mail, se houver">
+    Chame a mesma lista com `filter[email]=marina@cliente.example`. O e-mail é comparado exatamente como foi gravado.
+  </Step>
+  <Step title="Cadastre só se nada voltou">
+    Se `data` veio vazio nas duas buscas, chame o cadastro. Se veio um cliente, use o `id` dele.
+  </Step>
+</Steps>
+
+- Duas chamadas simultâneas para o mesmo cliente podem passar pela busca ao mesmo tempo. Se o seu sistema pode disparar o
+  mesmo cadastro em paralelo, serialize essas chamadas do seu lado.
+- Procurar antes também evita o bloqueio por tentativas repetidas. Só contam para o limite de 20 tentativas as que chegam
+  com e-mail que já existe. Cadastro bem-sucedido e os outros erros de validação não contam.
+- Depois do cadastro, o caminho de venda segue em [Cadastrar endereço](/referencia/clientes-e-enderecos/cadastrar-endereco),
+  [Vincular dispositivo](/referencia/vinculos-e-campos/vincular-dispositivo) e [Criar assinatura](/referencia/comercial/criar-assinatura).
+  O guia de [fluxo de venda](/guias/fluxo-de-venda) mostra a ordem completa.

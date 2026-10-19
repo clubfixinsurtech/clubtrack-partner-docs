@@ -1,0 +1,12 @@
+node_modules/
+.DS_Store
+.mintlify/
+*.log
+.env
+.env.*
+
+# Estado de ferramentas de máquina (hooks e agentes), nunca versionado nem publicado
+.aios/
+.synapse/
+.claude/
+.codex/

@@ -1,0 +1,262 @@
+/*
+ * Tema do site de documentação da ClubTrack.
+ * Valores de brand/SISTEMA-PRODUTO.md (HumanStudio, projeto clubtrack): canvas claro, azul único, Manrope,
+ * raio de 8 e 12 px, curva de entrada da marca, alvo de toque de 44 px, respeito a prefers-reduced-motion.
+ * O azul significa ação, rota ou destino. Não é usado para decorar.
+ */
+
+:root {
+  --ct-canvas: #f7f9fc;
+  --ct-superficie: #ffffff;
+  --ct-fria: #eff4fd;
+  --ct-tinta: #0b1220;
+  --ct-tinta-2: #5e6878;
+  --ct-azul: #2357e6;
+  --ct-azul-profundo: #0b2b6b;
+  --ct-azul-palido: #e9f0ff;
+  --ct-azul-claro: #8fb0ff;
+  --ct-linha: #dce3ee;
+  --ct-raio-card: 8px;
+  --ct-raio-painel: 12px;
+  --ct-ease: cubic-bezier(0.23, 1, 0.32, 1);
+  --ct-sombra-azul: 0 24px 80px rgb(35 87 230 / 0.12);
+  --ct-sombra-botao: 0 8px 24px rgb(35 87 230 / 0.1);
+  --ct-sombra-card: 0 10px 28px -14px rgb(11 43 107 / 0.3);
+}
+
+html.dark {
+  --ct-superficie: #111a2e;
+  --ct-fria: #0f1830;
+  --ct-tinta: #f2f5fb;
+  --ct-tinta-2: #a4afc2;
+  --ct-azul-palido: #14224a;
+  --ct-linha: #22304d;
+}
+
+/* Tipografia: peso 600, escala contida, entrelinha generosa */
+#page-title,
+#content-area h2,
+#content-area h3 {
+  font-weight: 600;
+  letter-spacing: -0.022em;
+  text-wrap: balance;
+}
+
+#content-area h2 {
+  margin-top: 2.75rem;
+}
+
+#content-area p,
+#content-area li {
+  line-height: 1.7;
+}
+
+#content-area a:not(.ct-botao) {
+  text-underline-offset: 0.18em;
+  text-decoration-thickness: 1px;
+}
+
+/* Foco visível em azul profundo, com halo para sobreviver a qualquer fundo */
+:focus-visible {
+  outline: 2px solid var(--ct-azul-profundo);
+  outline-offset: 2px;
+  box-shadow: 0 0 0 4px var(--ct-superficie);
+}
+
+html.dark :focus-visible {
+  outline-color: var(--ct-azul-claro);
+}
+
+/* Tabelas: leitura de referência, não planilha */
+#content-area table {
+  width: 100%;
+  max-width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+  border: 1px solid var(--ct-linha);
+  border-radius: var(--ct-raio-painel);
+  font-size: 0.9375rem;
+}
+
+#content-area table th {
+  background: var(--ct-fria);
+  font-weight: 600;
+  text-align: left;
+  white-space: nowrap;
+}
+
+#content-area table th,
+#content-area table td {
+  padding: 0.7rem 1rem;
+  vertical-align: top;
+  border-bottom: 1px solid var(--ct-linha);
+}
+
+#content-area table tr:last-child td {
+  border-bottom: 0;
+}
+
+@media (max-width: 720px) {
+  #content-area table {
+    display: block;
+    overflow-x: auto;
+  }
+}
+
+/* Campos de parâmetro e de resposta: respiro entre um e outro */
+#content-area [data-component-part="field"],
+#content-area .field {
+  padding-block: 0.4rem;
+}
+
+/* Botões: ação primária em azul, secundária com borda. 48 px de altura, pressão ao toque */
+.ct-botao {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 48px;
+  padding: 0 1.2rem;
+  border: 1px solid var(--ct-linha);
+  border-radius: var(--ct-raio-card);
+  background: var(--ct-superficie);
+  color: var(--ct-tinta) !important;
+  font-weight: 600;
+  text-decoration: none !important;
+  transition: transform 140ms var(--ct-ease), background-color 120ms var(--ct-ease), border-color 120ms var(--ct-ease);
+}
+
+.ct-botao:active {
+  transform: scale(0.97);
+}
+
+.ct-botao-primario {
+  border-color: var(--ct-azul);
+  background: var(--ct-azul);
+  color: #ffffff !important;
+  box-shadow: var(--ct-sombra-botao);
+}
+
+@media (hover: hover) {
+  .ct-botao:hover {
+    border-color: var(--ct-azul);
+    background: var(--ct-azul-palido);
+  }
+
+  .ct-botao-primario:hover {
+    background: var(--ct-azul-profundo);
+    border-color: var(--ct-azul-profundo);
+  }
+}
+
+/* Página inicial */
+#content-area:has(.ct-hero) #header {
+  display: none;
+}
+
+.ct-hero {
+  display: grid;
+  grid-template-columns: minmax(0, 1.2fr) minmax(0, 0.8fr);
+  gap: clamp(1.5rem, 4vw, 3rem);
+  align-items: center;
+  padding-block: clamp(0.5rem, 2vw, 1.5rem) 2.5rem;
+}
+
+.ct-hero-selo {
+  display: inline-block;
+  margin: 0 0 1rem;
+  padding: 0.3rem 0.7rem;
+  border-radius: var(--ct-raio-card);
+  background: var(--ct-azul-palido);
+  color: var(--ct-azul-profundo);
+  font-size: 0.8125rem;
+  font-weight: 600;
+}
+
+html.dark .ct-hero-selo {
+  color: var(--ct-azul-claro);
+}
+
+.ct-hero-titulo {
+  margin: 0;
+  font-size: clamp(2.125rem, 1.55rem + 2.4vw, 3.25rem);
+  font-weight: 600;
+  line-height: 1.06;
+  letter-spacing: -0.03em;
+  text-wrap: balance;
+  color: var(--ct-tinta);
+}
+
+.ct-hero-sub {
+  margin: 1.25rem 0 0;
+  max-width: 34rem;
+  font-size: clamp(1.125rem, 1.06rem + 0.27vw, 1.375rem);
+  line-height: 1.5;
+  color: var(--ct-tinta-2);
+}
+
+.ct-hero-acoes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  margin-top: 1.75rem;
+}
+
+.ct-hero-imagem {
+  display: block;
+  width: 100%;
+  height: auto;
+  border-radius: var(--ct-raio-painel);
+  box-shadow: var(--ct-sombra-azul);
+}
+
+@media (max-width: 860px) {
+  .ct-hero {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+/* Os quatro passos da integração */
+.ct-passos {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 15rem), 1fr));
+  gap: 1.25rem;
+  margin-block: 1.25rem 2rem;
+}
+
+.ct-passo {
+  margin: 0;
+}
+
+.ct-passos img {
+  display: block;
+  width: 100%;
+  aspect-ratio: 4 / 3;
+  object-fit: cover;
+  margin: 0;
+  border: 1px solid var(--ct-linha);
+  border-radius: var(--ct-raio-painel);
+  box-shadow: var(--ct-sombra-card);
+}
+
+.ct-passo p {
+  margin: 0.75rem 0 0;
+  font-size: 0.9375rem;
+  line-height: 1.5;
+  color: var(--ct-tinta-2);
+}
+
+.ct-passo p strong {
+  color: var(--ct-tinta);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ct-botao {
+    transition: none;
+  }
+}
+
+/* Há um único idioma: o seletor de idioma do Mintlify só atrapalharia a barra superior */
+button:has(img[src*="country-flag-icons"]) {
+  display: none !important;
+}
+

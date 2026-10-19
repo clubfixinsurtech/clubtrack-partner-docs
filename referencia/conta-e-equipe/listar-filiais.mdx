@@ -1,0 +1,157 @@
+---
+title: "Listar o hub e as filiais"
+description: "Devolve o parceiro principal e todas as suas filiais, com identificador, nome e CNPJ, sem paginação."
+api: "GET /api/b2b/v1/branches"
+---
+
+Esta chamada devolve o parceiro principal (o hub) e as filiais dele. O principal vem sempre primeiro; as filiais vêm depois, em ordem alfabética de nome. Você a usa para conhecer a estrutura da sua rede e os identificadores de cada filial.
+
+A lista é a mesma para quem chama em nome do principal e para quem chama em nome de uma filial: é sempre a do principal ao qual a credencial pertence, e nunca a de outro. A chamada é só de leitura. Criar, editar ou desativar filial não é possível pela API.
+
+## Quando usar
+
+- Para mostrar a estrutura da sua rede, o principal e as filiais, no seu sistema.
+- Para reconhecer qual `id` é o do parceiro principal (`is_hub` igual a `true`).
+- Para conferir o identificador de uma filial antes de [consultar o perfil dela](/referencia/conta-e-equipe/consultar-perfil).
+
+## Autenticação e permissões
+
+Use a chave de API. Parceiro suspenso recebe 403. O guia de [autenticação](/guias/autenticacao) explica a chave de API.
+
+## Parâmetros
+
+### Cabeçalhos
+
+Toda chamada leva a sua chave de API no cabeçalho `X-Api-Key`, que o campo de testes (Try it) pede no campo de autorização. Também vale enviá-la como `Authorization: Bearer <chave>`. Veja [Autenticação](/guias/autenticacao).
+
+Esta chamada não tem parâmetros de consulta. Não há filtro, ordenação nem paginação: a lista inteira vem de uma vez.
+
+## Resposta
+
+Status `200`. O corpo traz a lista em `data`. Não há `links` nem `meta`.
+
+<ResponseField name="data" type="object[]">
+  O parceiro principal na primeira posição e, depois, as filiais por ordem alfabética de nome. Quando o principal ainda não tem filiais, a lista traz só ele.
+</ResponseField>
+
+<ResponseField name="data[].id" type="string (UUID)">
+  Identificador do parceiro principal ou da filial. É o mesmo valor que aparece em `partner_id` nas respostas de clientes, dispositivos e planos.
+</ResponseField>
+
+<ResponseField name="data[].name" type="string">
+  Nome do parceiro principal ou da filial, como está cadastrado.
+</ResponseField>
+
+<ResponseField name="data[].cnpj" type="string">
+  CNPJ cadastrado, só com os 14 dígitos, sem pontos, barra ou traço. É `null` quando a filial não tem CNPJ próprio. O principal sempre tem.
+</ResponseField>
+
+<ResponseField name="data[].is_hub" type="boolean">
+  `true` para o parceiro principal (a matriz) e `false` para cada filial.
+</ResponseField>
+
+## Erros
+
+| Status | Quando acontece | O que fazer |
+|---|---|---|
+| 401 | Não há chave, a chave é inválida, foi revogada ou expirou. | Confira a credencial. Revogação leva até 60 segundos para valer. |
+| 403 | O parceiro está suspenso ou inativo. | Fale com a ClubTrack se o parceiro deveria estar ativo. |
+| 429 | Passou de 1000 chamadas por minuto com a chave. | Espere o tempo do cabeçalho `Retry-After` e repita. |
+
+Os status 401, 403 e 429 valem para qualquer chamada. O corpo é sempre `{"message": "..."}`; o guia de [erros](/guias/erros)
+traz os textos exatos.
+
+## Exemplos
+
+<RequestExample>
+
+```bash cURL
+curl "https://core.clubtrack.com.br/api/b2b/v1/branches" \
+  --header "X-Api-Key: $CLUBTRACK_API_KEY" \
+  --header "Accept: application/json"
+```
+
+```javascript JavaScript
+const resposta = await fetch("https://core.clubtrack.com.br/api/b2b/v1/branches", {
+  headers: {
+    "X-Api-Key": process.env.CLUBTRACK_API_KEY,
+    Accept: "application/json",
+  },
+});
+
+const { data: filiais } = await resposta.json();
+```
+
+```python Python
+import os
+import requests
+
+resposta = requests.get(
+    "https://core.clubtrack.com.br/api/b2b/v1/branches",
+    headers={
+        "X-Api-Key": os.environ["CLUBTRACK_API_KEY"],
+        "Accept": "application/json",
+    },
+    timeout=30,
+)
+
+filiais = resposta.json()["data"]
+```
+
+```php PHP
+use GuzzleHttp\Client;
+
+$http = new Client(['base_uri' => 'https://core.clubtrack.com.br']);
+
+$resposta = $http->get('/api/b2b/v1/branches', [
+    'headers' => [
+        'X-Api-Key' => getenv('CLUBTRACK_API_KEY'),
+        'Accept' => 'application/json',
+    ],
+]);
+
+$filiais = json_decode((string) $resposta->getBody(), true)['data'];
+```
+
+</RequestExample>
+
+<ResponseExample>
+
+```json 200
+{
+  "data": [
+    {
+      "id": "019a0f3c-0000-7a36-8f98-0b409e8a22c8",
+      "name": "Exemplo Mobilidade Ltda",
+      "cnpj": "11444777000161",
+      "is_hub": true
+    },
+    {
+      "id": "019a0f3c-1000-75ca-90a8-53b1c0baf89a",
+      "name": "Exemplo Mobilidade Filial Sul",
+      "cnpj": null,
+      "is_hub": false
+    }
+  ]
+}
+```
+
+```json 401
+{
+  "message": "API key inválida ou revogada."
+}
+```
+
+```json 403
+{
+  "message": "Parceiro inativo ou suspenso."
+}
+```
+
+</ResponseExample>
+
+## Detalhes que ajudam
+
+- A lista traz todas as filiais do principal ao qual a chave pertence.
+- A resposta não informa a situação (ativa ou suspensa) de cada filial. Uma filial suspensa aparece na lista, e as chamadas feitas em nome dela respondem 403.
+- Filtros enviados na consulta, como `filter[parent_partner_id]`, são ignorados: a lista nunca muda de parceiro principal.

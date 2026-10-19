@@ -1,0 +1,341 @@
+---
+title: "Listar planos"
+description: "Devolve, em páginas, os planos do seu parceiro, com preço, ciclo, quantidade de Tags e a lista do que cada plano inclui."
+api: "GET /api/b2b/v1/plans"
+---
+
+Esta chamada devolve o catálogo de planos que o seu parceiro vende. Um plano define quanto o cliente paga a cada ciclo, quantas Tags uma assinatura pode cobrir, de quem é o aparelho enquanto a assinatura existir, se o plano inclui seguro e a lista de recursos que você mostra ao cliente na hora da escolha. O `id` do plano é o `plan_id` que [Criar assinatura](/referencia/comercial/criar-assinatura) pede.
+
+A chamada só lê. Esta API não cria, altera nem arquiva plano, e não existe consulta de um plano pelo `id`: para achar um plano, liste e filtre. Quem cadastra e muda planos é a ClubTrack.
+
+## Quando usar
+
+- Montar a tela em que o cliente compara e escolhe o plano antes da assinatura.
+- Descobrir o `plan_id` e conferir o `tag_quota` antes de montar a assinatura: ela não aceita mais Tags do que o plano permite.
+- Conferir o preço atual do catálogo. O preço que cada assinatura de fato cobra fica gravado nela, em `price_cents` de [Consultar assinatura](/referencia/comercial/consultar-assinatura), e não muda quando o plano é reajustado.
+
+## Autenticação e permissões
+
+Use a chave de API. Parceiro suspenso ou inativo recebe 403. A lista é a do parceiro dono da chave. A matriz e as filiais não se misturam: cada uma vê só os planos cadastrados para ela, e plano de outro parceiro nunca aparece. O guia de [autenticação](/guias/autenticacao) explica a chave de API.
+
+## Parâmetros
+
+### Cabeçalhos
+
+Toda chamada leva a sua chave de API no cabeçalho `X-Api-Key`, que o campo de testes (Try it) pede no campo de autorização. Também vale enviá-la como `Authorization: Bearer <chave>`. Veja [Autenticação](/guias/autenticacao).
+
+### Consulta
+
+Os filtros se combinam: cada filtro a mais restringe o resultado. Dentro de um mesmo filtro, separe valores por vírgula para
+aceitar qualquer um deles. Mais detalhes em [Paginação, filtros e ordenação](/guias/paginacao-filtros-ordenacao). A chamada não
+oferece `include`: a lista de recursos (`features`) já vem em todo plano.
+
+<ParamField query="filter[status]" type="string">
+  Situação do plano, comparação exata. Valores: `active` (plano à venda) e `archived` (plano retirado de venda). Aceita os dois separados por vírgula, mas aí o filtro não restringe nada.
+  Exemplo: `/api/b2b/v1/plans?filter[status]=active`.
+</ParamField>
+
+<ParamField query="filter[billing_cycle]" type="string">
+  Ciclo de cobrança do plano, comparação exata. Hoje o único valor existente é `monthly` (cobrança mensal), então o filtro
+  não restringe nada. Um valor que não existe não dá erro: a lista volta vazia.
+</ParamField>
+
+<ParamField query="filter[active]" type="string">
+  Atalho para os planos com `status` igual a `active`. O valor que você envia é ignorado (`filter[active]=1` basta), e não
+  existe forma de usar o atalho ao contrário: para ver os arquivados, use `filter[status]=archived`.
+</ParamField>
+
+<ParamField query="sort" type="string" default="-created_at">
+  Campo de ordenação. Aceita `created_at`, `price_cents` e `name`. Prefixe com `-` para ordem decrescente: `sort=price_cents`
+  traz o mais barato primeiro, `sort=-created_at` traz os planos mais novos primeiro. Aceita mais de um campo separado por vírgula.
+</ParamField>
+
+<ParamField query="per_page" type="integer" default="25">
+  Quantos planos vêm por página. Envie um inteiro positivo. Não há teto no servidor, mas páginas grandes ficam lentas:
+  um catálogo costuma caber em uma página.
+</ParamField>
+
+<ParamField query="page" type="integer" default="1">
+  Número da página, começando em 1. Para percorrer tudo, siga `links.next` em vez de montar o número à mão.
+</ParamField>
+
+## Resposta
+
+Status `200`. O corpo traz a lista em `data`, os endereços de navegação em `links` e os totais em `meta`.
+
+<ResponseField name="data" type="object[]">
+  Os planos da página. Vem vazio (`[]`) quando nenhum plano atende aos filtros.
+</ResponseField>
+
+<ResponseField name="data[].id" type="string (UUID)">
+  Identificador do plano. É o valor que você envia como `plan_id` ao criar uma assinatura.
+</ResponseField>
+
+<ResponseField name="data[].partner_id" type="string (UUID)">
+  Parceiro dono do plano: o parceiro ou a filial em nome de quem você chamou.
+</ResponseField>
+
+<ResponseField name="data[].name" type="string">
+  Nome do plano, como você pode exibi-lo ao cliente, com até 150 caracteres.
+</ResponseField>
+
+<ResponseField name="data[].price_cents" type="integer">
+  Preço de cada ciclo, em centavos: `2990` é R$ 29,90. Sempre maior que zero. É o preço atual do catálogo; a assinatura
+  grava o valor vigente no dia em que é criada.
+</ResponseField>
+
+<ResponseField name="data[].billing_cycle" type="string">
+  Ciclo de cobrança. Hoje só existe `monthly`: o cliente paga uma vez por mês.
+</ResponseField>
+
+<ResponseField name="data[].status" type="string">
+  `active`: o plano está à venda. `archived`: o plano saiu de venda. Ofereça ao cliente só planos `active`.
+</ResponseField>
+
+<ResponseField name="data[].tag_quota" type="integer">
+  Quantas Tags uma única assinatura deste plano pode cobrir. Criar uma assinatura com mais vínculos do que isso
+  é recusado com 422.
+</ResponseField>
+
+<ResponseField name="data[].tag_ownership_model" type="string">
+  De quem é o aparelho enquanto a assinatura existir. `partner_comodato`: o aparelho é do seu parceiro, que o empresta ao
+  cliente, e volta ao estoque dele quando a assinatura termina. `customer_owned`: o cliente comprou o aparelho e não há
+  devolução. O aparelho recebe esse valor no momento em que a assinatura é criada.
+</ResponseField>
+
+<ResponseField name="data[].includes_insurance" type="boolean">
+  `true` quando o plano inclui seguro, `false` quando não inclui. Use para mostrar ao cliente, antes de ele escolher, o que
+  está e o que não está no plano.
+</ResponseField>
+
+<ResponseField name="data[].features" type="object[]">
+  Lista do que o plano oferece, já na ordem de exibição. Sempre presente; vem vazia (`[]`) quando o plano não tem recurso
+  cadastrado.
+</ResponseField>
+
+<ResponseField name="data[].features[].id" type="string (UUID)">
+  Identificador do recurso dentro do plano.
+</ResponseField>
+
+<ResponseField name="data[].features[].code" type="string">
+  Código curto do recurso, estável, para você reconhecer o recurso no seu sistema (por exemplo, para mostrar um ícone).
+</ResponseField>
+
+<ResponseField name="data[].features[].label" type="string">
+  Texto do recurso, pronto para exibir ao cliente.
+</ResponseField>
+
+<ResponseField name="data[].features[].display_order" type="integer">
+  Posição do recurso na lista. A própria resposta já vem ordenada de forma crescente por este número.
+</ResponseField>
+
+<ResponseField name="data[].created_at" type="string (data e hora ISO 8601)">
+  Quando o plano foi cadastrado, em UTC.
+</ResponseField>
+
+<ResponseField name="data[].updated_at" type="string (data e hora ISO 8601)">
+  Última alteração do plano, em UTC.
+</ResponseField>
+
+<ResponseField name="links" type="object">
+  Endereços prontos para navegar: `first`, `last`, `prev` e `next`. Já trazem os filtros e a ordenação da chamada atual.
+  `prev` é `null` na primeira página e `next` é `null` na última.
+</ResponseField>
+
+<ResponseField name="meta" type="object">
+  `current_page`, `last_page`, `per_page`, `from`, `to` e `total` (quantos planos existem com esses filtros, somando todas
+  as páginas). `from` e `to` vêm `null` quando a lista está vazia. `meta.links` repete a navegação em formato de botões para
+  interfaces; quem integra por código usa o objeto `links`.
+</ResponseField>
+
+## Erros
+
+| Status | Quando acontece | O que fazer |
+|---|---|---|
+| 400 | Você enviou um filtro ou uma ordenação que a rota não aceita. A mensagem lista os nomes aceitos, em inglês. | Corrija o nome do parâmetro. Os nomes diferenciam maiúscula de minúscula e o filtro de ciclo usa sublinhado (`billing_cycle`). |
+| 401 | Não há chave, a chave é inválida, foi revogada ou expirou. | Confira a credencial. Revogação leva até 60 segundos para valer. |
+| 403 | O parceiro está suspenso ou inativo. | Fale com a ClubTrack se o parceiro deveria estar ativo. |
+| 429 | Passou de 1000 chamadas por minuto com a chave. | Espere o tempo do cabeçalho `Retry-After` e repita. |
+
+Os status 401, 403 e 429 valem para qualquer chamada. O corpo é sempre `{"message": "..."}`; o guia de [erros](/guias/erros)
+traz os textos exatos.
+
+## Exemplos
+
+<RequestExample>
+
+```bash cURL
+curl --get "https://core.clubtrack.com.br/api/b2b/v1/plans" \
+  --header "X-Api-Key: $CLUBTRACK_API_KEY" \
+  --header "Accept: application/json" \
+  --data-urlencode "filter[status]=active" \
+  --data-urlencode "sort=price_cents" \
+  --data-urlencode "per_page=2"
+```
+
+```javascript JavaScript
+const params = new URLSearchParams({
+  "filter[status]": "active",
+  sort: "price_cents",
+  per_page: "2",
+});
+
+const resposta = await fetch(
+  `https://core.clubtrack.com.br/api/b2b/v1/plans?${params}`,
+  {
+    headers: {
+      "X-Api-Key": process.env.CLUBTRACK_API_KEY,
+      Accept: "application/json",
+    },
+  },
+);
+
+const planos = await resposta.json();
+```
+
+```python Python
+import os
+import requests
+
+resposta = requests.get(
+    "https://core.clubtrack.com.br/api/b2b/v1/plans",
+    headers={
+        "X-Api-Key": os.environ["CLUBTRACK_API_KEY"],
+        "Accept": "application/json",
+    },
+    params={
+        "filter[status]": "active",
+        "sort": "price_cents",
+        "per_page": 2,
+    },
+    timeout=30,
+)
+
+planos = resposta.json()
+```
+
+```php PHP
+use GuzzleHttp\Client;
+
+$http = new Client(['base_uri' => 'https://core.clubtrack.com.br']);
+
+$resposta = $http->get('/api/b2b/v1/plans', [
+    'headers' => [
+        'X-Api-Key' => getenv('CLUBTRACK_API_KEY'),
+        'Accept' => 'application/json',
+    ],
+    'query' => [
+        'filter' => ['status' => 'active'],
+        'sort' => 'price_cents',
+        'per_page' => 2,
+    ],
+]);
+
+$planos = json_decode((string) $resposta->getBody(), true);
+```
+
+</RequestExample>
+
+<ResponseExample>
+
+```json 200
+{
+  "data": [
+    {
+      "id": "019a0f3c-c000-7f57-9da6-e983620124d1",
+      "partner_id": "019a0f3c-0000-7a36-8f98-0b409e8a22c8",
+      "name": "Plano Individual",
+      "price_cents": 2990,
+      "billing_cycle": "monthly",
+      "status": "active",
+      "tag_quota": 1,
+      "tag_ownership_model": "partner_comodato",
+      "includes_insurance": false,
+      "features": [
+        {
+          "id": "019a0f3d-5000-7a10-8c21-4e6b9d3a7f10",
+          "code": "geolocation",
+          "label": "Localização da Tag",
+          "display_order": 1
+        },
+        {
+          "id": "019a0f3d-6000-7b32-9d43-5f7c0e4b8a21",
+          "code": "route_history",
+          "label": "Histórico de trajetos",
+          "display_order": 2
+        }
+      ],
+      "created_at": "2026-08-03T12:00:00+00:00",
+      "updated_at": "2026-08-03T12:00:00+00:00"
+    },
+    {
+      "id": "019a0f3c-d000-7933-bcd0-866e874f946b",
+      "partner_id": "019a0f3c-0000-7a36-8f98-0b409e8a22c8",
+      "name": "Plano Frota 2 Tags",
+      "price_cents": 4990,
+      "billing_cycle": "monthly",
+      "status": "active",
+      "tag_quota": 2,
+      "tag_ownership_model": "partner_comodato",
+      "includes_insurance": false,
+      "features": [
+        {
+          "id": "019a0f3d-7000-7c54-8e65-608d1f5c9b32",
+          "code": "geolocation",
+          "label": "Localização das Tags",
+          "display_order": 1
+        }
+      ],
+      "created_at": "2026-08-10T12:00:00+00:00",
+      "updated_at": "2026-09-14T15:20:00+00:00"
+    }
+  ],
+  "links": {
+    "first": "https://core.clubtrack.com.br/api/b2b/v1/plans?filter%5Bstatus%5D=active&sort=price_cents&per_page=2&page=1",
+    "last": "https://core.clubtrack.com.br/api/b2b/v1/plans?filter%5Bstatus%5D=active&sort=price_cents&per_page=2&page=1",
+    "prev": null,
+    "next": null
+  },
+  "meta": {
+    "current_page": 1,
+    "from": 1,
+    "last_page": 1,
+    "links": [
+      { "url": null, "label": "&laquo; Previous", "active": false },
+      { "url": "https://core.clubtrack.com.br/api/b2b/v1/plans?filter%5Bstatus%5D=active&sort=price_cents&per_page=2&page=1", "label": "1", "active": true },
+      { "url": null, "label": "Next &raquo;", "active": false }
+    ],
+    "path": "https://core.clubtrack.com.br/api/b2b/v1/plans",
+    "per_page": 2,
+    "to": 2,
+    "total": 2
+  }
+}
+```
+
+```json 400
+{
+  "message": "Requested filter(s) `cycle` are not allowed. Allowed filter(s) are `status, billing_cycle, active`."
+}
+```
+
+```json 401
+{
+  "message": "API key inválida ou revogada."
+}
+```
+
+```json 403
+{
+  "message": "Parceiro inativo ou suspenso."
+}
+```
+
+</ResponseExample>
+
+## Detalhes que ajudam
+
+- Plano `archived` continua na lista quando você não filtra. Para montar a tela de escolha, use `filter[status]=active`.
+- A chamada de [criar assinatura](/referencia/comercial/criar-assinatura) não confere a situação do plano. A trava de não vender plano
+  arquivado é sua: envie só `plan_id` de plano `active`.
+- `price_cents` e os demais valores em dinheiro da API trafegam sempre em centavos, como inteiro. A formatação em reais é do seu sistema.
