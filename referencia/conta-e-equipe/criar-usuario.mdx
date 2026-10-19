@@ -1,10 +1,10 @@
 ---
-title: "Convidar usuário"
+title: "Criar usuário da equipe"
 description: "Cria um usuário da equipe do parceiro, já ativo e com a senha que você informar. Não envia e-mail de convite."
 api: "POST /api/b2b/v1/partner-users"
 ---
 
-Esta chamada cria um usuário da equipe do parceiro. Apesar do nome da operação, ela não manda convite: o usuário nasce ativo, com a senha que você enviou no corpo, e já pode entrar com [e-mail e senha](/referencia/conta-e-equipe/entrar) na hora. A ClubTrack não envia nenhum e-mail a essa pessoa.
+Esta chamada cria um usuário da equipe do parceiro. Ela não manda convite: o usuário nasce ativo, com a senha que você enviou no corpo, e já pode entrar com [e-mail e senha](/referencia/conta-e-equipe/entrar) na hora. A ClubTrack não envia nenhum e-mail a essa pessoa.
 
 Você a usa quando o seu sistema cadastra a equipe do parceiro e entrega o acesso por conta própria. Se quiser que a pessoa escolha a própria senha, crie o usuário com uma senha provisória e peça a ela que use [Recuperar acesso por e-mail](/referencia/conta-e-equipe/recuperar-senha). Esta chamada não dispara o e-mail com o link para definir senha; ele sai quando a pessoa o pede nessa outra rota.
 

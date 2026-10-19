@@ -295,9 +295,9 @@
     "path": "/api/b2b/v1/partner-users",
     "group": "conta-e-equipe",
     "group_title": "Conta e equipe",
-    "slug": "convidar-usuario",
-    "title": "Convidar usuário",
-    "page": "referencia/conta-e-equipe/convidar-usuario.mdx"
+    "slug": "criar-usuario",
+    "title": "Criar usuário da equipe",
+    "page": "referencia/conta-e-equipe/criar-usuario.mdx"
   },
   {
     "n": 35,

@@ -8,6 +8,7 @@ liberação. Este guia mostra a ordem, o que cada chamada deixa pronto para a se
 um identificador.
 
 ```mermaid
+%%{init: {'theme':'base','themeVariables': {'primaryColor':'#e9f0ff','primaryBorderColor':'#2357e6','primaryTextColor':'#0b1220','lineColor':'#2357e6','secondaryColor':'#eff4fd','tertiaryColor':'#ffffff','actorBkg':'#e9f0ff','actorBorder':'#2357e6','actorTextColor':'#0b1220','signalColor':'#0b1220','signalTextColor':'#0b1220','noteBkgColor':'#eff4fd','fontFamily':'Manrope, sans-serif'}}}%%
 sequenceDiagram
   autonumber
   participant S as Seu sistema
@@ -121,4 +122,4 @@ Cada passo é independente, então dá para retomar de onde parou, desde que voc
 |---|---|
 | Cadastrar cliente | Procure pelo `external_id`. O cliente pode ter sido criado. |
 | Vincular dispositivo | Consulte o aparelho: se está em `pending_activation`, o vínculo foi feito. |
-| Criar assinatura | Consulte [Listar assinaturas](/referencia/comercial/listar-assinaturas) do vínculo antes de criar outra. |
+| Criar assinatura | Repetir é seguro quando a primeira chamada funcionou: o vínculo já está numa assinatura em vigor, e a segunda responde `409`. Para achar a que foi criada, use [Listar assinaturas](/referencia/comercial/listar-assinaturas) e procure o vínculo em `tag_binding_ids`. |

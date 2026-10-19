@@ -60,7 +60,7 @@ Com o token, as demais chamadas levam `Authorization: Bearer <token>`. Detalhes 
 - **O token não tem prazo próprio.** Ele deixa de valer quando o usuário é desativado ou quando o acesso dele expira, e a API passa a
   responder `401` com `Usuário inativo.`. Não existe chamada de renovação nem de saída: para encerrar uma sessão, descarte o token no
   seu lado.
-- **Cada usuário tem um papel.** `owner` (dono) faz o que o operador faz e, além disso, gerencia usuários: convida e cria outros.
+- **Cada usuário tem um papel.** `owner` (dono) faz o que o operador faz e, além disso, gerencia usuários: cria outros usuários da equipe.
   `operator` (operador) opera o dia a dia, mas não gerencia usuários: tentar responde `403`.
 - **E-mail ou senha errados** respondem `401` com `Credenciais inválidas.`, a mesma mensagem para os dois casos, de propósito.
 - Quem esqueceu a senha usa [Recuperar acesso por e-mail](/referencia/conta-e-equipe/recuperar-senha).
@@ -92,7 +92,7 @@ Algumas operações pedem mais do que uma credencial válida:
 |---|---|
 | [Criar pedido de dispositivo](/referencia/comercial/criar-pedido-de-dispositivo) | **Login de usuário.** O pedido registra quem o fez, e a chave de API não tem usuário: com chave, a resposta é `403`. |
 | [Criar campo no catálogo](/referencia/vinculos-e-campos/criar-campo-do-catalogo) e [editar campo](/referencia/vinculos-e-campos/editar-campo-do-catalogo) | Credencial do **parceiro principal** (o hub). Uma filial recebe `403`. |
-| [Convidar usuário](/referencia/conta-e-equipe/convidar-usuario) | Com login, só o papel `owner`. Com chave de API, vale a chave. |
+| [Criar usuário da equipe](/referencia/conta-e-equipe/criar-usuario) | Com login, só o papel `owner`. Com chave de API, vale a chave. |
 | [Entrar](/referencia/conta-e-equipe/entrar) e [Recuperar acesso](/referencia/conta-e-equipe/recuperar-senha) | Nenhuma credencial: são o jeito de obter uma. |
 | [Definir senha pelo convite](/referencia/conta-e-equipe/definir-senha-do-usuario) | Nenhuma credencial: a URL assinada que o usuário recebe por e-mail é a autorização. |
 
@@ -105,7 +105,7 @@ Algumas operações pedem mais do que uma credencial válida:
 | `401` | `Usuário inativo.` | O usuário foi desativado ou o acesso dele expirou. |
 | `401` | `Usuário sem filial vinculada.` | O usuário não pertence a nenhuma filial. Fale com a ClubTrack. |
 | `400` | `Usuário tem mais de uma filial` (a frase segue pedindo o cabeçalho) | Envie `X-Partner-Branch-Id`. |
-| `403` | `Filial informada não pertence a este usuário.` | Use uma filial que `GET /branches` devolve para esse usuário. |
+| `403` | `Filial informada não pertence a este usuário.` | Use o identificador de uma filial do usuário. |
 | `403` | `Parceiro inativo ou suspenso.` | O parceiro, ou o principal dele, está suspenso. |
 | `429` | `Limite de requisições atingido. Tente novamente em Ns.` | Espere o tempo de `Retry-After`. |
 
