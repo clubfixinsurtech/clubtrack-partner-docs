@@ -1,0 +1,68 @@
+---
+title: "Limites e boas práticas"
+description: "O limite de chamadas por minuto, como repetir com segurança e hábitos que evitam problema em produção."
+---
+
+## Limite de chamadas
+
+Cada parceiro pode fazer **1000 chamadas por minuto** com chave de API. O limite é do parceiro, não da chave nem da rota:
+todas as chamadas feitas com qualquer chave do seu parceiro, em qualquer operação, entram na mesma conta.
+
+Passou de 1000, a API responde `429` com o texto `Limite de requisições atingido. Tente novamente em Ns.` e dois cabeçalhos:
+
+| Cabeçalho | O que traz |
+|---|---|
+| `Retry-After` | Quantos segundos esperar antes de chamar de novo. |
+| `X-RateLimit-Limit` | O limite, `1000`. |
+
+A conta é por janela de um minuto, que começa na primeira chamada. Passada a janela, a conta zera. A API não informa
+quantas chamadas ainda restam, então conte no seu lado se precisar chegar perto do teto.
+
+<Note>
+  O limite descrito aqui vale para chamadas feitas com chave de API. As chamadas de login de usuário não passam por essa conta.
+</Note>
+
+## Como gastar menos chamadas
+
+- **Use filtros em vez de ler tudo e filtrar no seu sistema.** Procurar um cliente por `filter[external_id]` custa uma chamada;
+  baixar a base inteira custa dezenas.
+- **Pagine com `per_page` maior** (até uns 100) quando precisar ler muita coisa, em vez de muitas páginas pequenas.
+- **Prefira o [webhook](/guias/webhook)** a consultar posição de tempos em tempos para saber se um aparelho saiu de uma cerca.
+- **Guarde o que muda pouco.** Planos e o catálogo de campos raramente mudam: leia uma vez e renove de vez em quando, não a cada
+  pedido.
+
+## Repetir uma chamada com segurança
+
+| Situação | O que fazer |
+|---|---|
+| `429` | Espere o tempo de `Retry-After` e repita a mesma chamada. |
+| Leitura (`GET`) com `500` ou falha de rede | Repita com espera crescente: 1, 2 e 4 segundos, no máximo 3 vezes. |
+| Escrita (`POST`, `PATCH`, `DELETE`) com `500`, `502` ou tempo esgotado | Consulte antes. A primeira tentativa pode ter funcionado. Só repita se o registro não existir. |
+| Qualquer `4xx` além de `429` | Não repita. O mesmo pedido dá o mesmo erro; corrija os dados. |
+
+Para a consulta de antes de repetir, ajuda ter dado seu no registro. Mande o `external_id` ao cadastrar clientes: depois
+você o encontra com `filter[external_id]` sem depender da resposta que se perdeu.
+
+## Credenciais
+
+- **Guarde a chave em variável de ambiente ou num cofre de segredos.** Nunca no código, no repositório, em aplicativo de
+  celular ou em página web: quem tem a chave faz tudo o que o seu parceiro pode fazer.
+- **Não escreva a chave nem o token nos logs.** Registre o caminho, o status e a hora; deixe o cabeçalho de fora.
+- **Suspeitou de vazamento, peça a revogação na hora.** A revogação leva até 60 segundos para valer.
+- **Separe quem chama.** Sistema falando com sistema usa chave de API. Pessoa usando um painel seu usa login de usuário.
+  Veja [Autenticação](/guias/autenticacao).
+
+## Em produção, sem rede de proteção
+
+Não existe ambiente de teste: o único ambiente é o de produção. Por isso:
+
+- Comece por chamadas de leitura. Entenda o formato das respostas antes de escrever.
+- Quando for escrever pela primeira vez, faça com um registro seu, que você possa reconhecer depois (um `external_id` com
+  prefixo próprio, por exemplo), e confira o resultado com uma leitura.
+- Chamadas que cobram ou enviam mensagem a um cliente (criar assinatura, criar pedido de dispositivo, cadastrar cliente com
+  e-mail) têm efeito real e imediato. As páginas de referência avisam em cada uma.
+
+## Tempos limite
+
+Defina um tempo limite nas suas chamadas, em vez de esperar sem fim. Algo entre 15 e 30 segundos serve para a maioria das
+operações. Ao estourar o tempo de uma escrita, siga a regra de consultar antes de repetir.

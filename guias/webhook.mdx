@@ -1,0 +1,203 @@
+---
+title: "Webhook e assinatura"
+description: "Como a ClubTrack avisa o seu sistema quando um aparelho entra ou sai de uma cerca, e como conferir que o aviso é nosso."
+---
+
+Em vez de perguntar toda hora onde cada aparelho está, o seu sistema pode ser avisado. Seus clientes criam cercas virtuais
+no aplicativo da ClubTrack, para marcar lugares como a garagem ou o pátio. Quando o aparelho de um cliente seu entra ou
+sai de uma dessas cercas, a ClubTrack faz uma chamada `POST` para um endereço do seu sistema, com os detalhes do que aconteceu.
+
+A API B2B não cria nem lista cercas: quem define as cercas é o cliente final. O webhook é o jeito de o seu sistema saber
+quando uma delas é cruzada.
+
+## O que você recebe
+
+Há dois eventos, e o nome vem no cabeçalho `X-TagTrack-Event` e no campo `event` do corpo:
+
+| Evento | Quando acontece |
+|---|---|
+| `geofence.enter` | O aparelho entrou na cerca. |
+| `geofence.exit` | O aparelho saiu da cerca. |
+
+Não há outros eventos. Mudança de assinatura, de vínculo ou de cadastro não gera aviso: para isso, consulte a API.
+
+## Como ativar
+
+O endereço que recebe os avisos e o segredo que assina cada chamada são cadastrados pela equipe da ClubTrack, não por uma
+rota da API. Peça ao seu contato na ClubTrack:
+
+1. Informe o endereço (uma URL pública que aceite `POST` com JSON).
+2. Receba o segredo, um texto longo e aleatório. Guarde-o como guarda a chave de API.
+
+Sem endereço cadastrado, os avisos do seu parceiro não são enviados. Sem segredo, a chamada sai sem assinatura.
+
+## A chamada que chega ao seu sistema
+
+Método `POST`, corpo em JSON, e estes cabeçalhos:
+
+| Cabeçalho | O que traz |
+|---|---|
+| `X-TagTrack-Event` | O evento: `geofence.enter` ou `geofence.exit`. |
+| `X-TagTrack-Dispatch-Id` | Identificador do aviso. É o mesmo em todas as novas tentativas do mesmo aviso. |
+| `X-TagTrack-Timestamp` | Quando esta tentativa saiu, em ISO 8601. |
+| `X-TagTrack-Signature-256` | A assinatura, no formato `sha256=` seguido de 64 caracteres. Só existe se há segredo cadastrado. |
+| `Content-Type` | `application/json` |
+
+O corpo:
+
+<ResponseField name="event" type="string">
+  O mesmo valor de `X-TagTrack-Event`: `geofence.enter` ou `geofence.exit`.
+</ResponseField>
+
+<ResponseField name="geofence.id" type="string (UUID)">
+  Identificador da cerca que o cliente criou. Serve para reconhecer avisos da mesma cerca ao longo do tempo.
+</ResponseField>
+
+<ResponseField name="geofence.name" type="string">
+  O nome dado à cerca.
+</ResponseField>
+
+<ResponseField name="geofence.radius_meters" type="integer">
+  Raio da cerca, em metros.
+</ResponseField>
+
+<ResponseField name="device.id" type="string (UUID)">
+  Identificador do dispositivo que entrou ou saiu.
+</ResponseField>
+
+<ResponseField name="device.serial" type="string">
+  Número de série do dispositivo.
+</ResponseField>
+
+<ResponseField name="position.latitude" type="number">
+  Latitude da posição que gerou o evento, em graus decimais.
+</ResponseField>
+
+<ResponseField name="position.longitude" type="number">
+  Longitude da posição que gerou o evento, em graus decimais.
+</ResponseField>
+
+<ResponseField name="position.distance_meters" type="number">
+  Distância, em metros, entre essa posição e o centro da cerca, com duas casas decimais.
+</ResponseField>
+
+<ResponseField name="occurred_at" type="string (data e hora ISO 8601)">
+  Quando a ClubTrack detectou o evento, em UTC.
+</ResponseField>
+
+<ResponseExample>
+
+```json geofence.exit
+{
+  "event": "geofence.exit",
+  "geofence": {
+    "id": "019a0f3d-3000-754d-9e43-38dd864bc4d3",
+    "name": "Pátio da Locadora Horizonte",
+    "radius_meters": 150
+  },
+  "device": {
+    "id": "019a0f3c-8000-78d6-8995-8bf9b9e561a5",
+    "serial": "TT-50000001"
+  },
+  "position": {
+    "latitude": -23.561414,
+    "longitude": -46.655881,
+    "distance_meters": 182.4
+  },
+  "occurred_at": "2026-10-19T17:32:10+00:00"
+}
+```
+
+</ResponseExample>
+
+## Conferir a assinatura
+
+A assinatura prova que o aviso veio da ClubTrack e que ninguém mexeu nele no caminho. Ela é um HMAC-SHA256 do **corpo
+exatamente como chegou**, usando o seu segredo, escrito em hexadecimal e precedido de `sha256=`.
+
+<Warning>
+  Calcule sobre os bytes recebidos, antes de abrir o JSON. Se o seu framework já converteu o corpo em objeto e você o
+  converte de volta em texto, a ordem das chaves, os espaços e a forma de escrever acentos podem mudar, e a assinatura não vai
+  bater. Guarde o corpo cru e confira com ele.
+</Warning>
+
+<CodeGroup>
+
+```javascript Node.js
+import crypto from "node:crypto";
+
+// `corpoCru` é o Buffer ou o texto recebido, sem passar por JSON.parse.
+export function assinaturaValida(corpoCru, cabecalho, segredo) {
+  const esperada =
+    "sha256=" +
+    crypto.createHmac("sha256", segredo).update(corpoCru).digest("hex");
+
+  const a = Buffer.from(esperada);
+  const b = Buffer.from(cabecalho ?? "");
+
+  return a.length === b.length && crypto.timingSafeEqual(a, b);
+}
+```
+
+```python Python
+import hashlib
+import hmac
+
+
+def assinatura_valida(corpo_cru: bytes, cabecalho: str | None, segredo: str) -> bool:
+    esperada = "sha256=" + hmac.new(
+        segredo.encode(), corpo_cru, hashlib.sha256
+    ).hexdigest()
+
+    return hmac.compare_digest(esperada, cabecalho or "")
+```
+
+```php PHP
+function assinaturaValida(string $corpoCru, ?string $cabecalho, string $segredo): bool
+{
+    $esperada = 'sha256=' . hash_hmac('sha256', $corpoCru, $segredo);
+
+    return hash_equals($esperada, $cabecalho ?? '');
+}
+
+// Em Laravel, por exemplo: assinaturaValida($request->getContent(), $request->header('X-TagTrack-Signature-256'), $segredo)
+```
+
+</CodeGroup>
+
+Use a comparação em tempo constante que cada linguagem oferece (`timingSafeEqual`, `compare_digest`, `hash_equals`), e não
+`==`. Se a assinatura não bater, responda `401` e descarte o aviso.
+
+## Responder ao aviso
+
+- Responda com qualquer status `2xx`, o mais rápido que puder. Isso conta como entregue.
+- O servidor da ClubTrack espera até **30 segundos** pela resposta (e 10 segundos para conectar). Passou disso, a tentativa
+  conta como falha.
+- Faça o trabalho pesado depois de responder: guarde o aviso numa fila e processe de lá.
+- O conteúdo da sua resposta é guardado de forma resumida para consulta da nossa equipe, não é lido pelo sistema.
+
+## Se o seu sistema não responde
+
+Qualquer resposta fora de `2xx`, tempo esgotado ou falha de conexão conta como falha, e a ClubTrack tenta de novo. São
+**5 tentativas no total**, com estes intervalos depois de cada falha:
+
+| Depois da tentativa | Próxima tentativa em |
+|---|---|
+| 1 | 2 minutos |
+| 2 | 4 minutos |
+| 3 | 8 minutos |
+| 4 | 16 minutos |
+| 5 | Não há. O aviso é abandonado. |
+
+Um aviso abandonado não é reenviado. Se o seu sistema ficou fora do ar por mais de uma hora, recupere o que perdeu
+consultando a [posição](/referencia/rastreamento/listar-posicoes) ou o [trajeto](/referencia/rastreamento/consultar-trajeto)
+dos aparelhos no período.
+
+## Duplicados e ordem
+
+- O mesmo aviso pode chegar mais de uma vez (por exemplo, se a sua resposta demorou e a tentativa foi dada como falha).
+  Guarde o `X-TagTrack-Dispatch-Id` dos avisos já tratados e ignore os repetidos.
+- Os avisos não têm garantia de ordem entre si, sobretudo quando há novas tentativas no meio. Para saber qual evento é mais
+  recente, compare `occurred_at`.
+- A assinatura cobre o corpo, não os cabeçalhos. O `X-TagTrack-Timestamp` ajuda a notar um aviso muito antigo, mas não
+  substitui a conferência do `Dispatch-Id`.

@@ -1,0 +1,76 @@
+---
+title: "Convenções de requisição e resposta"
+description: "Endereço, cabeçalhos, formato de datas e identificadores, e como as respostas são organizadas em toda a API."
+---
+
+Estas regras valem para todas as operações. Quando uma página de referência não disser o contrário, é isto que vale.
+
+## Endereço da API
+
+Toda chamada começa por:
+
+```text
+https://core.clubtrack.com.br/api/b2b/v1
+```
+
+Use sempre o caminho com `v1`. Existe um caminho antigo, sem a versão (`/api/b2b/...`), que ainda responde igual, mas é
+obsoleto: cada resposta dele traz o cabeçalho `Deprecation`. Não comece uma integração nele.
+
+Dentro da `v1` as mudanças são aditivas: campo novo na resposta, filtro novo, rota nova. Por isso seu código deve ignorar
+os campos que não conhece em vez de falhar. Se a ClubTrack precisar de uma mudança que quebre a `v1`, você é avisado antes.
+
+## Cabeçalhos
+
+| Cabeçalho | Quando enviar | O que coloca |
+|---|---|---|
+| `X-Api-Key` | Em toda chamada feita com chave de API | A chave, que começa com `ttk_`. Também vale `Authorization: Bearer <chave>`. |
+| `Authorization` | Em toda chamada feita com login de usuário | `Bearer <token>`, o token devolvido por [Entrar com e-mail e senha](/referencia/conta-e-equipe/entrar). |
+| `X-Partner-Branch-Id` | Só no login de usuário que pertence a mais de uma filial | O identificador da filial em nome da qual você age. Com chave de API é ignorado. |
+| `Accept` | Sempre | `application/json` |
+| `Content-Type` | Nas chamadas com corpo (`POST` e `PATCH`) | `application/json` |
+
+As respostas são sempre JSON, mesmo que você esqueça o `Accept`. Mandá-lo evita surpresa com ferramentas que tratam erro
+de forma diferente conforme o tipo pedido.
+
+## Formato dos dados
+
+- **Nomes de campo** em minúsculas, com sublinhado: `external_id`, `created_at`.
+- **Identificadores** são UUID, texto de 36 caracteres como `019a0f3c-4000-7f9e-9687-b620b4389874`. Trate como texto opaco:
+  não tire ordem nem data dele.
+- **Datas e horas** seguem ISO 8601 em UTC, com o deslocamento no fim: `2026-10-19T17:32:10+00:00`. Converta para o fuso do seu
+  usuário só na hora de exibir.
+- **Campos vazios** vêm com valor `null`, e não somem da resposta. A exceção são os dados que só aparecem quando você os
+  pede com `include`: a página de cada rota diz quais são.
+- **Textos** são UTF-8. Acentos vão como são, sem escape.
+
+## Como as respostas são organizadas
+
+Um item sozinho vem dentro de `data`:
+
+```json
+{
+  "data": {
+    "id": "019a0f3c-4000-7f9e-9687-b620b4389874",
+    "name": "Marina Souza Exemplo"
+  }
+}
+```
+
+Uma lista traz `data` (os itens), `links` (endereços para navegar) e `meta` (totais e página atual). O guia de
+[paginação, filtros e ordenação](/guias/paginacao-filtros-ordenacao) mostra cada parte.
+
+Uma chamada que dá certo e não tem nada para devolver (por exemplo, uma lista sem resultado) responde `200` com `data`
+vazio. Só o erro muda o status.
+
+## Repetir uma chamada
+
+A API não tem chave de idempotência. Uma leitura (`GET`) pode ser repetida à vontade. Já um `POST` repetido pode criar
+duas vezes o mesmo registro. Se uma chamada de escrita terminou em erro de rede ou em tempo esgotado e você não sabe se
+chegou, consulte antes de tentar de novo: por exemplo, procure o cliente pelo `external_id` que você enviou.
+Veja mais em [Limites e boas práticas](/guias/limites-e-boas-praticas).
+
+## Não há ambiente de teste
+
+A API tem um único ambiente, o de produção, e o campo de testes do site de documentação está desligado de propósito.
+Toda chamada de escrita tem efeito real: cadastra cliente de verdade, cria cobrança de verdade, envia e-mail de verdade.
+Comece suas integrações por chamadas de leitura e só depois passe às de escrita.

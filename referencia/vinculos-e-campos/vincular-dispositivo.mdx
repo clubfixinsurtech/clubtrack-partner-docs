@@ -1,0 +1,287 @@
+---
+title: "Vincular dispositivo a um cliente"
+description: "Liga um dispositivo do seu estoque a um cliente seu e cria o vínculo (a Tag). A localização só é liberada depois do pagamento."
+api: "POST /api/b2b/v1/tag-bindings"
+---
+
+Esta chamada liga um dispositivo do estoque do seu parceiro a um cliente do seu parceiro. O resultado é um vínculo, que a API
+também chama de Tag: o conjunto formado pelo aparelho (`device`, identificado pelo número de série) e pelo cliente que o usa.
+O `id` do vínculo é o valor que você usa depois para [criar a assinatura](/referencia/comercial/criar-assinatura) e para
+[ler](/referencia/vinculos-e-campos/ler-campos-do-vinculo) ou [gravar](/referencia/vinculos-e-campos/gravar-campos-do-vinculo)
+os campos personalizados da Tag.
+
+O vínculo por esta rota nasce sempre sem a localização liberada. O dispositivo passa a ter `status` igual a `pending_activation`
+(aguardando pagamento) e só começa a informar posição quando a assinatura do vínculo é ativada: na confirmação do pagamento
+do primeiro ciclo ou, para parceiros com faturamento consolidado, na criação da assinatura. Não existe parâmetro para liberar
+a localização no ato do vínculo.
+
+<Warning>
+  Esta chamada grava de verdade. Ela cria o vínculo entre o dispositivo e o cliente e muda o `status` do dispositivo para
+  `pending_activation`. Não cria assinatura nem cobrança e não existe ambiente de teste: use dispositivo e cliente reais
+  do seu parceiro. Esta API não tem chamada para desfazer um vínculo; se vinculou o aparelho ao cliente errado, fale com a ClubTrack.
+</Warning>
+
+## Quando usar
+
+- Depois de [cadastrar o cliente](/referencia/clientes-e-enderecos/cadastrar-cliente) e antes de
+  [criar a assinatura](/referencia/comercial/criar-assinatura), que é o que leva ao pagamento e à liberação da localização.
+- Para vincular de novo um dispositivo que já foi desvinculado de um cliente anterior (`status` igual a `inactive`).
+- Para registrar uma observação sobre a entrega da Tag, no campo `notes`.
+
+## Autenticação e permissões
+
+Aceita chave de API ou login humano. Qualquer usuário da equipe do parceiro pode vincular. Parceiro suspenso recebe 403.
+O dispositivo e o cliente precisam ser do mesmo parceiro em nome do qual você chama: com a chave de uma filial, valem o estoque
+e os clientes dessa filial. O guia de [autenticação](/guias/autenticacao) explica as duas formas de credencial.
+
+## Parâmetros
+
+### Cabeçalhos
+
+<ParamField header="X-Api-Key" type="string" required>
+  Sua chave de API, no formato `ttk_` seguido de 40 caracteres. Você pode enviá-la também como
+  `Authorization: Bearer <chave>`. Se estiver chamando com o token de um usuário da equipe, envie só o `Authorization`.
+</ParamField>
+
+<ParamField header="X-Partner-Branch-Id" type="string (UUID)">
+  Filial em nome da qual o usuário está vinculando. Só tem efeito no login humano, e só é obrigatório quando o usuário
+  pertence a mais de uma filial. Com chave de API, o cabeçalho é ignorado.
+</ParamField>
+
+<ParamField header="Content-Type" type="string" required>
+  Envie `application/json`. O corpo da chamada é um objeto JSON.
+</ParamField>
+
+### Corpo
+
+<ParamField body="device_serial" type="string" required>
+  Número de série do dispositivo, como está no seu estoque. Até 50 caracteres; espaços no começo e no fim são ignorados.
+  Série só com dígitos (até 15) é completada com zeros à esquerda antes da busca: `7260713533` e `000007260713533` encontram o
+  mesmo aparelho. Série com letras é comparada como foi enviada. A busca olha só o estoque do seu parceiro: série de outro
+  parceiro responde 404, igual a série que não existe. Exemplo: `860000000000001`.
+</ParamField>
+
+<ParamField body="customer_id" type="string (UUID)" required>
+  Identificador do cliente que vai usar a Tag, o `id` devolvido por
+  [Cadastrar cliente](/referencia/clientes-e-enderecos/cadastrar-cliente) ou
+  [Listar clientes](/referencia/clientes-e-enderecos/listar-clientes). O cliente precisa ser do seu parceiro. A chamada não
+  confere a situação (`active` ou `inactive`) do cliente. Exemplo: `019a0f3c-4000-7f9e-9687-b620b4389874`.
+</ParamField>
+
+<ParamField body="notes" type="string | null">
+  Observação livre sobre o vínculo, até 500 caracteres. Texto vazio equivale a não enviar. Volta na resposta, no campo
+  `notes`, e fica `null` quando não é informada. Exemplo: `Entregue em mãos na filial Sul`.
+</ParamField>
+
+## Resposta
+
+Status `201`. O corpo traz o vínculo criado em `data`. A resposta não traz os detalhes do dispositivo nem do cliente: use
+`device_id` e `customer_id` com [Consultar dispositivo](/referencia/rastreamento/consultar-dispositivo) e
+[Consultar cliente](/referencia/clientes-e-enderecos/consultar-cliente).
+
+<ResponseField name="data.id" type="string (UUID)">
+  Identificador do vínculo (a Tag). É o valor que as chamadas de assinatura e de campos personalizados pedem como
+  `tag_binding_ids` ou `{id}`. Guarde-o junto do `external_id` do cliente.
+</ResponseField>
+
+<ResponseField name="data.device_id" type="string (UUID)">
+  Identificador do dispositivo vinculado, o mesmo `id` que a consulta de dispositivos devolve.
+</ResponseField>
+
+<ResponseField name="data.customer_id" type="string (UUID)">
+  Identificador do cliente ao qual a Tag foi vinculada.
+</ResponseField>
+
+<ResponseField name="data.status" type="string">
+  Situação do vínculo. `active`: o vínculo existe e está em uso, mesmo com a localização ainda não liberada. `unbound`: o vínculo
+  foi desfeito. Um vínculo novo sempre vem `active`. A situação da localização está no `status` do dispositivo, não aqui.
+</ResponseField>
+
+<ResponseField name="data.bound_at" type="string (data e hora ISO 8601)">
+  Quando o vínculo foi criado, em UTC.
+</ResponseField>
+
+<ResponseField name="data.unbound_at" type="string (data e hora ISO 8601) | null">
+  Quando o vínculo foi desfeito, em UTC. `null` enquanto o vínculo está `active`, o que vale para um vínculo recém-criado.
+</ResponseField>
+
+<ResponseField name="data.notes" type="string | null">
+  A observação enviada em `notes`, ou `null` quando não foi informada.
+</ResponseField>
+
+<ResponseField name="data.nickname" type="string | null">
+  Apelido que o cliente dá à própria Tag, com até 100 caracteres. Vem `null` no vínculo novo.
+</ResponseField>
+
+<ResponseField name="data.category" type="string | null">
+  Categoria que o cliente escolhe para a própria Tag, com até 50 caracteres. Vem `null` no vínculo novo.
+</ResponseField>
+
+<ResponseField name="data.icon" type="string | null">
+  Identificador do ícone que o cliente escolhe para a própria Tag, com até 50 caracteres. Vem `null` no vínculo novo.
+</ResponseField>
+
+<ResponseField name="data.created_at" type="string (data e hora ISO 8601)">
+  Quando o registro do vínculo foi criado, em UTC. No vínculo novo é praticamente igual a `bound_at`.
+</ResponseField>
+
+## Erros
+
+| Status | Quando acontece | O que fazer |
+|---|---|---|
+| 400 | Login humano com usuário que tem mais de uma filial e sem `X-Partner-Branch-Id`. | Envie o cabeçalho com a filial desejada. |
+| 401 | Não há chave, a chave é inválida, foi revogada ou expirou. Com login humano: usuário inativo ou token expirado. | Confira a credencial. Revogação leva até 60 segundos para valer. |
+| 403 | O parceiro está suspenso ou inativo, ou a filial informada não pertence ao usuário. | Fale com a ClubTrack se o parceiro deveria estar ativo. |
+| 404 | `Dispositivo não encontrado.`: nenhum dispositivo do seu parceiro tem essa série (inclui série de outro parceiro). `Cliente não encontrado.`: o cliente não existe ou é de outro parceiro. O dispositivo é conferido primeiro. | Confira a série no seu estoque e o `customer_id` na lista de clientes. |
+| 422 | Formato inválido: `device_serial` ou `customer_id` ausente, `customer_id` que não é UUID, `notes` com mais de 500 caracteres. As mensagens vêm em inglês, com o nome do campo em `errors`. | Corrija o corpo e envie de novo. |
+| 422 | `Série ambígua: '...' corresponde a mais de um Dispositivo.`: a série enviada, depois de completada com zeros, bate com mais de um aparelho do seu estoque. | Envie a série completa, como está gravada no aparelho. |
+| 422 | `Dispositivo '...' não está disponível para vínculo (status: ...).`: só dispositivo com `status` igual a `assigned_to_partner` (no estoque do parceiro) ou `inactive` (devolvido) pode ser vinculado. Os outros valores são `in_stock`, `pending_activation`, `active`, `damaged` e `replaced`. | Consulte o dispositivo. Se o `status` for `pending_activation` ou `active`, ele já está vinculado. |
+| 422 | `Dispositivo '...' já possui vínculo ativo.` | Procure o vínculo existente nas Tags do cliente. |
+| 429 | Passou de 1000 chamadas por minuto com a chave. | Espere o tempo do cabeçalho `Retry-After` e repita. |
+
+Os status 401, 403 e 429 valem para qualquer chamada. O corpo é sempre `{"message": "..."}`, e o 422 de formato acrescenta `errors`;
+o guia de [erros](/guias/erros) traz os textos exatos.
+
+## Exemplos
+
+<RequestExample>
+
+```bash cURL
+curl --request POST "https://core.clubtrack.com.br/api/b2b/v1/tag-bindings" \
+  --header "X-Api-Key: $CLUBTRACK_API_KEY" \
+  --header "Accept: application/json" \
+  --header "Content-Type: application/json" \
+  --data '{
+    "device_serial": "860000000000001",
+    "customer_id": "019a0f3c-4000-7f9e-9687-b620b4389874",
+    "notes": "Entregue em mãos na filial Sul"
+  }'
+```
+
+```javascript JavaScript
+const resposta = await fetch("https://core.clubtrack.com.br/api/b2b/v1/tag-bindings", {
+  method: "POST",
+  headers: {
+    "X-Api-Key": process.env.CLUBTRACK_API_KEY,
+    Accept: "application/json",
+    "Content-Type": "application/json",
+  },
+  body: JSON.stringify({
+    device_serial: "860000000000001",
+    customer_id: "019a0f3c-4000-7f9e-9687-b620b4389874",
+    notes: "Entregue em mãos na filial Sul",
+  }),
+});
+
+const vinculo = await resposta.json();
+```
+
+```python Python
+import os
+import requests
+
+resposta = requests.post(
+    "https://core.clubtrack.com.br/api/b2b/v1/tag-bindings",
+    headers={
+        "X-Api-Key": os.environ["CLUBTRACK_API_KEY"],
+        "Accept": "application/json",
+    },
+    json={
+        "device_serial": "860000000000001",
+        "customer_id": "019a0f3c-4000-7f9e-9687-b620b4389874",
+        "notes": "Entregue em mãos na filial Sul",
+    },
+    timeout=30,
+)
+
+vinculo = resposta.json()
+```
+
+```php PHP
+use GuzzleHttp\Client;
+
+$http = new Client(['base_uri' => 'https://core.clubtrack.com.br']);
+
+$resposta = $http->post('/api/b2b/v1/tag-bindings', [
+    'headers' => [
+        'X-Api-Key' => getenv('CLUBTRACK_API_KEY'),
+        'Accept' => 'application/json',
+    ],
+    'json' => [
+        'device_serial' => '860000000000001',
+        'customer_id' => '019a0f3c-4000-7f9e-9687-b620b4389874',
+        'notes' => 'Entregue em mãos na filial Sul',
+    ],
+]);
+
+$vinculo = json_decode((string) $resposta->getBody(), true);
+```
+
+</RequestExample>
+
+<ResponseExample>
+
+```json 201
+{
+  "data": {
+    "id": "019a0f3c-a000-7d36-b6e0-c918528fd00a",
+    "device_id": "019a0f3c-8000-78d6-8995-8bf9b9e561a5",
+    "customer_id": "019a0f3c-4000-7f9e-9687-b620b4389874",
+    "status": "active",
+    "bound_at": "2026-10-19T17:32:10+00:00",
+    "unbound_at": null,
+    "notes": "Entregue em mãos na filial Sul",
+    "nickname": null,
+    "category": null,
+    "icon": null,
+    "created_at": "2026-10-19T17:32:10+00:00"
+  }
+}
+```
+
+```json 401
+{
+  "message": "API key inválida ou revogada."
+}
+```
+
+```json 403
+{
+  "message": "Parceiro inativo ou suspenso."
+}
+```
+
+```json 404
+{
+  "message": "Dispositivo não encontrado."
+}
+```
+
+```json 422 formato
+{
+  "message": "The customer id field must be a valid UUID.",
+  "errors": {
+    "customer_id": [
+      "The customer id field must be a valid UUID."
+    ]
+  }
+}
+```
+
+```json 422 regra de negócio
+{
+  "message": "Dispositivo '860000000000001' não está disponível para vínculo (status: pending_activation)."
+}
+```
+
+</ResponseExample>
+
+## Detalhes que ajudam
+
+- Repetir a chamada depois de um sucesso não cria um segundo vínculo: o aparelho já está em `pending_activation`, e a segunda
+  chamada responde `422` com a mensagem de dispositivo indisponível. Se a conexão cair antes de você receber a resposta,
+  confira as Tags do cliente em [Listar as Tags de um cliente](/referencia/clientes-e-enderecos/listar-tags-do-cliente) antes de tentar de novo.
+- O `status` do dispositivo só muda para `active` quando a assinatura é ativada. Enquanto estiver `pending_activation`,
+  a localização do aparelho ainda não está liberada.
+- Os campos personalizados da Tag só podem ser gravados depois do vínculo. Veja o guia de
+  [campos personalizados](/guias/campos-personalizados).

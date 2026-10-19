@@ -1,0 +1,352 @@
+---
+title: "Listar dispositivos"
+description: "Devolve, em páginas, os dispositivos do seu parceiro: os que estão no seu estoque e os já vinculados a clientes."
+api: "GET /api/b2b/v1/devices"
+---
+
+Um dispositivo é o aparelho físico, identificado por número de série e IMEI. Esta chamada lista os dispositivos que a ClubTrack
+entregou ao seu parceiro, tanto os que ainda estão no seu estoque quanto os que já foram vinculados a um cliente. É a
+chamada para saber quantos aparelhos você tem, em que situação cada um está e qual deles está livre para vincular.
+
+Não confunda dispositivo com Tag. O dispositivo é o aparelho. A Tag é o aparelho **vinculado a um cliente**: nasce no
+[vínculo](/referencia/vinculos-e-campos/vincular-dispositivo) e é o que você consulta em [Listar Tags](/referencia/rastreamento/listar-tags).
+
+Só aparecem os aparelhos do seu parceiro. Aparelhos que ainda estão no estoque da ClubTrack, sem parceiro, não aparecem.
+
+## Quando usar
+
+- Para escolher um aparelho livre (`status` igual a `assigned_to_partner`) antes de [vincular a um cliente](/referencia/vinculos-e-campos/vincular-dispositivo).
+- Para achar um aparelho pelo número de série ou pelo nome do cliente a que ele está ligado.
+- Para auditar o estoque: quantos aparelhos estão ativos, aguardando ativação, danificados ou substituídos.
+
+## Autenticação e permissões
+
+Aceita chave de API ou login de usuário, e qualquer usuário da equipe pode consultar. Parceiro suspenso recebe 403.
+Veja [Autenticação](/guias/autenticacao).
+
+## Parâmetros
+
+### Cabeçalhos
+
+<ParamField header="X-Api-Key" type="string" required>
+  Sua chave de API, que começa com `ttk_`. Também vale `Authorization: Bearer <chave>`. No login de usuário, envie só o
+  `Authorization`.
+</ParamField>
+
+<ParamField header="X-Partner-Branch-Id" type="string (UUID)">
+  Filial em nome da qual o usuário consulta. Só vale no login de usuário e só é obrigatório quando o usuário tem mais de uma
+  filial. Com chave de API é ignorado.
+</ParamField>
+
+### Consulta
+
+Os filtros se somam, e vários valores separados por vírgula no mesmo filtro valem como "qualquer um deles". Detalhes em
+[Paginação, filtros e ordenação](/guias/paginacao-filtros-ordenacao).
+
+<ParamField query="filter[status]" type="string">
+  Situação do aparelho, comparação exata. Valores: `assigned_to_partner` (com você, sem cliente), `pending_activation`
+  (vinculado, esperando o pagamento para liberar a localização), `active` (em uso), `damaged` (danificado), `replaced`
+  (substituído por outro aparelho) e `inactive` (desativado). Aceita vários separados por vírgula.
+</ParamField>
+
+<ParamField query="filter[serial]" type="string">
+  Parte do número de série, em qualquer posição, sem diferenciar maiúscula de minúscula. `filter[serial]=5000` acha
+  "TT-50000001".
+</ParamField>
+
+<ParamField query="filter[model]" type="string">
+  Parte do nome do modelo do aparelho, com a mesma regra do número de série. Aparelhos sem modelo cadastrado nunca atendem a
+  esse filtro.
+</ParamField>
+
+<ParamField query="filter[search]" type="string">
+  Busca única para uma caixa de pesquisa. Encontra o texto no número de série do aparelho, no apelido que o cliente deu ao
+  bem (como "Bike do João") ou no nome do cliente vinculado. Não diferencia maiúscula de minúscula. Só olha aparelhos do seu
+  parceiro, então um nome igual em outro parceiro não aparece.
+</ParamField>
+
+<ParamField query="filter[active]" type="string">
+  Atalho para aparelhos com `status` igual a `active`. O valor enviado é ignorado (`filter[active]=1` basta).
+</ParamField>
+
+<ParamField query="filter[inactive]" type="string">
+  Atalho para aparelhos com `status` igual a `inactive`. O valor é ignorado.
+</ParamField>
+
+<ParamField query="filter[assignedToPartner]" type="string">
+  Atalho para os aparelhos livres no seu estoque, com `status` igual a `assigned_to_partner`. O valor é ignorado. Note o nome
+  em camelCase.
+</ParamField>
+
+<ParamField query="filter[registeredAfter]" type="string (data)">
+  Aparelhos registrados a partir desta data, inclusive. Envie `AAAA-MM-DD` ou uma data e hora ISO 8601. Sem hora, vale a
+  meia-noite (00:00) daquele dia.
+</ParamField>
+
+<ParamField query="filter[registeredBefore]" type="string (data)">
+  Aparelhos registrados até esta data, inclusive. Atenção: sem hora, vale a meia-noite (00:00) daquele dia, então
+  `filter[registeredBefore]=2026-10-31` deixa de fora quem foi registrado depois das 00:00 de 31/10. Para incluir o dia
+  inteiro, use o dia seguinte.
+</ParamField>
+
+<ParamField query="sort" type="string" default="-created_at">
+  Campo de ordenação: `created_at`, `registered_at`, `serial` ou `status`. Prefixe com `-` para ordem decrescente. Aceita
+  mais de um, separados por vírgula.
+</ParamField>
+
+<ParamField query="include" type="string">
+  Aceita `statusHistories`, que acrescenta a cada aparelho o histórico das mudanças de situação. O histórico começa no
+  momento em que o aparelho passou a ser do seu parceiro, e não traz o que aconteceu antes.
+</ParamField>
+
+<ParamField query="per_page" type="integer" default="25">
+  Quantos aparelhos por página. Envie um inteiro positivo; prefira até 100.
+</ParamField>
+
+<ParamField query="page" type="integer" default="1">
+  Número da página. Para percorrer tudo, siga `links.next`.
+</ParamField>
+
+## Resposta
+
+Status `200`, com `data`, `links` e `meta` como em toda lista. Sem resultado, `data` vem vazio.
+
+<ResponseField name="data[].id" type="string (UUID)">
+  Identificador do dispositivo. É o valor que você usa em [Vincular dispositivo](/referencia/vinculos-e-campos/vincular-dispositivo)
+  e em [Listar posições](/referencia/rastreamento/listar-posicoes).
+</ResponseField>
+
+<ResponseField name="data[].partner_id" type="string (UUID)">
+  O parceiro dono do aparelho: sempre o seu.
+</ResponseField>
+
+<ResponseField name="data[].serial" type="string">
+  Número de série impresso no aparelho.
+</ResponseField>
+
+<ResponseField name="data[].imei" type="string">
+  IMEI do aparelho, com 15 caracteres.
+</ResponseField>
+
+<ResponseField name="data[].model" type="string | null">
+  Modelo do aparelho. `null` quando não foi cadastrado.
+</ResponseField>
+
+<ResponseField name="data[].status" type="string">
+  Situação atual: `assigned_to_partner`, `pending_activation`, `active`, `damaged`, `replaced` ou `inactive`. O significado
+  de cada uma está no filtro `filter[status]`.
+</ResponseField>
+
+<ResponseField name="data[].notes" type="string | null">
+  Observação registrada sobre o aparelho. `null` quando não há.
+</ResponseField>
+
+<ResponseField name="data[].replaced_by_id" type="string (UUID) | null">
+  Quando o aparelho foi substituído (`status` igual a `replaced`), o `id` do aparelho que ficou no lugar dele. `null` nos demais.
+</ResponseField>
+
+<ResponseField name="data[].registered_at" type="string (data e hora ISO 8601) | null">
+  Quando o aparelho foi registrado na plataforma, em UTC.
+</ResponseField>
+
+<ResponseField name="data[].created_at" type="string (data e hora ISO 8601)">
+  Quando o registro do aparelho foi criado, em UTC.
+</ResponseField>
+
+<ResponseField name="data[].updated_at" type="string (data e hora ISO 8601)">
+  Última alteração do registro, em UTC.
+</ResponseField>
+
+<ResponseField name="data[].active_tag_binding_id" type="string (UUID) | null">
+  O `id` do vínculo ativo deste aparelho com um cliente seu. `null` quando o aparelho não está vinculado. É o identificador
+  que as chamadas de [campos personalizados do vínculo](/referencia/vinculos-e-campos/ler-campos-do-vinculo) pedem.
+</ResponseField>
+
+<ResponseField name="data[].status_histories" type="object[]">
+  Só vem com `include=statusHistories`. Cada item traz `from_status` e `to_status` (a situação antes e depois), `changed_by`
+  (quem ou o que fez a mudança), `reason` (o motivo registrado, quando há) e `changed_at` (quando, em UTC).
+</ResponseField>
+
+<ResponseField name="links" type="object">
+  `first`, `last`, `prev` e `next`, já com os filtros da chamada. `prev` e `next` são `null` nas pontas.
+</ResponseField>
+
+<ResponseField name="meta" type="object">
+  `current_page`, `last_page`, `per_page`, `from`, `to` e `total` (quantos aparelhos atendem aos filtros).
+</ResponseField>
+
+## Erros
+
+| Status | Quando acontece | O que fazer |
+|---|---|---|
+| 400 | Filtro, ordenação ou inclusão que a rota não aceita. A mensagem lista os nomes válidos, em inglês. | Corrija o nome. Os filtros de data e de estoque usam camelCase. |
+| 400 | Login de usuário com mais de uma filial e sem `X-Partner-Branch-Id`. | Envie o cabeçalho. |
+| 401 | Credencial ausente, inválida, revogada ou expirada. | Confira a chave ou o token. |
+| 403 | Parceiro suspenso ou inativo, ou filial que não é do usuário. | Fale com a ClubTrack se o parceiro deveria estar ativo. |
+| 429 | Mais de 1000 chamadas por minuto com a chave. | Espere o tempo de `Retry-After`. |
+
+Os status 401, 403 e 429 valem para qualquer chamada. Veja [Erros e códigos](/guias/erros).
+
+## Exemplos
+
+<RequestExample>
+
+```bash cURL
+curl --get "https://core.clubtrack.com.br/api/b2b/v1/devices" \
+  --header "X-Api-Key: $CLUBTRACK_API_KEY" \
+  --header "Accept: application/json" \
+  --data-urlencode "filter[status]=assigned_to_partner,active" \
+  --data-urlencode "filter[search]=TT-5000" \
+  --data-urlencode "sort=serial" \
+  --data-urlencode "per_page=2"
+```
+
+```javascript JavaScript
+const params = new URLSearchParams({
+  "filter[status]": "assigned_to_partner,active",
+  "filter[search]": "TT-5000",
+  sort: "serial",
+  per_page: "2",
+});
+
+const resposta = await fetch(
+  `https://core.clubtrack.com.br/api/b2b/v1/devices?${params}`,
+  {
+    headers: {
+      "X-Api-Key": process.env.CLUBTRACK_API_KEY,
+      Accept: "application/json",
+    },
+  },
+);
+
+const dispositivos = await resposta.json();
+```
+
+```python Python
+import os
+import requests
+
+resposta = requests.get(
+    "https://core.clubtrack.com.br/api/b2b/v1/devices",
+    headers={
+        "X-Api-Key": os.environ["CLUBTRACK_API_KEY"],
+        "Accept": "application/json",
+    },
+    params={
+        "filter[status]": "assigned_to_partner,active",
+        "filter[search]": "TT-5000",
+        "sort": "serial",
+        "per_page": 2,
+    },
+    timeout=30,
+)
+
+dispositivos = resposta.json()
+```
+
+```php PHP
+use GuzzleHttp\Client;
+
+$http = new Client(['base_uri' => 'https://core.clubtrack.com.br']);
+
+$resposta = $http->get('/api/b2b/v1/devices', [
+    'headers' => [
+        'X-Api-Key' => getenv('CLUBTRACK_API_KEY'),
+        'Accept' => 'application/json',
+    ],
+    'query' => [
+        'filter' => ['status' => 'assigned_to_partner,active', 'search' => 'TT-5000'],
+        'sort' => 'serial',
+        'per_page' => 2,
+    ],
+]);
+
+$dispositivos = json_decode((string) $resposta->getBody(), true);
+```
+
+</RequestExample>
+
+<ResponseExample>
+
+```json 200
+{
+  "data": [
+    {
+      "id": "019a0f3c-8000-78d6-8995-8bf9b9e561a5",
+      "partner_id": "019a0f3c-0000-7a36-8f98-0b409e8a22c8",
+      "serial": "TT-50000001",
+      "imei": "860000000000001",
+      "model": "TT-100",
+      "status": "active",
+      "notes": null,
+      "replaced_by_id": null,
+      "registered_at": "2026-09-22T12:10:00+00:00",
+      "created_at": "2026-09-22T12:10:00+00:00",
+      "updated_at": "2026-10-05T18:30:12+00:00",
+      "active_tag_binding_id": "019a0f3c-a000-7d36-b6e0-c918528fd00a"
+    },
+    {
+      "id": "019a0f3c-9000-7bea-ad46-da90612bbeb8",
+      "partner_id": "019a0f3c-0000-7a36-8f98-0b409e8a22c8",
+      "serial": "TT-50000002",
+      "imei": "860000000000002",
+      "model": "TT-100",
+      "status": "assigned_to_partner",
+      "notes": null,
+      "replaced_by_id": null,
+      "registered_at": "2026-09-22T12:10:00+00:00",
+      "created_at": "2026-09-22T12:10:00+00:00",
+      "updated_at": "2026-09-23T09:02:41+00:00",
+      "active_tag_binding_id": null
+    }
+  ],
+  "links": {
+    "first": "https://core.clubtrack.com.br/api/b2b/v1/devices?filter%5Bstatus%5D=assigned_to_partner%2Cactive&filter%5Bsearch%5D=TT-5000&sort=serial&per_page=2&page=1",
+    "last": "https://core.clubtrack.com.br/api/b2b/v1/devices?filter%5Bstatus%5D=assigned_to_partner%2Cactive&filter%5Bsearch%5D=TT-5000&sort=serial&per_page=2&page=1",
+    "prev": null,
+    "next": null
+  },
+  "meta": {
+    "current_page": 1,
+    "from": 1,
+    "last_page": 1,
+    "links": [
+      { "url": null, "label": "&laquo; Previous", "active": false },
+      { "url": "https://core.clubtrack.com.br/api/b2b/v1/devices?filter%5Bstatus%5D=assigned_to_partner%2Cactive&filter%5Bsearch%5D=TT-5000&sort=serial&per_page=2&page=1", "label": "1", "active": true },
+      { "url": null, "label": "Next &raquo;", "active": false }
+    ],
+    "path": "https://core.clubtrack.com.br/api/b2b/v1/devices",
+    "per_page": 2,
+    "to": 2,
+    "total": 2
+  }
+}
+```
+
+```json 400
+{
+  "message": "Requested filter(s) `assigned_to_partner` are not allowed. Allowed filter(s) are `status, serial, model, active, inactive, assignedToPartner, registeredAfter, registeredBefore, search`."
+}
+```
+
+```json 401
+{
+  "message": "API key ausente."
+}
+```
+
+```json 403
+{
+  "message": "Parceiro inativo ou suspenso."
+}
+```
+
+</ResponseExample>
+
+## Detalhes que ajudam
+
+- Para uma lista só dos aparelhos livres, use `filter[assignedToPartner]=1`. Para os que esperam pagamento, `filter[status]=pending_activation`.
+- O aparelho continua com o `partner_id` do seu parceiro durante toda a vida dele, inclusive depois de vinculado a um cliente.
+  Para saber **qual cliente** usa um aparelho, use [Listar Tags](/referencia/rastreamento/listar-tags): a resposta de dispositivo traz
+  só o `active_tag_binding_id`.
+- Um aparelho substituído continua na lista com `status` igual a `replaced`. O que ficou no lugar dele está em `replaced_by_id`.

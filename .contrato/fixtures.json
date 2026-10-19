@@ -66,12 +66,13 @@
   "dispositivos": [
     {
       "id": "019a0f3c-8000-78d6-8995-8bf9b9e561a5",
-      "serial": "860000000000001",
-      "observacao": "série fictícia; confirme o formato real no código"
+      "serial": "TT-50000001",
+      "imei": "860000000000001"
     },
     {
       "id": "019a0f3c-9000-7bea-ad46-da90612bbeb8",
-      "serial": "860000000000002"
+      "serial": "TT-50000002",
+      "imei": "860000000000002"
     }
   ],
   "posicao_exemplo": {

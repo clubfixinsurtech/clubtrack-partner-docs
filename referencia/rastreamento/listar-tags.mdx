@@ -1,0 +1,488 @@
+---
+title: "Listar Tags"
+description: "Devolve, em páginas, as Tags dos clientes do seu parceiro, com apelido, categoria, aparelho e situação de comunicação."
+api: "GET /api/b2b/v1/tags"
+---
+
+Esta chamada devolve as Tags do seu parceiro: uma linha para cada vínculo ativo entre um aparelho e um cliente seu, do vínculo mais recente para o mais antigo. Cada linha diz como a Tag se chama (apelido, categoria, ícone), qual aparelho a transmite e se ele comunicou nos últimos 60 minutos (`online`). Você usa a lista para montar a tela de frota e para descobrir os identificadores que as outras chamadas de rastreamento pedem.
+
+Ela não traz coordenadas. Para saber onde a Tag está, use [Última posição de um dispositivo](/referencia/rastreamento/ultima-posicao). Para ver por onde ela andou, use [Consultar trajeto](/referencia/rastreamento/consultar-trajeto).
+
+<Info>
+  **Tag, vínculo e aparelho.** O `id` de cada linha é o do **vínculo**: a ligação de um aparelho a um cliente. Se o aparelho for desvinculado e vinculado de novo, o novo vínculo recebe outro `id`. É esse `id` que [Consultar trajeto](/referencia/rastreamento/consultar-trajeto) e [Consultar distância](/referencia/rastreamento/consultar-distancia) pedem em `{id}`. O **aparelho** (`device`) é o rastreador físico que transmite as posições. O `device.id` é o que [Listar posições](/referencia/rastreamento/listar-posicoes) e [Última posição](/referencia/rastreamento/ultima-posicao) pedem em `{deviceId}`.
+</Info>
+
+Quais Tags aparecem depende de como o seu parceiro é cobrado:
+
+- **Cobrança por assinatura** (o padrão): aparece só o vínculo que tem uma assinatura ativa. A Tag de um cliente que ainda não pagou, ou cuja assinatura deixou de estar ativa, fica fora da lista.
+- **Cobrança consolidada pós-paga**: aparece todo vínculo ativo, sem depender de assinatura, porque o parceiro é faturado depois, no fechamento.
+
+A regra é lida a cada chamada. Se o modelo de cobrança do parceiro mudar, a lista muda na chamada seguinte. A Tag que a lista esconde também não pode ser consultada em trajeto nem em distância: essas chamadas respondem 404 para ela.
+
+Com chave de API, a lista é a do parceiro dono da chave. Com login humano, é a da filial ativa. A matriz e as filiais não se misturam: cada uma vê só os vínculos dos clientes que são dela.
+
+## Quando usar
+
+- Montar a tela de frota, com a situação de cada Tag (online ou não) e o horário da última comunicação.
+- Descobrir o `id` do vínculo e o `device.id` antes de pedir trajeto, distância ou posição.
+- Encontrar a Tag de um cliente pelo apelido, pela categoria ou por um campo personalizado, como a placa.
+- Achar as Tags que pararam de comunicar: percorra as páginas e separe as linhas com `online` igual a `false`.
+
+## Autenticação e permissões
+
+Aceita chave de API ou login humano. Qualquer usuário da equipe do parceiro pode consultar. Parceiro suspenso ou inativo recebe 403, e a suspensão da matriz alcança as filiais. O guia de [autenticação](/guias/autenticacao) explica as duas formas e como escolher a filial quando o usuário tem mais de uma.
+
+## Parâmetros
+
+### Cabeçalhos
+
+<ParamField header="X-Api-Key" type="string" required>
+  Sua chave de API, no formato `ttk_` seguido de 40 caracteres. Você pode enviá-la também como
+  `Authorization: Bearer <chave>`. Se estiver chamando com o token de um usuário da equipe, envie só o `Authorization`.
+</ParamField>
+
+<ParamField header="X-Partner-Branch-Id" type="string (UUID)">
+  Filial em nome da qual o usuário está consultando. Só tem efeito no login humano, e só é obrigatório quando o usuário
+  pertence a mais de uma filial. Com chave de API, o cabeçalho é ignorado.
+</ParamField>
+
+### Consulta
+
+Os filtros se combinam: cada filtro a mais restringe o resultado. Mais detalhes em
+[Paginação, filtros e ordenação](/guias/paginacao-filtros-ordenacao).
+
+<ParamField query="filter[category]" type="string">
+  Categoria da Tag, comparada por igualdade. A busca não diferencia maiúscula de minúscula nem considera espaços no começo
+  e no fim: `filter[category]=carro` acha "Carro" e "CARRO ". O acento conta, então `caminhao` não acha "Caminhão", e um
+  pedaço do texto não basta (`Carr` não acha "Carro"). A categoria é um texto livre de até 50 caracteres. A vírgula faz parte
+  do texto, e por isso o filtro aceita um único valor. Tag sem categoria (`null`) não aparece quando este filtro é usado.
+  Exemplo: `/api/b2b/v1/tags?filter[category]=carro`.
+</ParamField>
+
+<ParamField query="filter[nickname]" type="string">
+  Parte do apelido da Tag. A busca encontra o texto em qualquer posição e não diferencia maiúscula de minúscula:
+  `filter[nickname]=fiorino` acha "Fiorino da Entrega". Os caracteres `_` e `%` valem como texto comum. A vírgula separa
+  alternativas, e a Tag aparece se o apelido contiver qualquer uma delas. Para letras acentuadas, digite o apelido como
+  foi cadastrado. Tag sem apelido (`null`) não aparece quando este filtro é usado.
+  Exemplo: `/api/b2b/v1/tags?filter[nickname]=entrega`.
+</ParamField>
+
+<ParamField query="filter[custom_fields]" type="object">
+  Campo personalizado do bem ligado à Tag, como placa ou chassi. A forma é `filter[custom_fields][chave]=texto`, em que
+  `chave` é a chave estável do campo (por exemplo, `placa`) e nunca o rótulo ("Placa"). A comparação é por igualdade: ignora
+  maiúscula, espaços no começo e no fim e espaços repetidos. O acento conta, e o hífen também (`LOC-123` e `LOC 123` são
+  valores diferentes). A vírgula é texto, não separador. Vários campos na mesma chamada se combinam com E:
+  `filter[custom_fields][placa]=ABC1D23&filter[custom_fields][condutor]=João Pereira Exemplo`. Tag sem bem ligado, ou sem valor
+  nesse campo, não aparece. Chave que o seu parceiro não tem, valor vazio ou valor em forma de lista respondem 400. Se o
+  recurso de campos personalizados não estiver ligado para o seu parceiro, toda chave é desconhecida e o filtro responde 400.
+  Veja o guia de [campos personalizados](/guias/campos-personalizados).
+  Exemplo: `/api/b2b/v1/tags?filter[custom_fields][placa]=ABC1D23`.
+</ParamField>
+
+<ParamField query="include" type="string">
+  Acrescenta dados a cada linha. O único valor aceito é `custom_fields`, que põe a lista `asset.custom_fields` na linha, com os
+  campos personalizados do bem da Tag. Sem o `include`, a chave `custom_fields` não existe na resposta. Pedir os campos não
+  muda quais linhas voltam, nem a ordem, nem os totais. Se o recurso de campos personalizados não estiver ligado para o seu
+  parceiro, a lista vem vazia (`[]`) em toda linha. Qualquer outro valor (`customer`, `custom_fieldsCount`) responde 400.
+</ParamField>
+
+<ParamField query="per_page" type="integer" default="25">
+  Quantas Tags vêm por página, de 1 a 100. Valor fora desse intervalo, ou que não seja um número inteiro, responde 422: a
+  chamada nunca corta a página em silêncio.
+</ParamField>
+
+<ParamField query="page" type="integer" default="1">
+  Número da página, começando em 1. Para percorrer tudo, siga `links.next` em vez de montar o número à mão. Uma página além
+  da última volta com `data` vazio.
+</ParamField>
+
+## Resposta
+
+Status `200`. O corpo traz a lista em `data`, os endereços de navegação em `links` e os totais em `meta`.
+
+<ResponseField name="data" type="object[]">
+  As Tags da página, uma por vínculo ativo. Vem vazio (`[]`) quando nenhuma Tag atende aos filtros.
+</ResponseField>
+
+<ResponseField name="data[].id" type="string (UUID)">
+  Identificador do **vínculo** entre o aparelho e o cliente. É o valor que [Consultar trajeto](/referencia/rastreamento/consultar-trajeto)
+  e [Consultar distância](/referencia/rastreamento/consultar-distancia) pedem em `{id}`.
+</ResponseField>
+
+<ResponseField name="data[].nickname" type="string | null">
+  Apelido dado à Tag, com até 100 caracteres. `null` quando ninguém definiu.
+</ResponseField>
+
+<ResponseField name="data[].category" type="string | null">
+  Categoria da Tag, texto livre de até 50 caracteres (por exemplo, "Carro" ou "Moto"). `null` quando ninguém definiu.
+</ResponseField>
+
+<ResponseField name="data[].icon" type="string | null">
+  Identificador do ícone escolhido para a Tag, com até 50 caracteres. `null` quando ninguém escolheu.
+</ResponseField>
+
+<ResponseField name="data[].asset" type="object">
+  O bem ligado à Tag (por exemplo, o veículo). Sempre presente, mesmo quando o bem ainda não existe.
+</ResponseField>
+
+<ResponseField name="data[].asset.id" type="string (UUID) | null">
+  Identificador do bem. `null` enquanto a Tag ainda não tem bem ligado.
+</ResponseField>
+
+<ResponseField name="data[].asset.custom_fields" type="object[]">
+  Os campos personalizados do bem, na ordem definida pelo catálogo. Só existe quando você envia `include=custom_fields`. Vem
+  `[]` se o recurso não estiver ligado para o seu parceiro. Campo desativado só aparece se já tem valor gravado.
+</ResponseField>
+
+<ResponseField name="data[].asset.custom_fields[].key" type="string">
+  Chave estável do campo (por exemplo, `placa`). É o nome que o filtro `filter[custom_fields][chave]` usa.
+</ResponseField>
+
+<ResponseField name="data[].asset.custom_fields[].label" type="string">
+  Rótulo do campo, o nome que uma pessoa lê (por exemplo, "Placa").
+</ResponseField>
+
+<ResponseField name="data[].asset.custom_fields[].sort_order" type="integer">
+  Posição do campo no catálogo; a lista já vem nessa ordem.
+</ResponseField>
+
+<ResponseField name="data[].asset.custom_fields[].active" type="boolean">
+  `true` se o campo está ativo no catálogo. Um campo desativado só aparece quando já tem valor.
+</ResponseField>
+
+<ResponseField name="data[].asset.custom_fields[].value" type="string | null">
+  O valor gravado para este bem. `null` quando ninguém preencheu.
+</ResponseField>
+
+<ResponseField name="data[].asset.custom_fields[].written_by" type="string | null">
+  Quem gravou o valor: `customer` (o cliente) ou `partner` (o parceiro). `null` quando não há valor.
+</ResponseField>
+
+<ResponseField name="data[].asset.custom_fields[].written_at" type="string (data e hora ISO 8601) | null">
+  Quando o valor foi gravado, em UTC, no formato `2026-10-07T11:40:31Z`. `null` quando não há valor.
+</ResponseField>
+
+<ResponseField name="data[].device" type="object">
+  O aparelho que transmite a posição desta Tag.
+</ResponseField>
+
+<ResponseField name="data[].device.id" type="string (UUID)">
+  Identificador do aparelho. É o valor que [Listar posições](/referencia/rastreamento/listar-posicoes) e
+  [Última posição](/referencia/rastreamento/ultima-posicao) pedem em `{deviceId}`.
+</ResponseField>
+
+<ResponseField name="data[].device.serial" type="string">
+  Número de série do aparelho, o mesmo que a ClubTrack usa para identificá-lo no cadastro.
+</ResponseField>
+
+<ResponseField name="data[].device.status" type="string">
+  Situação do aparelho. Valores: `in_stock` (em estoque), `assigned_to_partner` (alocado ao parceiro, ainda sem vínculo),
+  `pending_activation` (vinculado, aguardando a confirmação do pagamento do primeiro ciclo), `active` (ativo),
+  `damaged` (danificado), `replaced` (substituído) e `inactive` (inativo, já foi ativo e foi desvinculado).
+</ResponseField>
+
+<ResponseField name="data[].last_communication_at" type="string (data e hora ISO 8601) | null">
+  Quando a ClubTrack recebeu o registro de posição mais recente do aparelho, em UTC. É a hora da plataforma, não a do
+  relógio do aparelho. Qualquer registro conta, mesmo sem sinal de GPS válido, e só entram registros desde o início do vínculo.
+  O registro considerado é o de maior hora do aparelho, e não o último a chegar. `null` se o aparelho ainda não comunicou
+  depois de vinculado.
+</ResponseField>
+
+<ResponseField name="data[].last_position_at" type="string (data e hora ISO 8601) | null">
+  Hora do **relógio do aparelho**, em UTC, da posição válida mais recente desde o início do vínculo. Os critérios de posição
+  válida estão em [Consultar trajeto](/referencia/rastreamento/consultar-trajeto). `null` se não houve nenhuma.
+</ResponseField>
+
+<ResponseField name="data[].online" type="boolean">
+  `true` quando `last_communication_at` está dentro dos últimos 60 minutos, contados do instante em que a resposta foi montada
+  (`meta.generated_at`). `false` caso contrário, inclusive quando `last_communication_at` é `null`.
+</ResponseField>
+
+<ResponseField name="links" type="object">
+  Endereços prontos para navegar: `first`, `last`, `prev` e `next`. Já trazem os filtros da chamada atual.
+  `prev` é `null` na primeira página e `next` é `null` na última.
+</ResponseField>
+
+<ResponseField name="meta" type="object">
+  `current_page`, `last_page`, `per_page`, `from`, `to` e `total` (quantas Tags existem com esses filtros, somando todas as
+  páginas). `from` e `to` vêm `null` quando a lista está vazia. `meta.links` repete a navegação em formato de botões para
+  interfaces; quem integra por código usa o objeto `links`.
+</ResponseField>
+
+<ResponseField name="meta.generated_at" type="string (data e hora ISO 8601)">
+  Instante, em UTC e pela hora da ClubTrack, em que esta resposta foi montada. Duas respostas, mesmo seguidas, não formam um
+  retrato único da frota.
+</ResponseField>
+
+<ResponseField name="meta.online_threshold_minutes" type="integer">
+  O limite, em minutos, que define `online`. Hoje é 60. Leia o número daqui em vez de fixá-lo no seu código.
+</ResponseField>
+
+## Erros
+
+| Status | Quando acontece | O que fazer |
+|---|---|---|
+| 400 | Você enviou um filtro, uma ordenação ou uma inclusão que a rota não aceita. A mensagem lista os nomes aceitos, em inglês. Também responde 400 um filtro com formato impossível (lista onde se espera texto), `filter[custom_fields]` sem chave de campo, chave de campo que o seu parceiro não tem e valor vazio em `filter[custom_fields][chave]`. | Corrija o parâmetro. A mensagem nunca repete o valor que você enviou. A rota não aceita `sort`: a ordem é fixa. |
+| 400 | Login humano com usuário que tem mais de uma filial e sem `X-Partner-Branch-Id`. | Envie o cabeçalho com a filial desejada. |
+| 401 | Não há chave, a chave é inválida, foi revogada ou expirou. Com login humano: usuário inativo ou token expirado. | Confira a credencial. Revogação leva até 60 segundos para valer. |
+| 403 | O parceiro está suspenso ou inativo, ou a filial informada não pertence ao usuário. | Fale com a ClubTrack se o parceiro deveria estar ativo. |
+| 422 | `per_page` fora do intervalo de 1 a 100, ou que não é inteiro. | Envie um inteiro de 1 a 100 e pagine pelos `links`. |
+| 429 | Passou de 1000 chamadas por minuto com a chave. | Espere o tempo do cabeçalho `Retry-After` e repita. |
+| 500 | Só com `include=custom_fields`: a ClubTrack não conseguiu ler os campos personalizados da página. A página inteira falha, sem resposta parcial. | Repita a chamada. Se persistir, tente sem o `include` e avise a ClubTrack. |
+
+Os status 401, 403 e 429 valem para qualquer chamada. O corpo é sempre `{"message": "..."}`; o guia de [erros](/guias/erros)
+traz os textos exatos.
+
+## Exemplos
+
+<RequestExample>
+
+```bash cURL
+curl --get "https://core.clubtrack.com.br/api/b2b/v1/tags" \
+  --header "X-Api-Key: $CLUBTRACK_API_KEY" \
+  --header "Accept: application/json" \
+  --data-urlencode "filter[category]=Carro" \
+  --data-urlencode "include=custom_fields" \
+  --data-urlencode "per_page=2"
+```
+
+```javascript JavaScript
+const params = new URLSearchParams({
+  "filter[category]": "Carro",
+  include: "custom_fields",
+  per_page: "2",
+});
+
+const resposta = await fetch(
+  `https://core.clubtrack.com.br/api/b2b/v1/tags?${params}`,
+  {
+    headers: {
+      "X-Api-Key": process.env.CLUBTRACK_API_KEY,
+      Accept: "application/json",
+    },
+  },
+);
+
+const tags = await resposta.json();
+```
+
+```python Python
+import os
+import requests
+
+resposta = requests.get(
+    "https://core.clubtrack.com.br/api/b2b/v1/tags",
+    headers={
+        "X-Api-Key": os.environ["CLUBTRACK_API_KEY"],
+        "Accept": "application/json",
+    },
+    params={
+        "filter[category]": "Carro",
+        "include": "custom_fields",
+        "per_page": 2,
+    },
+    timeout=30,
+)
+
+tags = resposta.json()
+```
+
+```php PHP
+use GuzzleHttp\Client;
+
+$http = new Client(['base_uri' => 'https://core.clubtrack.com.br']);
+
+$resposta = $http->get('/api/b2b/v1/tags', [
+    'headers' => [
+        'X-Api-Key' => getenv('CLUBTRACK_API_KEY'),
+        'Accept' => 'application/json',
+    ],
+    'query' => [
+        'filter' => ['category' => 'Carro'],
+        'include' => 'custom_fields',
+        'per_page' => 2,
+    ],
+]);
+
+$tags = json_decode((string) $resposta->getBody(), true);
+```
+
+</RequestExample>
+
+<ResponseExample>
+
+```json 200
+{
+  "data": [
+    {
+      "id": "019a0f3c-a000-7d36-b6e0-c918528fd00a",
+      "nickname": "Carro da Marina",
+      "category": "Carro",
+      "icon": "car",
+      "asset": {
+        "id": "019a0f3d-5000-7a2c-8e41-2f6b9d3c7a15",
+        "custom_fields": [
+          {
+            "key": "placa",
+            "label": "Placa",
+            "sort_order": 1,
+            "active": true,
+            "value": "ABC1D23",
+            "written_by": "partner",
+            "written_at": "2026-10-05T18:30:12Z"
+          },
+          {
+            "key": "chassi",
+            "label": "Chassi",
+            "sort_order": 2,
+            "active": true,
+            "value": "9BWZZZ377VT004251",
+            "written_by": "partner",
+            "written_at": "2026-10-05T18:30:12Z"
+          },
+          {
+            "key": "condutor",
+            "label": "Condutor",
+            "sort_order": 3,
+            "active": true,
+            "value": "João Pereira Exemplo",
+            "written_by": "customer",
+            "written_at": "2026-10-07T11:40:31Z"
+          }
+        ]
+      },
+      "device": {
+        "id": "019a0f3c-8000-78d6-8995-8bf9b9e561a5",
+        "serial": "860000000000001",
+        "status": "active"
+      },
+      "last_communication_at": "2026-10-19T17:29:41+00:00",
+      "last_position_at": "2026-10-19T17:29:38+00:00",
+      "online": true
+    },
+    {
+      "id": "019a0f3c-b000-7306-ac8b-4c308157ddd2",
+      "nickname": "Carro 02 da Locadora",
+      "category": "Carro",
+      "icon": "car",
+      "asset": {
+        "id": null,
+        "custom_fields": [
+          {
+            "key": "placa",
+            "label": "Placa",
+            "sort_order": 1,
+            "active": true,
+            "value": null,
+            "written_by": null,
+            "written_at": null
+          },
+          {
+            "key": "chassi",
+            "label": "Chassi",
+            "sort_order": 2,
+            "active": true,
+            "value": null,
+            "written_by": null,
+            "written_at": null
+          },
+          {
+            "key": "condutor",
+            "label": "Condutor",
+            "sort_order": 3,
+            "active": true,
+            "value": null,
+            "written_by": null,
+            "written_at": null
+          }
+        ]
+      },
+      "device": {
+        "id": "019a0f3c-9000-7bea-ad46-da90612bbeb8",
+        "serial": "860000000000002",
+        "status": "active"
+      },
+      "last_communication_at": "2026-10-19T12:41:03+00:00",
+      "last_position_at": "2026-10-19T12:40:58+00:00",
+      "online": false
+    }
+  ],
+  "links": {
+    "first": "https://core.clubtrack.com.br/api/b2b/v1/tags?filter%5Bcategory%5D=Carro&include=custom_fields&per_page=2&page=1",
+    "last": "https://core.clubtrack.com.br/api/b2b/v1/tags?filter%5Bcategory%5D=Carro&include=custom_fields&per_page=2&page=3",
+    "prev": null,
+    "next": "https://core.clubtrack.com.br/api/b2b/v1/tags?filter%5Bcategory%5D=Carro&include=custom_fields&per_page=2&page=2"
+  },
+  "meta": {
+    "current_page": 1,
+    "from": 1,
+    "last_page": 3,
+    "links": [
+      { "url": null, "label": "&laquo; Previous", "active": false },
+      { "url": "https://core.clubtrack.com.br/api/b2b/v1/tags?filter%5Bcategory%5D=Carro&include=custom_fields&per_page=2&page=1", "label": "1", "active": true },
+      { "url": "https://core.clubtrack.com.br/api/b2b/v1/tags?filter%5Bcategory%5D=Carro&include=custom_fields&per_page=2&page=2", "label": "2", "active": false },
+      { "url": "https://core.clubtrack.com.br/api/b2b/v1/tags?filter%5Bcategory%5D=Carro&include=custom_fields&per_page=2&page=3", "label": "3", "active": false },
+      { "url": "https://core.clubtrack.com.br/api/b2b/v1/tags?filter%5Bcategory%5D=Carro&include=custom_fields&per_page=2&page=2", "label": "Next &raquo;", "active": false }
+    ],
+    "path": "https://core.clubtrack.com.br/api/b2b/v1/tags",
+    "per_page": 2,
+    "to": 2,
+    "total": 5,
+    "generated_at": "2026-10-19T17:32:10+00:00",
+    "online_threshold_minutes": 60
+  }
+}
+```
+
+```json 400
+{
+  "message": "Requested filter(s) `status` are not allowed. Allowed filter(s) are `category, nickname, custom_fields`."
+}
+```
+
+```json 401
+{
+  "message": "API key inválida ou revogada."
+}
+```
+
+```json 403
+{
+  "message": "Parceiro inativo ou suspenso."
+}
+```
+
+```json 422
+{
+  "message": "The per page field must be between 1 and 100.",
+  "errors": {
+    "per_page": [
+      "The per page field must be between 1 and 100."
+    ]
+  }
+}
+```
+
+```json 500
+{
+  "message": "Não foi possível ler os campos agora."
+}
+```
+
+</ResponseExample>
+
+## Detalhes que ajudam
+
+- **Comunicar não é ter posição.** `last_communication_at` marca o último registro que a ClubTrack recebeu, mesmo que o aparelho
+  estivesse sem sinal de GPS. `last_position_at` marca a última posição que serve para o mapa. Uma Tag pode estar `online` e
+  ter `last_position_at` antigo: ela fala com a ClubTrack, mas não está fixando o GPS.
+- **Os dois horários vêm de relógios diferentes.** `last_communication_at` é da plataforma. `last_position_at` é do aparelho.
+  Todos os horários da resposta estão em UTC, com `+00:00`.
+- **A ordem é fixa**: vínculo mais recente primeiro, e o `id` desempata. Não há `sort`. Se um vínculo novo surgir enquanto você
+  percorre as páginas, as linhas deslocam uma posição; para sincronizar a base inteira, percorra de ponta a ponta, siga `links.next`
+  até vir `null` e guarde o `id` de cada vínculo.
+- **Uma lista vazia não é erro.** Quando nenhuma Tag atende aos filtros, volta `200` com `data` vazio.
+- **`online` é recalculado a cada chamada.** Para acompanhar uma frota grande, consulte a lista de tempos em tempos e peça
+  [Última posição](/referencia/rastreamento/ultima-posicao) só das Tags cujo `last_position_at` mudou desde a consulta anterior.
+  O limite de 1000 chamadas por minuto vale para todas as rotas somadas; veja [limites e boas práticas](/guias/limites-e-boas-praticas).
+- A mensagem do erro `400` vem em inglês e cita os nomes aceitos. Trate pelo status, não pelo texto.

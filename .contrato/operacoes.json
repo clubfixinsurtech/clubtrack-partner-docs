@@ -270,46 +270,6 @@
     "page": "referencia/rastreamento/ultima-posicao.mdx"
   },
   {
-    "n": 28,
-    "method": "GET",
-    "path": "/api/b2b/v1/geofences",
-    "group": "cercas",
-    "group_title": "Cercas virtuais",
-    "slug": "listar-cercas",
-    "title": "Listar cercas",
-    "page": "referencia/cercas/listar-cercas.mdx"
-  },
-  {
-    "n": 29,
-    "method": "POST",
-    "path": "/api/b2b/v1/geofences",
-    "group": "cercas",
-    "group_title": "Cercas virtuais",
-    "slug": "criar-cerca",
-    "title": "Criar cerca",
-    "page": "referencia/cercas/criar-cerca.mdx"
-  },
-  {
-    "n": 30,
-    "method": "GET",
-    "path": "/api/b2b/v1/geofences/{id}",
-    "group": "cercas",
-    "group_title": "Cercas virtuais",
-    "slug": "consultar-cerca",
-    "title": "Consultar cerca",
-    "page": "referencia/cercas/consultar-cerca.mdx"
-  },
-  {
-    "n": 31,
-    "method": "DELETE",
-    "path": "/api/b2b/v1/geofences/{id}",
-    "group": "cercas",
-    "group_title": "Cercas virtuais",
-    "slug": "desativar-cerca",
-    "title": "Desativar cerca",
-    "page": "referencia/cercas/desativar-cerca.mdx"
-  },
-  {
     "n": 32,
     "method": "GET",
     "path": "/api/b2b/v1/branches",
@@ -348,5 +308,49 @@
     "slug": "definir-senha-do-usuario",
     "title": "Definir senha pelo convite",
     "page": "referencia/conta-e-equipe/definir-senha-do-usuario.mdx"
+  },
+  {
+    "n": 36,
+    "method": "POST",
+    "path": "/api/b2b/v1/subscriptions/{id}/resend-payment-link",
+    "group": "comercial",
+    "group_title": "Pedidos, assinaturas e planos",
+    "slug": "reenviar-link-de-pagamento",
+    "title": "Reenviar o link de pagamento",
+    "page": "referencia/comercial/reenviar-link-de-pagamento.mdx",
+    "spec": false
+  },
+  {
+    "n": 37,
+    "method": "GET",
+    "path": "/api/b2b/v1/partner",
+    "group": "conta-e-equipe",
+    "group_title": "Conta e equipe",
+    "slug": "consultar-perfil",
+    "title": "Consultar o perfil do parceiro",
+    "page": "referencia/conta-e-equipe/consultar-perfil.mdx",
+    "spec": false
+  },
+  {
+    "n": 38,
+    "method": "POST",
+    "path": "/api/b2b/v1/partner/logo",
+    "group": "conta-e-equipe",
+    "group_title": "Conta e equipe",
+    "slug": "enviar-logo",
+    "title": "Enviar o logo do parceiro",
+    "page": "referencia/conta-e-equipe/enviar-logo.mdx",
+    "spec": false
+  },
+  {
+    "n": 39,
+    "method": "POST",
+    "path": "/api/b2b/v1/auth/forgot-password",
+    "group": "conta-e-equipe",
+    "group_title": "Conta e equipe",
+    "slug": "recuperar-senha",
+    "title": "Recuperar acesso por e-mail",
+    "page": "referencia/conta-e-equipe/recuperar-senha.mdx",
+    "spec": false
   }
 ]

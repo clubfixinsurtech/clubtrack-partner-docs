@@ -1,0 +1,256 @@
+---
+title: "Consultar dispositivo"
+description: "Devolve os dados de um dispositivo do seu parceiro, com o histórico de situação se você pedir."
+api: "GET /api/b2b/v1/devices/{id}"
+---
+
+Esta chamada devolve um único dispositivo, pelo identificador. Use quando você já sabe qual aparelho quer: por exemplo, depois
+de achá-lo em [Listar dispositivos](/referencia/rastreamento/listar-dispositivos), para ler a situação atual ou o histórico dele.
+
+Só devolve aparelhos do seu parceiro. Um aparelho de outro parceiro responde da mesma forma que um aparelho que não existe,
+para que ninguém descubra a existência de aparelhos alheios.
+
+## Quando usar
+
+- Para conferir a situação de um aparelho antes de vinculá-lo a um cliente.
+- Para entender por que um aparelho mudou de situação, com `include=statusHistories`.
+- Para descobrir o vínculo ativo do aparelho (`active_tag_binding_id`) sem baixar a lista inteira.
+
+## Autenticação e permissões
+
+Aceita chave de API ou login de usuário, e qualquer usuário da equipe pode consultar. Parceiro suspenso recebe 403.
+Veja [Autenticação](/guias/autenticacao).
+
+## Parâmetros
+
+### Cabeçalhos
+
+<ParamField header="X-Api-Key" type="string" required>
+  Sua chave de API, que começa com `ttk_`. Também vale `Authorization: Bearer <chave>`. No login de usuário, envie só o
+  `Authorization`.
+</ParamField>
+
+<ParamField header="X-Partner-Branch-Id" type="string (UUID)">
+  Filial em nome da qual o usuário consulta. Só vale no login de usuário e só é obrigatório quando o usuário tem mais de uma
+  filial. Com chave de API é ignorado.
+</ParamField>
+
+### Caminho
+
+<ParamField path="id" type="string (UUID)" required>
+  Identificador do dispositivo, o campo `id` que [Listar dispositivos](/referencia/rastreamento/listar-dispositivos) devolve.
+  Um valor que não tenha o formato de UUID responde 404.
+</ParamField>
+
+### Consulta
+
+<ParamField query="include" type="string">
+  Aceita `statusHistories`, que acrescenta o histórico das mudanças de situação do aparelho. O histórico começa no momento
+  em que o aparelho passou a ser do seu parceiro; o que aconteceu antes não aparece.
+</ParamField>
+
+## Resposta
+
+Status `200`. O dispositivo vem dentro de `data`.
+
+<ResponseField name="data.id" type="string (UUID)">
+  Identificador do dispositivo.
+</ResponseField>
+
+<ResponseField name="data.partner_id" type="string (UUID)">
+  O parceiro dono do aparelho: sempre o seu.
+</ResponseField>
+
+<ResponseField name="data.serial" type="string">
+  Número de série impresso no aparelho.
+</ResponseField>
+
+<ResponseField name="data.imei" type="string">
+  IMEI do aparelho, com 15 caracteres.
+</ResponseField>
+
+<ResponseField name="data.model" type="string | null">
+  Modelo do aparelho. `null` quando não foi cadastrado.
+</ResponseField>
+
+<ResponseField name="data.status" type="string">
+  Situação atual do aparelho:
+
+  - `assigned_to_partner`: está com você, sem cliente vinculado.
+  - `pending_activation`: foi vinculado a um cliente e espera a confirmação do pagamento para liberar a localização.
+  - `active`: em uso, com localização liberada.
+  - `damaged`: marcado como danificado.
+  - `replaced`: foi substituído por outro aparelho (veja `replaced_by_id`).
+  - `inactive`: desativado.
+</ResponseField>
+
+<ResponseField name="data.notes" type="string | null">
+  Observação registrada sobre o aparelho. `null` quando não há.
+</ResponseField>
+
+<ResponseField name="data.replaced_by_id" type="string (UUID) | null">
+  Se `status` é `replaced`, o `id` do aparelho que ficou no lugar. `null` nos demais casos.
+</ResponseField>
+
+<ResponseField name="data.registered_at" type="string (data e hora ISO 8601) | null">
+  Quando o aparelho foi registrado na plataforma, em UTC.
+</ResponseField>
+
+<ResponseField name="data.created_at" type="string (data e hora ISO 8601)">
+  Quando o registro foi criado, em UTC.
+</ResponseField>
+
+<ResponseField name="data.updated_at" type="string (data e hora ISO 8601)">
+  Última alteração do registro, em UTC.
+</ResponseField>
+
+<ResponseField name="data.active_tag_binding_id" type="string (UUID) | null">
+  O `id` do vínculo ativo do aparelho com um cliente seu, ou `null` quando ele não está vinculado.
+</ResponseField>
+
+<ResponseField name="data.status_histories" type="object[]">
+  Só vem com `include=statusHistories`. Cada item: `from_status` e `to_status` (situação antes e depois, `from_status` pode
+  vir `null` na primeira entrada), `changed_by` (quem ou o que fez a mudança), `reason` (o motivo registrado, quando há) e
+  `changed_at` (quando, em UTC).
+</ResponseField>
+
+## Erros
+
+| Status | Quando acontece | O que fazer |
+|---|---|---|
+| 401 | Credencial ausente, inválida, revogada ou expirada. | Confira a chave ou o token. |
+| 403 | Parceiro suspenso ou inativo, ou filial que não é do usuário. | Fale com a ClubTrack se o parceiro deveria estar ativo. |
+| 404 | O aparelho não existe, não é do seu parceiro ou o `id` não tem formato de UUID. As três situações dão a mesma resposta. | Confira o identificador, preferindo o que veio de [Listar dispositivos](/referencia/rastreamento/listar-dispositivos). |
+| 429 | Mais de 1000 chamadas por minuto com a chave. | Espere o tempo de `Retry-After`. |
+
+Os status 401, 403 e 429 valem para qualquer chamada. Veja [Erros e códigos](/guias/erros).
+
+## Exemplos
+
+<RequestExample>
+
+```bash cURL
+curl "https://core.clubtrack.com.br/api/b2b/v1/devices/019a0f3c-8000-78d6-8995-8bf9b9e561a5?include=statusHistories" \
+  --header "X-Api-Key: $CLUBTRACK_API_KEY" \
+  --header "Accept: application/json"
+```
+
+```javascript JavaScript
+const id = "019a0f3c-8000-78d6-8995-8bf9b9e561a5";
+
+const resposta = await fetch(
+  `https://core.clubtrack.com.br/api/b2b/v1/devices/${id}?include=statusHistories`,
+  {
+    headers: {
+      "X-Api-Key": process.env.CLUBTRACK_API_KEY,
+      Accept: "application/json",
+    },
+  },
+);
+
+const dispositivo = await resposta.json();
+```
+
+```python Python
+import os
+import requests
+
+id_dispositivo = "019a0f3c-8000-78d6-8995-8bf9b9e561a5"
+
+resposta = requests.get(
+    f"https://core.clubtrack.com.br/api/b2b/v1/devices/{id_dispositivo}",
+    headers={
+        "X-Api-Key": os.environ["CLUBTRACK_API_KEY"],
+        "Accept": "application/json",
+    },
+    params={"include": "statusHistories"},
+    timeout=30,
+)
+
+dispositivo = resposta.json()
+```
+
+```php PHP
+use GuzzleHttp\Client;
+
+$http = new Client(['base_uri' => 'https://core.clubtrack.com.br']);
+
+$id = '019a0f3c-8000-78d6-8995-8bf9b9e561a5';
+
+$resposta = $http->get("/api/b2b/v1/devices/{$id}", [
+    'headers' => [
+        'X-Api-Key' => getenv('CLUBTRACK_API_KEY'),
+        'Accept' => 'application/json',
+    ],
+    'query' => ['include' => 'statusHistories'],
+]);
+
+$dispositivo = json_decode((string) $resposta->getBody(), true);
+```
+
+</RequestExample>
+
+<ResponseExample>
+
+```json 200
+{
+  "data": {
+    "id": "019a0f3c-8000-78d6-8995-8bf9b9e561a5",
+    "partner_id": "019a0f3c-0000-7a36-8f98-0b409e8a22c8",
+    "serial": "TT-50000001",
+    "imei": "860000000000001",
+    "model": "TT-100",
+    "status": "active",
+    "notes": null,
+    "replaced_by_id": null,
+    "registered_at": "2026-09-22T12:10:00+00:00",
+    "created_at": "2026-09-22T12:10:00+00:00",
+    "updated_at": "2026-10-05T18:30:12+00:00",
+    "status_histories": [
+      {
+        "from_status": null,
+        "to_status": "assigned_to_partner",
+        "changed_by": "system",
+        "reason": null,
+        "changed_at": "2026-09-23T09:02:41+00:00"
+      },
+      {
+        "from_status": "assigned_to_partner",
+        "to_status": "pending_activation",
+        "changed_by": "system",
+        "reason": null,
+        "changed_at": "2026-10-05T18:22:09+00:00"
+      },
+      {
+        "from_status": "pending_activation",
+        "to_status": "active",
+        "changed_by": "system",
+        "reason": null,
+        "changed_at": "2026-10-05T18:30:12+00:00"
+      }
+    ],
+    "active_tag_binding_id": "019a0f3c-a000-7d36-b6e0-c918528fd00a"
+  }
+}
+```
+
+```json 404
+{
+  "message": "Dispositivo não encontrado."
+}
+```
+
+```json 401
+{
+  "message": "API key inválida ou revogada."
+}
+```
+
+</ResponseExample>
+
+## Detalhes que ajudam
+
+- A chamada devolve o aparelho, não o cliente. O cliente vinculado aparece em [Listar Tags](/referencia/rastreamento/listar-tags).
+- Aparelho que ainda está no estoque da ClubTrack, sem parceiro, responde 404 para todos os parceiros.
+- Os exemplos de `changed_by` e `reason` acima são ilustrativos: o valor real descreve a origem da mudança e o motivo,
+  quando o sistema registrou algum.

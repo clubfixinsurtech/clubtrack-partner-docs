@@ -20,8 +20,11 @@ SECOES = ['Quando usar', 'Autenticação e permissões', 'Parâmetros', 'Respost
 PROIBIDOS = [
     r'src/', r'\bStory\b', r'\bEpic\b', r'\bE24\b', r'middleware', r'Sanctum', r'Spatie', r'Laravel', r'Saloon',
     r'Horizon', r'Forge', r'tagtrack', r'api/admin', r'partner\.access', r'partner\.active', r'\bcore\b(?!\.clubtrack)',
-    r'ModelNotFound', r'Src\\', r'\bPartnerModel\b', r'\bRESOLVES',
+    r'ModelNotFound', r'Src\\', r'\bPartnerModel\b', r'\bRESOLVES', r'clubfix', r'seguradora',
 ]
+# Vocabulário que a marca evita (DNA): aviso, não erro
+EVITAR = [r'\broubo', r'\bfurto', r'\bperigo', r'\bblindagem', r'\brevolucion', r'\binovador', r'\bdisruptiv',
+          r'solução completa', r'tecnologia de ponta', r'\bvigilância']
 IDIOMAS = [('bash', 'cURL'), ('javascript', 'JavaScript'), ('python', 'Python'), ('php', 'PHP')]
 
 
@@ -39,6 +42,8 @@ def spec_op(o):
 
 
 def params_spec(o):
+    if o.get('spec') is False:
+        return None
     op = spec_op(o)
     comuns = SPEC['paths'][o['path']].get('parameters', [])
     saida = set()
@@ -79,13 +84,17 @@ def secao(corpo, nome):
 
 
 def checar_texto_publico(rel, txt, erros, avisos):
-    sem_codigo = tirar_codigo(txt)
+    sem_codigo = re.sub(r'X-TagTrack-[\w-]*', '', tirar_codigo(txt))
     for padrao in PROIBIDOS:
         # Story, Epic, E24 e nomes de classe são sensíveis a maiúsculas; o resto, não
         flags = 0 if padrao in (r'\bStory\b', r'\bEpic\b', r'\bE24\b', r'\bPartnerModel\b', r'\bRESOLVES') else re.I
         m = re.search(padrao, sem_codigo, flags=flags)
         if m:
             erros.append(f'{rel}: termo interno proibido "{m.group(0)}"')
+    for padrao in EVITAR:
+        m = re.search(padrao, sem_codigo, flags=re.I)
+        if m:
+            avisos.append(f'{rel}: vocabulário que a marca evita: "{m.group(0)}"')
     for tracos in ('—', '–'):
         if tracos in sem_codigo:
             erros.append(f'{rel}: travessão ({tracos}) fora de bloco de código')
@@ -134,14 +143,17 @@ def checar_operacao(o, erros, avisos, infos):
             ultimo = m.start()
 
     diverg = ''
-    dv = RAIZ / '.contrato/divergencias' / f"{o['group']}.md"
-    if dv.exists():
-        diverg = dv.read_text(encoding='utf-8').lower()
+    for dv in sorted((RAIZ / '.contrato/divergencias').glob(f"{o['group']}*.md")) + [RAIZ / '.contrato/divergencias/_geral.md']:
+        if dv.exists():
+            diverg += dv.read_text(encoding='utf-8').lower() + '\n'
 
     pagina = set()
     for loc, nome in re.findall(r'<ParamField\s+(header|path|query|body)="([^"]+)"', txt):
         pagina.add((loc, nome))
     esp = params_spec(o)
+    fora_da_spec = esp is None
+    if fora_da_spec:
+        esp = set()
     GLOBAIS = {('header', 'X-Api-Key'), ('header', 'Authorization'), ('query', 'page')}
 
     def registrado(nome):
@@ -150,7 +162,7 @@ def checar_operacao(o, erros, avisos, infos):
 
     for loc, nome in sorted(esp - pagina):
         (infos if registrado(nome) else avisos).append(f'{rel}: spec tem {loc} "{nome}" e a página não')
-    for loc, nome in sorted(pagina - esp - GLOBAIS):
+    for loc, nome in sorted(() if fora_da_spec else pagina - esp - GLOBAIS):
         (infos if registrado(nome) else avisos).append(f'{rel}: página tem {loc} "{nome}" que a spec não tem')
 
     for tipo, tag in (('ParamField', 'ParamField'), ('ResponseField', 'ResponseField')):
@@ -160,10 +172,10 @@ def checar_operacao(o, erros, avisos, infos):
 
     sec_erros = secao(corpo, 'Erros') or ''
     codigos_pagina = set(re.findall(r'^\|\s*(\d{3})\s*\|', sec_erros, flags=re.M))
-    codigos_spec = {c for c in spec_op(o)['responses'] if c.startswith(('4', '5'))}
+    codigos_spec = set() if fora_da_spec else {c for c in spec_op(o)['responses'] if c.startswith(('4', '5'))}
     for c in sorted(codigos_spec - codigos_pagina):
         (infos if c in diverg else avisos).append(f'{rel}: spec lista erro {c} e a tabela de erros não')
-    for c in sorted(codigos_pagina - codigos_spec - {'429'}):
+    for c in sorted(() if fora_da_spec else codigos_pagina - codigos_spec - {'429'}):
         (infos if c in diverg else avisos).append(f'{rel}: tabela de erros tem {c}, que a spec não lista')
 
     sec_ex = secao(corpo, 'Exemplos') or ''

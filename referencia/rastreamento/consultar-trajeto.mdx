@@ -1,0 +1,374 @@
+---
+title: "Consultar trajeto"
+description: "Devolve as posições de uma Tag em um período de até 90 dias, da mais antiga para a mais recente, com paginação por cursor."
+api: "GET /api/b2b/v1/tags/{id}/track"
+---
+
+Esta chamada devolve o trajeto de uma Tag: as posições válidas que o aparelho registrou dentro do período que você pede, em ordem de hora, página a página. Você usa para desenhar o percurso num mapa, montar o relatório de um dia ou guardar o histórico da Tag no seu sistema. Cada posição traz latitude, longitude, a hora do aparelho e o aparelho que a registrou. Velocidade, bateria e qualidade do sinal ficam em [Listar posições](/referencia/rastreamento/listar-posicoes).
+
+O trajeto segue o bem, não só o aparelho. Se o mesmo bem (um veículo, por exemplo) já teve outra Tag ligada a um cliente do seu parceiro, as posições dessa Tag anterior entram no mesmo trajeto, cada uma dentro do período em que esteve vinculada. Por isso `positions[].device_id` pode mudar ao longo da lista.
+
+Só entram posições de períodos em que a Tag esteve vinculada a um cliente do seu parceiro. O que o aparelho registrou antes do vínculo, depois do desvínculo ou para outro parceiro nunca aparece, e dois parceiros nunca enxergam o histórico um do outro. Quando o aparelho passa de um parceiro para outro, cada um lê só a sua época.
+
+## Quando usar
+
+- Desenhar no mapa o percurso de uma Tag em um dia, uma semana ou um mês.
+- Montar o relatório de deslocamento de um cliente para uma data específica.
+- Copiar o histórico de uma Tag para o banco do seu sistema, em períodos de até 90 dias por vez.
+- Conferir por onde um veículo passou depois de trocar de Tag, porque o trajeto continua pela Tag anterior.
+
+## Autenticação e permissões
+
+Aceita chave de API ou login humano. Qualquer usuário da equipe do parceiro pode consultar. Parceiro suspenso ou inativo recebe 403. O guia de [autenticação](/guias/autenticacao) explica as duas formas e como escolher a filial quando o usuário tem mais de uma.
+
+A Tag precisa ser uma que [Listar Tags](/referencia/rastreamento/listar-tags) mostraria a você: vínculo ativo, de cliente do seu parceiro (da filial ativa, no login humano) e visível pelo seu modelo de cobrança. Qualquer outro caso responde o mesmo 404: vínculo inexistente, de outro parceiro, de outra filial, já encerrado ou escondido porque a assinatura não está ativa.
+
+## Parâmetros
+
+### Cabeçalhos
+
+<ParamField header="X-Api-Key" type="string" required>
+  Sua chave de API, no formato `ttk_` seguido de 40 caracteres. Você pode enviá-la também como
+  `Authorization: Bearer <chave>`. Se estiver chamando com o token de um usuário da equipe, envie só o `Authorization`.
+</ParamField>
+
+<ParamField header="X-Partner-Branch-Id" type="string (UUID)">
+  Filial em nome da qual o usuário está consultando. Só tem efeito no login humano, e só é obrigatório quando o usuário
+  pertence a mais de uma filial. Com chave de API, o cabeçalho é ignorado.
+</ParamField>
+
+### Caminho
+
+<ParamField path="id" type="string (UUID)" required>
+  Identificador do vínculo da Tag: o `id` de uma linha de [Listar Tags](/referencia/rastreamento/listar-tags). Não é o
+  `device.id`. Um valor que não tem a forma de UUID responde 404, como a rota inexistente.
+</ParamField>
+
+### Consulta
+
+O período é obrigatório. Os dois limites usam o mesmo formato e entram na resposta já convertidos para UTC.
+
+<ParamField query="filter[from]" type="string (data e hora ISO 8601)" required>
+  Início do período, **incluído**: uma posição registrada exatamente nesse instante entra. Exige data e hora completas,
+  com `T` entre elas: `2026-10-18T00:00:00-03:00`, `2026-10-18T03:00:00Z` ou `2026-10-18T03:00:00`. Frações de segundo
+  (até seis dígitos) são aceitas. O deslocamento do fuso é convertido para UTC; sem deslocamento, o valor vale como UTC,
+  e não como horário de Brasília. Só a data (`2026-10-18`), data ou hora impossíveis (`2026-02-31`) e texto com espaço no lugar
+  do `T` respondem 422. Se você monta a URL à mão, escreva o `+` de um deslocamento como `%2B`; do contrário ele chega como
+  espaço e o valor é recusado.
+  Exemplo: `filter[from]=2026-10-18T00:00:00-03:00`.
+</ParamField>
+
+<ParamField query="filter[to]" type="string (data e hora ISO 8601)" required>
+  Fim do período, **incluído**. Mesmo formato de `filter[from]`. Não pode ser anterior a `filter[from]`, e a distância entre
+  os dois não pode passar de 90 dias: 90 dias exatos cabem, 90 dias e um segundo não. O fim pode estar no futuro; o trajeto
+  traz o que existir até o momento. Exemplo: `filter[to]=2026-10-18T23:59:59-03:00`.
+</ParamField>
+
+<ParamField query="per_page" type="integer" default="100">
+  Quantas posições vêm por página, de 1 a 1000. Valor fora desse intervalo, ou que não seja inteiro, responde 422: a chamada
+  nunca corta a página em silêncio.
+</ParamField>
+
+<ParamField query="cursor" type="string">
+  Marcador da próxima página. Você não monta esse texto: copie o `meta.next_cursor` da página anterior (ou siga
+  `links.next`, que já o traz) e envie junto com os **mesmos** `filter[from]` e `filter[to]`. Um cursor de outro vínculo, de outro
+  período, adulterado ou com mais de 300 caracteres responde 422. Para recomeçar, envie a chamada sem `cursor`.
+</ParamField>
+
+## Resposta
+
+Status `200`. O corpo traz a Tag consultada, o período já em UTC, a página de posições e os dados para chegar à próxima página.
+Não há total: você sabe que terminou quando `links.next` vem `null`.
+
+<ResponseField name="tag" type="object">
+  A Tag consultada, no mesmo formato de uma linha de [Listar Tags](/referencia/rastreamento/listar-tags), sem a lista
+  `asset.custom_fields`. Os campos `last_communication_at`, `last_position_at` e `online` descrevem a Tag **agora**, e não
+  o período pedido.
+</ResponseField>
+
+<ResponseField name="tag.id" type="string (UUID)">
+  Identificador do vínculo, o mesmo que você enviou em `{id}`.
+</ResponseField>
+
+<ResponseField name="tag.device" type="object">
+  O aparelho da Tag hoje: `id`, `serial` e `status`. Posições antigas podem ter vindo de outro aparelho; veja
+  `positions[].device_id`.
+</ResponseField>
+
+<ResponseField name="tag.online" type="boolean">
+  `true` se o aparelho comunicou nos últimos 60 minutos, contados de `meta.generated_at`. As regras de `last_communication_at`
+  e de `last_position_at` são as de [Listar Tags](/referencia/rastreamento/listar-tags).
+</ResponseField>
+
+<ResponseField name="period" type="object">
+  O período que a chamada usou, depois da conversão para UTC.
+</ResponseField>
+
+<ResponseField name="period.from" type="string (data e hora ISO 8601)">
+  Início do período em UTC, sem frações de segundo, no formato `2026-10-18T03:00:00+00:00`.
+</ResponseField>
+
+<ResponseField name="period.to" type="string (data e hora ISO 8601)">
+  Fim do período em UTC, no mesmo formato de `period.from`.
+</ResponseField>
+
+<ResponseField name="period.timezone" type="string">
+  Sempre `UTC`. Todos os horários da resposta estão em UTC.
+</ResponseField>
+
+<ResponseField name="positions" type="object[]">
+  As posições da página, da mais antiga para a mais recente (pela hora do aparelho; o número interno da posição desempata).
+  Vem vazio (`[]`) quando não há posição válida no período.
+</ResponseField>
+
+<ResponseField name="positions[].latitude" type="number">
+  Latitude em graus decimais, entre -90 e 90. Exemplo: `-23.561414`.
+</ResponseField>
+
+<ResponseField name="positions[].longitude" type="number">
+  Longitude em graus decimais, entre -180 e 180. Exemplo: `-46.655881`.
+</ResponseField>
+
+<ResponseField name="positions[].recorded_at" type="string (data e hora ISO 8601)">
+  Hora em que o aparelho registrou a posição, pelo relógio do aparelho, em UTC (`+00:00`). Não é a hora em que a ClubTrack
+  recebeu o registro.
+</ResponseField>
+
+<ResponseField name="positions[].device_id" type="string (UUID)">
+  Aparelho que registrou esta posição. Muda dentro da mesma lista quando o bem trocou de Tag e o trajeto atravessa a troca.
+</ResponseField>
+
+<ResponseField name="links" type="object">
+  Traz só `next`: o endereço completo da próxima página, com os mesmos filtros e o `cursor` já preenchido. `null` na última
+  página.
+</ResponseField>
+
+<ResponseField name="meta" type="object">
+  `per_page` (o tamanho de página usado), `next_cursor` e `generated_at`.
+</ResponseField>
+
+<ResponseField name="meta.next_cursor" type="string | null">
+  O cursor para pedir a próxima página, ou `null` na última. É o mesmo valor que está dentro de `links.next`.
+</ResponseField>
+
+<ResponseField name="meta.generated_at" type="string (data e hora ISO 8601)">
+  Instante, em UTC e pela hora da ClubTrack, em que a resposta foi montada. É a referência de `tag.online`.
+</ResponseField>
+
+## Erros
+
+| Status | Quando acontece | O que fazer |
+|---|---|---|
+| 400 | Você enviou um filtro além de `filter[from]` e `filter[to]`, ou enviou `sort` ou `include`, que esta rota não tem. A mensagem lista os nomes aceitos, em inglês. | Remova o parâmetro. A rota aceita só `filter[from]`, `filter[to]`, `per_page` e `cursor`. |
+| 400 | Login humano com usuário que tem mais de uma filial e sem `X-Partner-Branch-Id`. | Envie o cabeçalho com a filial desejada. |
+| 401 | Não há chave, a chave é inválida, foi revogada ou expirou. Com login humano: usuário inativo ou token expirado. | Confira a credencial. Revogação leva até 60 segundos para valer. |
+| 403 | O parceiro está suspenso ou inativo, ou a filial informada não pertence ao usuário. | Fale com a ClubTrack se o parceiro deveria estar ativo. |
+| 404 | `Tag não encontrada.` A Tag não existe, é de outro parceiro ou filial, o vínculo foi encerrado ou a assinatura não está ativa (parceiro cobrado por assinatura). O texto é o mesmo em todos os casos. Um `id` fora do formato UUID também responde 404, com a mensagem de rota não encontrada. | Confira o `id` em [Listar Tags](/referencia/rastreamento/listar-tags). Se a Tag não aparece na lista, ela não pode ser consultada aqui. |
+| 422 | O período não é válido. Os textos são: `The filter.from field is required.` e `The filter.to field is required.` (limite ausente); `Informe filter[from] em ISO 8601, com data e hora (ex.: 2026-10-01T00:00:00Z).` e o equivalente para `filter[to]`; `filter[to] não pode ser anterior a filter[from].`; `O período da consulta vai até 90 dias. Divida a consulta em períodos menores.` | Corrija o limite indicado em `errors`. Para períodos maiores, divida em consultas de até 90 dias. |
+| 422 | `per_page` fora do intervalo de 1 a 1000, ou não inteiro: `The per page field must be between 1 and 1000.` | Envie um inteiro de 1 a 1000. |
+| 422 | `cursor` adulterado, de outro vínculo ou de outro período: `O cursor não é válido para este vínculo e este período.` | Recomece sem `cursor`, ou use o `meta.next_cursor` exato da página anterior com os mesmos `filter[from]` e `filter[to]`. |
+| 429 | Passou de 1000 chamadas por minuto com a chave. | Espere o tempo do cabeçalho `Retry-After` e repita. |
+
+Os status 401, 403 e 429 valem para qualquer chamada. O corpo é sempre `{"message": "..."}`, e o 422 acrescenta `errors`. O guia
+de [erros](/guias/erros) traz os textos exatos. Quando há mais de um erro de campo, o `message` termina com `(and N more errors)`.
+
+## Exemplos
+
+<RequestExample>
+
+```bash cURL
+curl --get "https://core.clubtrack.com.br/api/b2b/v1/tags/019a0f3c-a000-7d36-b6e0-c918528fd00a/track" \
+  --header "X-Api-Key: $CLUBTRACK_API_KEY" \
+  --header "Accept: application/json" \
+  --data-urlencode "filter[from]=2026-10-18T00:00:00-03:00" \
+  --data-urlencode "filter[to]=2026-10-18T23:59:59-03:00" \
+  --data-urlencode "per_page=2"
+```
+
+```javascript JavaScript
+const tagId = "019a0f3c-a000-7d36-b6e0-c918528fd00a";
+
+const params = new URLSearchParams({
+  "filter[from]": "2026-10-18T00:00:00-03:00",
+  "filter[to]": "2026-10-18T23:59:59-03:00",
+  per_page: "2",
+});
+
+const resposta = await fetch(
+  `https://core.clubtrack.com.br/api/b2b/v1/tags/${tagId}/track?${params}`,
+  {
+    headers: {
+      "X-Api-Key": process.env.CLUBTRACK_API_KEY,
+      Accept: "application/json",
+    },
+  },
+);
+
+const trajeto = await resposta.json();
+```
+
+```python Python
+import os
+import requests
+
+tag_id = "019a0f3c-a000-7d36-b6e0-c918528fd00a"
+
+resposta = requests.get(
+    f"https://core.clubtrack.com.br/api/b2b/v1/tags/{tag_id}/track",
+    headers={
+        "X-Api-Key": os.environ["CLUBTRACK_API_KEY"],
+        "Accept": "application/json",
+    },
+    params={
+        "filter[from]": "2026-10-18T00:00:00-03:00",
+        "filter[to]": "2026-10-18T23:59:59-03:00",
+        "per_page": 2,
+    },
+    timeout=30,
+)
+
+trajeto = resposta.json()
+```
+
+```php PHP
+use GuzzleHttp\Client;
+
+$http = new Client(['base_uri' => 'https://core.clubtrack.com.br']);
+
+$tagId = '019a0f3c-a000-7d36-b6e0-c918528fd00a';
+
+$resposta = $http->get("/api/b2b/v1/tags/{$tagId}/track", [
+    'headers' => [
+        'X-Api-Key' => getenv('CLUBTRACK_API_KEY'),
+        'Accept' => 'application/json',
+    ],
+    'query' => [
+        'filter' => [
+            'from' => '2026-10-18T00:00:00-03:00',
+            'to' => '2026-10-18T23:59:59-03:00',
+        ],
+        'per_page' => 2,
+    ],
+]);
+
+$trajeto = json_decode((string) $resposta->getBody(), true);
+```
+
+</RequestExample>
+
+<ResponseExample>
+
+```json 200
+{
+  "tag": {
+    "id": "019a0f3c-a000-7d36-b6e0-c918528fd00a",
+    "nickname": "Carro da Marina",
+    "category": "Carro",
+    "icon": "car",
+    "asset": {
+      "id": "019a0f3d-5000-7a2c-8e41-2f6b9d3c7a15"
+    },
+    "device": {
+      "id": "019a0f3c-8000-78d6-8995-8bf9b9e561a5",
+      "serial": "860000000000001",
+      "status": "active"
+    },
+    "last_communication_at": "2026-10-19T17:29:41+00:00",
+    "last_position_at": "2026-10-19T17:29:38+00:00",
+    "online": true
+  },
+  "period": {
+    "from": "2026-10-18T03:00:00+00:00",
+    "to": "2026-10-19T02:59:59+00:00",
+    "timezone": "UTC"
+  },
+  "positions": [
+    {
+      "latitude": -23.561414,
+      "longitude": -46.655881,
+      "recorded_at": "2026-10-18T11:02:15+00:00",
+      "device_id": "019a0f3c-8000-78d6-8995-8bf9b9e561a5"
+    },
+    {
+      "latitude": -23.56302,
+      "longitude": -46.65412,
+      "recorded_at": "2026-10-18T11:07:20+00:00",
+      "device_id": "019a0f3c-8000-78d6-8995-8bf9b9e561a5"
+    }
+  ],
+  "links": {
+    "next": "https://core.clubtrack.com.br/api/b2b/v1/tags/019a0f3c-a000-7d36-b6e0-c918528fd00a/track?filter%5Bfrom%5D=2026-10-18T00%3A00%3A00-03%3A00&filter%5Bto%5D=2026-10-18T23%3A59%3A59-03%3A00&per_page=2&cursor=eyJiIjoiMDE5YTBmM2MtYTAwMC03ZDM2LWI2ZTAtYzkxODUyOGZkMDBhIiwicCI6IjIwMjYtMTAtMThUMDM6MDA6MDAuMDAwMDAwfDIwMjYtMTAtMTlUMDI6NTk6NTkuMDAwMDAwIiwiciI6IjIwMjYtMTAtMTggMTE6MDc6MjAiLCJpIjo0ODIxMzkwN30"
+  },
+  "meta": {
+    "per_page": 2,
+    "next_cursor": "eyJiIjoiMDE5YTBmM2MtYTAwMC03ZDM2LWI2ZTAtYzkxODUyOGZkMDBhIiwicCI6IjIwMjYtMTAtMThUMDM6MDA6MDAuMDAwMDAwfDIwMjYtMTAtMTlUMDI6NTk6NTkuMDAwMDAwIiwiciI6IjIwMjYtMTAtMTggMTE6MDc6MjAiLCJpIjo0ODIxMzkwN30",
+    "generated_at": "2026-10-19T17:32:10+00:00"
+  }
+}
+```
+
+```json 400
+{
+  "message": "Requested filter(s) `speed` are not allowed. Allowed filter(s) are `from, to`."
+}
+```
+
+```json 401
+{
+  "message": "API key inválida ou revogada."
+}
+```
+
+```json 403
+{
+  "message": "Parceiro inativo ou suspenso."
+}
+```
+
+```json 404
+{
+  "message": "Tag não encontrada."
+}
+```
+
+```json 422
+{
+  "message": "O período da consulta vai até 90 dias. Divida a consulta em períodos menores.",
+  "errors": {
+    "filter.to": [
+      "O período da consulta vai até 90 dias. Divida a consulta em períodos menores."
+    ]
+  }
+}
+```
+
+</ResponseExample>
+
+## Detalhes que ajudam
+
+- **O que é uma posição válida.** O trajeto só devolve posição que cumpre as quatro condições: o aparelho marcou o sinal de GPS
+  como válido; a latitude está entre -90 e 90 e a longitude entre -180 e 180; as coordenadas não são exatamente (0, 0); e a hora
+  do aparelho não está mais de 60 segundos à frente da hora em que a ClubTrack recebeu o registro (relógio adiantado descarta o
+  ponto). Registro que falha em qualquer uma delas não aparece aqui. [Listar posições](/referencia/rastreamento/listar-posicoes)
+  devolve todos os registros, sem esse filtro.
+- **Quais períodos de vínculo contam.** Cada vínculo vale do instante em que foi criado até o instante em que foi encerrado,
+  e a posição precisa cair nesse intervalo pela hora do aparelho: a posição gravada no instante exato do início do vínculo
+  entra, a gravada no instante do fim não entra. Vínculo ainda ativo não tem fim. Períodos do mesmo aparelho que se sobrepõem são tratados
+  como um só, e nenhuma posição se repete.
+- **A Tag anterior só entra se o bem for o mesmo.** O trajeto reúne os vínculos do mesmo bem (`asset`) que pertencem a clientes do seu
+  parceiro. Se a Tag não tem bem ligado, o trajeto vale só para o próprio vínculo. Outro vínculo do mesmo bem que ainda esteja ativo só entra se
+  [Listar Tags](/referencia/rastreamento/listar-tags) também o mostrasse a você: o modelo de cobrança vale para o trajeto inteiro,
+  e não se contorna pedindo a Tag irmã.
+- **Assinatura e modelo de cobrança.** Parceiro cobrado por assinatura só consulta Tag cujo vínculo tem assinatura ativa. Parceiro
+  de cobrança consolidada pós-paga consulta todo vínculo ativo. A regra é lida a cada chamada: se o modelo ou a assinatura mudar, a
+  Tag aparece ou some na chamada seguinte.
+- **Paginação por cursor.** Siga `links.next` até vir `null`. O cursor guarda a hora e o número da última posição entregue, e cada
+  página aplica de novo o período, a validade e a janela do vínculo. Por isso uma posição não se repete nem se perde entre páginas.
+  Uma posição que chegar atrasada à ClubTrack, com hora do aparelho anterior à da última posição que você já leu, só aparece se você
+  recomeçar o percurso sem `cursor`.
+- **Período sem posição não é erro.** Responde `200` com `positions` vazio e `links.next` `null`.
+- **Períodos longos têm muitas páginas.** Para um único dia, peça só o dia. Para 90 dias, divida a leitura e respeite o limite de
+  1000 chamadas por minuto; veja [limites e boas práticas](/guias/limites-e-boas-praticas).
+- **Fuso do período.** Um valor sem deslocamento vale como UTC. Para o dia 18 em horário de Brasília, envie
+  `2026-10-18T00:00:00-03:00` e `2026-10-18T23:59:59-03:00`, como no exemplo; a resposta mostra o intervalo equivalente em UTC.
+- A mensagem do erro `400` vem em inglês e cita os nomes aceitos. Trate pelo status, não pelo texto.

@@ -1,0 +1,92 @@
+---
+title: "API da ClubTrack para parceiros"
+description: "Cadastre clientes, vincule dispositivos, crie assinaturas e acompanhe a posição de cada Tag a partir do seu sistema."
+mode: "wide"
+---
+
+<div className="ct-hero">
+  <div className="ct-hero-texto">
+    <p className="ct-hero-selo">API B2B · versão 1</p>
+    <h1 className="ct-hero-titulo">Os aparelhos dos seus clientes, dentro do seu sistema.</h1>
+    <p className="ct-hero-sub">
+      Com a API da ClubTrack, o seu sistema cadastra o cliente, vincula o aparelho, cria a assinatura e consulta onde cada
+      Tag esteve, sem ninguém abrir um painel.
+    </p>
+    <div className="ct-hero-acoes">
+      <a className="ct-botao ct-botao-primario" href="/primeira-chamada">Fazer a primeira chamada</a>
+      <a className="ct-botao" href="/guias/autenticacao">Como me autenticar</a>
+    </div>
+  </div>
+  <img className="ct-hero-imagem" src="/images/acompanhe.webp" alt="Mapa em relevo com uma rota azul que termina num pino luminoso" />
+</div>
+
+## O que você consegue fazer
+
+<CardGroup cols={2}>
+  <Card title="Cadastrar clientes e endereços" icon="address-book" href="/referencia/clientes-e-enderecos/cadastrar-cliente">
+    Crie o cliente com o identificador do seu sistema e mantenha os endereços dele em dia.
+  </Card>
+  <Card title="Vincular dispositivos" icon="link" href="/referencia/vinculos-e-campos/vincular-dispositivo">
+    Ligue um aparelho do seu estoque a um cliente e, a partir daí, ele passa a ter uma Tag.
+  </Card>
+  <Card title="Criar assinaturas" icon="file-invoice-dollar" href="/referencia/comercial/criar-assinatura">
+    Escolha o plano, gere a cobrança e acompanhe a situação de cada assinatura.
+  </Card>
+  <Card title="Acompanhar posição e trajeto" icon="location-dot" href="/referencia/rastreamento/listar-tags">
+    Liste as Tags, veja a última posição, o trajeto de um período e a distância estimada.
+  </Card>
+</CardGroup>
+
+## Como a integração costuma andar
+
+<div className="ct-passos">
+  <div className="ct-passo">
+    <img src="/images/conecte.webp" alt="Aparelho e cartão com marca de confirmado ligados por uma linha azul" />
+    <p><strong>Conecte.</strong> Autentique com a sua chave e confira os aparelhos que estão com o seu parceiro.</p>
+  </div>
+  <div className="ct-passo">
+    <img src="/images/identifique.webp" alt="Mala e scooter em volume simples, com um campo de texto azul ligado à mala" />
+    <p><strong>Identifique.</strong> Cadastre o cliente e preencha os campos que descrevem o bem, como placa ou chassi.</p>
+  </div>
+  <div className="ct-passo">
+    <img src="/images/acompanhe.webp" alt="Mapa em relevo com uma rota azul e um pino luminoso" />
+    <p><strong>Acompanhe.</strong> Consulte a posição e o trajeto de cada Tag, ou espere o aviso do webhook.</p>
+  </div>
+  <div className="ct-passo">
+    <img src="/images/compartilhe.webp" alt="Dois celulares ligados por um arco azul" />
+    <p><strong>Integre.</strong> Receba os eventos de cerca no seu sistema e mantenha os dois lados em sincronia.</p>
+  </div>
+</div>
+
+O passo a passo completo, do cliente cadastrado à assinatura criada, está em [Fluxo de venda ponta a ponta](/guias/fluxo-de-venda).
+
+## Antes de começar
+
+<Steps>
+  <Step title="Peça sua chave de API">
+    A chave é emitida pela equipe da ClubTrack. Peça ao seu contato e guarde-a como guarda uma senha. Veja
+    [Autenticação](/guias/autenticacao).
+  </Step>
+  <Step title="Anote o endereço base">
+    Toda chamada começa em `https://core.clubtrack.com.br/api/b2b/v1`.
+  </Step>
+  <Step title="Comece por uma leitura">
+    Não existe ambiente de teste, então a primeira chamada é uma consulta. A [primeira chamada](/primeira-chamada) mostra como.
+  </Step>
+</Steps>
+
+<Warning>
+  A API tem um único ambiente: o de produção. Tudo o que grava, cobra ou envia mensagem tem efeito real. Por isso o campo de
+  testes está desligado neste site. Cada página de referência avisa quando a chamada tem efeito real.
+</Warning>
+
+## Onde encontrar cada coisa
+
+| Quero | Vou para |
+|---|---|
+| Entender o formato das respostas, datas e identificadores | [Convenções](/guias/convencoes) |
+| Filtrar e ordenar listas | [Paginação, filtros e ordenação](/guias/paginacao-filtros-ordenacao) |
+| Saber o que um erro quer dizer | [Erros e códigos](/guias/erros) |
+| Receber avisos quando um aparelho cruza uma cerca | [Webhook e assinatura](/guias/webhook) |
+| Guardar placa, chassi ou outro dado do bem | [Campos personalizados](/guias/campos-personalizados) |
+| Saber o que mudou na API | [Histórico de mudanças](/historico-de-mudancas) |

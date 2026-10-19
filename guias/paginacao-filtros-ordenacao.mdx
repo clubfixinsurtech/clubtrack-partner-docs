@@ -1,0 +1,124 @@
+---
+title: "Paginação, filtros e ordenação"
+description: "Como percorrer listas grandes, restringir o resultado com filtros e escolher a ordem, com as regras que valem em todas as listagens."
+---
+
+Toda listagem da API segue as mesmas regras. As páginas de referência dizem quais filtros, ordenações e inclusões cada rota
+aceita; este guia explica como eles funcionam.
+
+## Paginação
+
+As listas vêm em páginas. Você controla com dois parâmetros:
+
+| Parâmetro | O que faz | Padrão |
+|---|---|---|
+| `per_page` | Quantos itens por página. Envie um inteiro positivo. | 25 |
+| `page` | Qual página. Começa em 1. | 1 |
+
+Em [Listar Tags](/referencia/rastreamento/listar-tags) e em [Listar posições](/referencia/rastreamento/listar-posicoes) o valor
+precisa estar entre 1 e 100: fora disso a API responde `422`, em vez de cortar a página em silêncio. Nas demais listagens não
+há teto, mas páginas grandes ficam lentas e pesam no limite de chamadas. Prefira até 100 itens e vá paginando.
+
+A resposta de uma lista tem três partes:
+
+```json
+{
+  "data": [ { "id": "..." } ],
+  "links": {
+    "first": "https://core.clubtrack.com.br/api/b2b/v1/customers?page=1",
+    "last": "https://core.clubtrack.com.br/api/b2b/v1/customers?page=3",
+    "prev": null,
+    "next": "https://core.clubtrack.com.br/api/b2b/v1/customers?page=2"
+  },
+  "meta": {
+    "current_page": 1,
+    "from": 1,
+    "last_page": 3,
+    "per_page": 25,
+    "to": 25,
+    "total": 61
+  }
+}
+```
+
+- `data` traz os itens da página. Lista vazia é `[]`, e o status continua `200`.
+- `links` traz endereços completos, já com os filtros e a ordenação da chamada. Para ler tudo, siga `links.next` até ele vir
+  `null`. É mais seguro do que montar o número da página à mão.
+- `meta` traz a página atual, quantas existem (`last_page`) e o `total` de itens que atendem aos filtros. `from` e `to` dizem
+  quais posições da lista aquela página cobre e vêm `null` quando a lista está vazia. O `meta.links` repete a navegação em
+  formato de botões, útil para interfaces.
+
+<Tip>
+  Se você muda a ordenação ou os filtros no meio de uma leitura, recomece da primeira página. Itens cadastrados enquanto você
+  lê podem deslocar as páginas seguintes.
+</Tip>
+
+A listagem de trajeto (`tags/{id}/track`) usa outra forma de paginação, por cursor. Ela está explicada na própria página.
+
+## Filtros
+
+Os filtros vão na consulta, no formato `filter[nome]=valor`:
+
+```text
+GET /api/b2b/v1/customers?filter[status]=active&filter[name]=souza
+```
+
+Cada rota aceita uma lista fechada de filtros. Pedir um nome que a rota não aceita não é ignorado: a API responde `400`
+e diz quais nomes valem. Os nomes diferenciam maiúscula de minúscula (`withBinding` não é `withbinding`).
+
+Há três tipos de filtro, e a página de cada rota diz de qual tipo é cada um:
+
+| Tipo | Como compara | Exemplo |
+|---|---|---|
+| **Exato** | Igualdade. "ativo" só acha "ativo". Diferencia maiúscula de minúscula. | `filter[status]=active` |
+| **Parcial** | O texto aparece em qualquer posição, sem diferenciar maiúscula de minúscula. | `filter[name]=souza` acha "Marina Souza Exemplo" |
+| **Atalho** | Aplica uma condição pronta da ClubTrack. O valor enviado é ignorado; a presença do filtro basta. | `filter[withBinding]=1` |
+
+### Combinar filtros
+
+- **Filtros diferentes se somam (E).** `filter[status]=active&filter[name]=souza` devolve só quem é ativo **e** tem "souza" no
+  nome. Cada filtro a mais restringe.
+- **Vários valores no mesmo filtro (OU).** Separe por vírgula: `filter[status]=active,inactive` devolve quem está em
+  qualquer um dos dois estados.
+- Para o atalho, enviar o filtro liga a condição. Não existe valor para desligar: se não quer a condição, não envie o filtro.
+
+<Note>
+  Num filtro parcial, `%` e `_` valem como texto comum, não como curinga. Se você procura por "50%", é "50%" que a API procura.
+</Note>
+
+## Ordenação
+
+O parâmetro `sort` escolhe o campo. Sem `sort`, cada rota tem sua ordem padrão (a página diz qual).
+
+```text
+GET /api/b2b/v1/customers?sort=name          de A a Z
+GET /api/b2b/v1/customers?sort=-created_at   dos mais novos para os mais antigos
+GET /api/b2b/v1/customers?sort=status,-name  por situação e, dentro dela, de Z a A
+```
+
+Um `-` na frente inverte a ordem. Dá para usar mais de um campo, separados por vírgula. Campo fora da lista da rota
+responde `400`.
+
+## Inclusão de dados relacionados
+
+Algumas rotas deixam você pedir dados a mais na mesma resposta, com `include`:
+
+```text
+GET /api/b2b/v1/tags?include=custom_fields
+```
+
+Separe vários valores por vírgula. Sem o parâmetro a resposta é a mesma de sempre; com ele, o campo extra aparece. A página
+de cada rota lista os valores aceitos e o que cada um acrescenta. Valor que a rota não aceita responde `400`.
+
+## Quando o filtro dá erro
+
+O `400` traz uma mensagem em inglês com os nomes aceitos, por exemplo:
+
+```json
+{
+  "message": "Requested filter(s) `with_binding` are not allowed. Allowed filter(s) are `name, email, status, external_id, phone, active, searchName, withBinding, withoutBinding`."
+}
+```
+
+Trate o erro pelo status, não pelo texto. Em desenvolvimento, a lista de nomes aceitos na mensagem é a forma mais rápida
+de achar o nome certo. Veja o guia de [erros](/guias/erros).

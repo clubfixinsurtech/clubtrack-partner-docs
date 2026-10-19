@@ -1,0 +1,248 @@
+---
+title: "Ler os campos de um vínculo"
+description: "Devolve os campos personalizados de uma Tag com o valor de cada um, quem o gravou (cliente ou parceiro) e quando."
+api: "GET /api/b2b/v1/tag-bindings/{id}/custom-fields"
+---
+
+Esta chamada devolve, para uma Tag (um vínculo entre dispositivo e cliente), todos os campos do catálogo com o valor que cada um
+tem naquela Tag. O valor pode ter sido gravado pelo cliente, nos campos que ele edita, ou por você, com
+[Gravar os campos de um vínculo](/referencia/vinculos-e-campos/gravar-campos-do-vinculo). Você usa para exibir ou conferir as
+respostas do cliente no seu sistema.
+
+A chamada só lê: não cria nada e não grava nada. Ela mostra o valor, não a definição do campo; para ver as regras de cada
+campo (visibilidade, edição, ordem, valor padrão), use [Listar o catálogo de campos](/referencia/vinculos-e-campos/listar-campos-do-catalogo).
+O conceito completo está no guia de [campos personalizados](/guias/campos-personalizados).
+
+## Quando usar
+
+- Para mostrar, na tela do seu sistema, os dados que o cliente preencheu na própria Tag, como a placa.
+- Para conferir o que você gravou antes de enviar uma correção.
+- Para saber quais campos ainda estão sem valor numa Tag.
+
+## Autenticação e permissões
+
+Aceita chave de API ou login humano. Qualquer usuário da equipe do parceiro pode consultar. Parceiro suspenso recebe 403.
+Você lê apenas as Tags do parceiro em nome do qual chama: o hub não lê o vínculo de uma filial, e uma filial não lê o do hub. O
+guia de [autenticação](/guias/autenticacao) explica as duas formas de credencial e como escolher a filial.
+
+## Parâmetros
+
+### Cabeçalhos
+
+<ParamField header="X-Api-Key" type="string" required>
+  Sua chave de API, no formato `ttk_` seguido de 40 caracteres. Você pode enviá-la também como
+  `Authorization: Bearer <chave>`. Se estiver chamando com o token de um usuário da equipe, envie só o `Authorization`.
+</ParamField>
+
+<ParamField header="X-Partner-Branch-Id" type="string (UUID)">
+  Filial em nome da qual o usuário está consultando. Só tem efeito no login humano, e só é obrigatório quando o usuário
+  pertence a mais de uma filial. Com chave de API, o cabeçalho é ignorado.
+</ParamField>
+
+### Caminho
+
+<ParamField path="id" type="string (UUID)" required>
+  Identificador do vínculo (a Tag): o `data.id` devolvido por
+  [Vincular dispositivo a um cliente](/referencia/vinculos-e-campos/vincular-dispositivo) ou o `id` de cada vínculo em
+  [Listar as Tags de um cliente](/referencia/clientes-e-enderecos/listar-tags-do-cliente). Vínculo que não existe, é de outro
+  parceiro ou já foi desfeito responde 404. Exemplo: `019a0f3c-a000-7d36-b6e0-c918528fd00a`.
+</ParamField>
+
+## Resposta
+
+Status `200`. O corpo traz a lista em `data`, uma entrada por campo do catálogo, na ordem de `sort_order` e, em caso de empate,
+de `key`. Os campos aparecem independentemente de o cliente poder vê-los ou editá-los: o catálogo é do parceiro. Um campo
+inativo só aparece quando a Tag já tem valor nele, e então vem com `active` igual a `false`.
+
+`data` vem vazio (`[]`) quando o catálogo não tem campos para listar ou quando a funcionalidade de campos personalizados ainda
+não está ligada para o seu parceiro. Uma Tag que ainda não recebeu nenhum valor mostra todos os campos ativos com `value` igual a
+`null`, mesmo que o catálogo tenha valor padrão.
+
+<ResponseField name="data" type="object[]">
+  Os campos da Tag, um por campo do catálogo que se aplica a ela.
+</ResponseField>
+
+<ResponseField name="data[].key" type="string">
+  Chave do campo no catálogo. É o nome que você usa dentro de `values` ao gravar esse campo com
+  [Gravar os campos de um vínculo](/referencia/vinculos-e-campos/gravar-campos-do-vinculo).
+</ResponseField>
+
+<ResponseField name="data[].label" type="string">
+  Nome do campo como as pessoas o veem, com até 100 caracteres.
+</ResponseField>
+
+<ResponseField name="data[].sort_order" type="integer">
+  Posição do campo na lista. Menor aparece primeiro.
+</ResponseField>
+
+<ResponseField name="data[].active" type="boolean">
+  `true` quando o campo aceita valores novos. `false` quando foi desativado: ele só aparece aqui porque esta Tag já tem valor
+  gravado nele, e ninguém grava um valor novo.
+</ResponseField>
+
+<ResponseField name="data[].value" type="string | null">
+  O texto gravado, com até 255 caracteres, ou `null` quando nenhum valor foi gravado ou o valor foi limpo. É dado pessoal do cliente:
+  trate com o mesmo cuidado que o resto da base.
+</ResponseField>
+
+<ResponseField name="data[].written_by" type="string | null">
+  Quem disparou a última gravação: `customer` (o cliente) ou `partner` (o parceiro, por login ou por chave de API). `null`
+  quando `value` é `null`. O valor padrão do catálogo, copiado quando a Tag recebe o primeiro valor, leva o autor de quem disparou
+  essa primeira gravação. Se foi o cliente, um campo que ele nunca viu pode vir como `customer`: a API não separa valor padrão
+  de resposta digitada.
+</ResponseField>
+
+<ResponseField name="data[].written_at" type="string (data e hora ISO 8601) | null">
+  Instante da última gravação, em UTC, no formato `2026-10-19T17:32:10Z` (com `Z` no fim). `null` quando `value` é `null`.
+</ResponseField>
+
+## Erros
+
+| Status | Quando acontece | O que fazer |
+|---|---|---|
+| 400 | Login humano com usuário que tem mais de uma filial e sem `X-Partner-Branch-Id`. | Envie o cabeçalho com a filial desejada. |
+| 401 | Não há chave, a chave é inválida, foi revogada ou expirou. Com login humano: usuário inativo ou token expirado. | Confira a credencial. Revogação leva até 60 segundos para valer. |
+| 403 | O parceiro está suspenso ou inativo, ou a filial informada não pertence ao usuário. | Fale com a ClubTrack se o parceiro deveria estar ativo. |
+| 404 | `Vínculo não encontrado.`: o vínculo não existe, é de outro parceiro ou já foi desfeito. Os três casos têm o mesmo corpo. Se o `id` do caminho nem tem formato de UUID, a própria rota responde 404; não dependa do texto. | Confira o `id` e o parceiro em nome do qual você chama. |
+| 429 | Passou de 1000 chamadas por minuto com a chave. | Espere o tempo do cabeçalho `Retry-After` e repita. |
+| 500 | `Não foi possível ler os campos agora.` Falha técnica; nenhum valor é revelado na mensagem. | Tente de novo; se persistir, fale com a ClubTrack. |
+
+Os status 401, 403 e 429 valem para qualquer chamada. O corpo é sempre `{"message": "..."}`; o guia de [erros](/guias/erros)
+traz os textos exatos.
+
+## Exemplos
+
+<RequestExample>
+
+```bash cURL
+curl --get "https://core.clubtrack.com.br/api/b2b/v1/tag-bindings/019a0f3c-a000-7d36-b6e0-c918528fd00a/custom-fields" \
+  --header "X-Api-Key: $CLUBTRACK_API_KEY" \
+  --header "Accept: application/json"
+```
+
+```javascript JavaScript
+const idDoVinculo = "019a0f3c-a000-7d36-b6e0-c918528fd00a";
+
+const resposta = await fetch(
+  `https://core.clubtrack.com.br/api/b2b/v1/tag-bindings/${idDoVinculo}/custom-fields`,
+  {
+    headers: {
+      "X-Api-Key": process.env.CLUBTRACK_API_KEY,
+      Accept: "application/json",
+    },
+  },
+);
+
+const campos = await resposta.json();
+```
+
+```python Python
+import os
+import requests
+
+id_do_vinculo = "019a0f3c-a000-7d36-b6e0-c918528fd00a"
+
+resposta = requests.get(
+    f"https://core.clubtrack.com.br/api/b2b/v1/tag-bindings/{id_do_vinculo}/custom-fields",
+    headers={
+        "X-Api-Key": os.environ["CLUBTRACK_API_KEY"],
+        "Accept": "application/json",
+    },
+    timeout=30,
+)
+
+campos = resposta.json()
+```
+
+```php PHP
+use GuzzleHttp\Client;
+
+$http = new Client(['base_uri' => 'https://core.clubtrack.com.br']);
+
+$idDoVinculo = '019a0f3c-a000-7d36-b6e0-c918528fd00a';
+
+$resposta = $http->get("/api/b2b/v1/tag-bindings/{$idDoVinculo}/custom-fields", [
+    'headers' => [
+        'X-Api-Key' => getenv('CLUBTRACK_API_KEY'),
+        'Accept' => 'application/json',
+    ],
+]);
+
+$campos = json_decode((string) $resposta->getBody(), true);
+```
+
+</RequestExample>
+
+<ResponseExample>
+
+```json 200
+{
+  "data": [
+    {
+      "key": "placa",
+      "label": "Placa",
+      "sort_order": 0,
+      "active": true,
+      "value": "ABC1D23",
+      "written_by": "customer",
+      "written_at": "2026-10-19T15:08:41Z"
+    },
+    {
+      "key": "chassi",
+      "label": "Chassi",
+      "sort_order": 1,
+      "active": true,
+      "value": "9BWZZZ377VT004251",
+      "written_by": "partner",
+      "written_at": "2026-10-19T16:20:05Z"
+    },
+    {
+      "key": "condutor",
+      "label": "Condutor",
+      "sort_order": 2,
+      "active": true,
+      "value": null,
+      "written_by": null,
+      "written_at": null
+    }
+  ]
+}
+```
+
+```json 401
+{
+  "message": "API key inválida ou revogada."
+}
+```
+
+```json 403
+{
+  "message": "Parceiro inativo ou suspenso."
+}
+```
+
+```json 404
+{
+  "message": "Vínculo não encontrado."
+}
+```
+
+```json 500
+{
+  "message": "Não foi possível ler os campos agora."
+}
+```
+
+</ResponseExample>
+
+## Detalhes que ajudam
+
+- A resposta não traz o valor padrão do catálogo, nem as regras de visibilidade e edição de cada campo, nem identificadores de
+  quem gravou. Esses dados estão na [listagem do catálogo](/referencia/vinculos-e-campos/listar-campos-do-catalogo).
+- Se uma Tag passou de um parceiro para outro da rede, o novo parceiro lê os campos sem valor e não consegue gravar nela
+  (404 em [Gravar os campos de um vínculo](/referencia/vinculos-e-campos/gravar-campos-do-vinculo)). O parceiro anterior passa
+  a receber 404 nesta leitura.
+- `data` vazio não distingue "sem campos no catálogo" de "funcionalidade ainda não ligada". Para saber qual é o caso, chame a
+  [listagem do catálogo](/referencia/vinculos-e-campos/listar-campos-do-catalogo): ela responde 404 `Recurso indisponível.`
+  quando a funcionalidade não está ligada.
+- Para ler muitas Tags, faça uma chamada por vínculo. Cada chamada conta no limite de 1000 por minuto da chave.

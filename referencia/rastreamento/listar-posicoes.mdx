@@ -1,0 +1,422 @@
+---
+title: "Listar posições de um dispositivo"
+description: "Devolve, em páginas, os registros de posição de um aparelho dentro do período em que ele esteve vinculado a clientes do seu parceiro."
+api: "GET /api/b2b/v1/devices/{deviceId}/locations"
+---
+
+Esta chamada devolve o histórico bruto de um aparelho: cada registro de posição que ele enviou, com coordenadas, velocidade, direção, satélites, bateria e a hora do aparelho. Os mais recentes vêm primeiro. Você usa quando precisa dos detalhes de cada registro, por exemplo para filtrar por velocidade ou por quantidade de satélites.
+
+Para desenhar um percurso num mapa, prefira [Consultar trajeto](/referencia/rastreamento/consultar-trajeto): ele devolve só posições válidas, em ordem de hora, e segue o bem quando ele troca de aparelho. Esta chamada devolve **todos** os registros, inclusive os de um aparelho sem sinal de GPS, e a resposta não traz um campo que diga se o sinal era válido. Quando houver dúvida sobre um registro, olhe `satellites`, `accuracy_meters` e se a coordenada é `0` e `0`.
+
+## Quais posições você enxerga
+
+Você lê as posições dos períodos em que o aparelho esteve vinculado a um cliente do seu parceiro, e só desses. O que o aparelho registrou antes de chegar ao seu cliente, depois de sair dele ou enquanto estava com outro parceiro nunca aparece, e dois parceiros nunca enxergam o histórico um do outro. A regra vale igual para parceiro cobrado por assinatura e para parceiro de cobrança consolidada pós-paga.
+
+A posição aparece se existe um vínculo de cliente do seu parceiro com o aparelho em que o início do vínculo é anterior ou igual à hora do aparelho (`recorded_at`) e o fim do vínculo é posterior a ela. Vínculo ainda ativo não tem fim. Se o seu parceiro teve o aparelho em mais de uma época, você lê todas as suas épocas e nenhuma das épocas dos outros.
+
+Exemplo: o seu parceiro teve um cliente no aparelho de `2026-10-01 12:00:00` a `2026-10-11 12:00:00` (UTC). O aparelho registrou posições em `2026-09-30 12:00:00`, `2026-10-01 12:00:00`, `2026-10-05 12:00:00`, `2026-10-11 12:00:00` e `2026-10-15 12:00:00`. A lista devolve a de 10-01 12:00 (entra, porque é igual ao início) e a de 10-05 12:00. A de 10-11 12:00 não entra (igual ao fim), e as outras estão fora do período. [Última posição](/referencia/rastreamento/ultima-posicao) devolve a de 10-05 12:00.
+
+## Quando usar
+
+- Auditar o que um aparelho registrou, com velocidade, bateria e qualidade do sinal.
+- Listar só os registros com movimento, ou só os com boa leitura de satélites.
+- Ler o que um aparelho registrou enquanto esteve com um cliente seu, mesmo depois de ele ter sido desvinculado: esta chamada lê o aparelho, e não o vínculo.
+
+## Autenticação e permissões
+
+Aceita chave de API ou login humano. Qualquer usuário da equipe do parceiro pode consultar. Parceiro suspenso ou inativo recebe 403. O guia de [autenticação](/guias/autenticacao) explica as duas formas e como escolher a filial quando o usuário tem mais de uma.
+
+O aparelho precisa ter tido ao menos um vínculo com cliente do seu parceiro (da filial ativa, no login humano). Aparelho que não existe e aparelho que nunca foi do seu parceiro recebem a mesma resposta, 404. Um aparelho que já foi do seu parceiro mas não tem posição no período devolve `200` com `data` vazio.
+
+## Parâmetros
+
+### Cabeçalhos
+
+<ParamField header="X-Api-Key" type="string" required>
+  Sua chave de API, no formato `ttk_` seguido de 40 caracteres. Você pode enviá-la também como
+  `Authorization: Bearer <chave>`. Se estiver chamando com o token de um usuário da equipe, envie só o `Authorization`.
+</ParamField>
+
+<ParamField header="X-Partner-Branch-Id" type="string (UUID)">
+  Filial em nome da qual o usuário está consultando. Só tem efeito no login humano, e só é obrigatório quando o usuário
+  pertence a mais de uma filial. Com chave de API, o cabeçalho é ignorado.
+</ParamField>
+
+### Caminho
+
+<ParamField path="deviceId" type="string (UUID)" required>
+  Identificador do aparelho: o `device.id` de uma linha de [Listar Tags](/referencia/rastreamento/listar-tags) ou o `id` de
+  [Listar dispositivos](/referencia/rastreamento/listar-dispositivos). Não é o `id` do vínculo. Use o valor como a API o devolveu.
+</ParamField>
+
+### Consulta
+
+Os filtros se combinam: cada filtro a mais restringe o resultado. Eles nunca ampliam o que você pode ler: o período do vínculo
+vale primeiro, e os filtros atuam dentro dele. Mais detalhes em [Paginação, filtros e ordenação](/guias/paginacao-filtros-ordenacao).
+
+<ParamField query="filter[from]" type="string (data e hora ISO 8601)">
+  Só registros com hora do aparelho (`recorded_at`) a partir deste instante, **incluído**. Envie em UTC, com `Z` no fim:
+  `2026-10-18T03:00:00Z`. Esta chamada não converte o fuso do valor, ao contrário de [Consultar trajeto](/referencia/rastreamento/consultar-trajeto).
+  Para o dia 18 em horário de Brasília, o início é `2026-10-18T03:00:00Z`.
+  Exemplo: `filter[from]=2026-10-18T03:00:00Z`.
+</ParamField>
+
+<ParamField query="filter[to]" type="string (data e hora ISO 8601)">
+  Só registros com hora do aparelho até este instante, **incluído**. Mesmas regras de `filter[from]`: UTC, com `Z` no fim.
+  Exemplo: `filter[to]=2026-10-19T02:59:59Z`.
+</ParamField>
+
+<ParamField query="filter[moving]" type="number">
+  Apesar do nome, **não é verdadeiro ou falso**: é um limite de velocidade em km/h. Devolve os registros cuja velocidade
+  informada (`speed_kmh`) é **maior** que o número enviado. `filter[moving]=3` traz os registros acima de 3 km/h, e
+  `filter[moving]=1` traz os acima de 1 km/h. Envie sempre o número. Muitos aparelhos informam `0` em `speed_kmh`, e nesse caso
+  o registro não passa neste filtro, mesmo que o veículo estivesse andando; veja `estimated_speed_kmh` em Resposta.
+</ParamField>
+
+<ParamField query="filter[stopped]" type="number">
+  O oposto de `filter[moving]`, também com um limite em km/h: devolve os registros cuja `speed_kmh` é **menor ou igual** ao número
+  enviado. `filter[stopped]=3` traz os registros de até 3 km/h, inclusive os de velocidade `0`.
+</ParamField>
+
+<ParamField query="filter[min_speed]" type="number">
+  Velocidade mínima em km/h, **incluída**: devolve os registros com `speed_kmh` maior ou igual ao número. Diferente de
+  `filter[moving]`, o valor enviado também passa no filtro. Exemplo: `filter[min_speed]=20`.
+</ParamField>
+
+<ParamField query="filter[max_speed]" type="number">
+  Velocidade máxima em km/h, **incluída**: devolve os registros com `speed_kmh` menor ou igual ao número.
+  Exemplo: `filter[max_speed]=60`.
+</ParamField>
+
+<ParamField query="filter[min_satellites]" type="integer">
+  Quantidade mínima de satélites que o aparelho usou na leitura, **incluída**: devolve os registros com `satellites` maior ou
+  igual ao número. Útil para descartar leituras fracas. Exemplo: `filter[min_satellites]=4`.
+</ParamField>
+
+<ParamField query="sort" type="string" default="-recorded_at">
+  Campo de ordenação. Aceita `recorded_at` (hora do aparelho), `speed_kmh` e `accuracy_meters`. Prefixe com `-` para ordem
+  decrescente: `sort=recorded_at` vai do mais antigo ao mais novo, `sort=-recorded_at` traz os mais novos primeiro. Aceita mais
+  de um campo separado por vírgula. Em empate, o registro de número `id` maior vem primeiro.
+</ParamField>
+
+<ParamField query="include" type="string">
+  Aceita `device`. Hoje o valor é aceito, mas não acrescenta nada à resposta: os dados de bateria do aparelho já vêm em todo
+  registro. Qualquer outro valor responde 400.
+</ParamField>
+
+<ParamField query="per_page" type="integer" default="100">
+  Quantos registros vêm por página, de 1 a 100. Atenção: o padrão aqui é 100, e não 25 como nas demais listagens. Valor acima de
+  100, abaixo de 1 ou que não seja inteiro responde 422: a chamada nunca corta a página em silêncio.
+</ParamField>
+
+<ParamField query="page" type="integer" default="1">
+  Número da página, começando em 1. Para percorrer tudo, siga `links.next` em vez de montar o número à mão.
+</ParamField>
+
+## Resposta
+
+Status `200`. O corpo traz a lista em `data`, os endereços de navegação em `links` e os totais em `meta`. Todos os horários
+estão em UTC, com `+00:00`.
+
+<ResponseField name="data" type="object[]">
+  Os registros da página. Vem vazio (`[]`) quando não há registro no período do vínculo ou nenhum atende aos filtros.
+</ResponseField>
+
+<ResponseField name="data[].id" type="integer">
+  Número do registro na ClubTrack. É um inteiro sequencial, e não um UUID como os demais identificadores da API.
+</ResponseField>
+
+<ResponseField name="data[].device_id" type="string (UUID)">
+  O aparelho que enviou o registro: sempre o que você pediu em `{deviceId}`.
+</ResponseField>
+
+<ResponseField name="data[].latitude" type="number">
+  Latitude em graus decimais. Exemplo: `-23.561414`. Em registro sem sinal de GPS válido, a coordenada pode ser imprecisa, inclusive `0`.
+</ResponseField>
+
+<ResponseField name="data[].longitude" type="number">
+  Longitude em graus decimais. Exemplo: `-46.655881`. Em registro sem sinal de GPS válido, a coordenada pode ser imprecisa, inclusive `0`.
+</ResponseField>
+
+<ResponseField name="data[].speed_kmh" type="number">
+  Velocidade informada pelo aparelho, em km/h. Muitos aparelhos informam sempre `0`, uma característica do próprio aparelho; para
+  esses, use `estimated_speed_kmh`.
+</ResponseField>
+
+<ResponseField name="data[].estimated_speed_kmh" type="integer | null">
+  Velocidade estimada pela ClubTrack, em km/h, só para registros em que o aparelho informou `speed_kmh` igual a `0`. É calculada
+  na chegada do registro, pela distância e pelo tempo desde o registro anterior do aparelho. Vem `null` quando o aparelho
+  informou velocidade acima de zero, quando não há registro anterior, quando o intervalo entre os dois passa de 10 minutos ou
+  não é positivo e quando o resultado passaria de 200 km/h. Nunca substitui `speed_kmh`.
+</ResponseField>
+
+<ResponseField name="data[].heading" type="number">
+  Direção do deslocamento em graus, como o aparelho informa.
+</ResponseField>
+
+<ResponseField name="data[].accuracy_meters" type="number | null">
+  Precisão da leitura, em metros, quando o aparelho a informa. `null` caso contrário.
+</ResponseField>
+
+<ResponseField name="data[].altitude_meters" type="number | null">
+  Altitude em metros, quando o aparelho a informa. `null` caso contrário.
+</ResponseField>
+
+<ResponseField name="data[].satellites" type="integer">
+  Quantidade de satélites que o aparelho usou na leitura.
+</ResponseField>
+
+<ResponseField name="data[].battery_level" type="integer | null">
+  Nível de bateria do **aparelho**, de 0 a 6, na última vez em que ele informou. É um valor do aparelho, e não do registro: todos
+  os registros da resposta trazem o mesmo número. `null` enquanto o aparelho nunca informou o nível.
+</ResponseField>
+
+<ResponseField name="data[].battery_percent" type="integer | null">
+  O mesmo nível de bateria em porcentagem, arredondada: o nível dividido por 6. Os valores possíveis são 0, 17, 33, 50, 67, 83 e
+  100. `null` enquanto o aparelho nunca informou o nível.
+</ResponseField>
+
+<ResponseField name="data[].battery_level_updated_at" type="string (data e hora ISO 8601) | null">
+  Hora, em UTC, em que o aparelho registrou o nível de bateria. `null` enquanto o aparelho nunca informou.
+</ResponseField>
+
+<ResponseField name="data[].recorded_at" type="string (data e hora ISO 8601)">
+  Hora em que o aparelho registrou a posição, pelo relógio do aparelho. É a hora que decide se o registro está dentro do período
+  do vínculo e a que os filtros `from` e `to` comparam.
+</ResponseField>
+
+<ResponseField name="links" type="object">
+  Endereços prontos para navegar: `first`, `last`, `prev` e `next`. Já trazem os filtros e a ordenação da chamada atual.
+  `prev` é `null` na primeira página e `next` é `null` na última.
+</ResponseField>
+
+<ResponseField name="meta" type="object">
+  `current_page`, `last_page`, `per_page`, `from`, `to` e `total` (quantos registros existem com esses filtros, somando todas as
+  páginas). `from` e `to` vêm `null` quando a lista está vazia. `meta.links` repete a navegação em formato de botões para
+  interfaces; quem integra por código usa o objeto `links`.
+</ResponseField>
+
+## Erros
+
+| Status | Quando acontece | O que fazer |
+|---|---|---|
+| 400 | Você enviou um filtro, uma ordenação ou uma inclusão que a rota não aceita. A mensagem lista os nomes aceitos, em inglês. | Corrija o nome do parâmetro. Os nomes diferenciam maiúscula de minúscula e usam sublinhado (`min_speed`). |
+| 400 | Login humano com usuário que tem mais de uma filial e sem `X-Partner-Branch-Id`. | Envie o cabeçalho com a filial desejada. |
+| 401 | Não há chave, a chave é inválida, foi revogada ou expirou. Com login humano: usuário inativo ou token expirado. | Confira a credencial. Revogação leva até 60 segundos para valer. |
+| 403 | O parceiro está suspenso ou inativo, ou a filial informada não pertence ao usuário. | Fale com a ClubTrack se o parceiro deveria estar ativo. |
+| 404 | `Dispositivo não encontrado.` O aparelho não existe ou nunca esteve vinculado a cliente do seu parceiro. O texto é o mesmo nos dois casos. | Confira o `deviceId` em [Listar Tags](/referencia/rastreamento/listar-tags). |
+| 422 | `per_page` fora do intervalo de 1 a 100, ou não inteiro: `The per page field must be between 1 and 100.` | Envie um inteiro de 1 a 100 e pagine pelos `links`. |
+| 429 | Passou de 1000 chamadas por minuto com a chave. | Espere o tempo do cabeçalho `Retry-After` e repita. |
+
+Os status 401, 403 e 429 valem para qualquer chamada. O corpo é sempre `{"message": "..."}`, e o 422 acrescenta `errors`. O guia
+de [erros](/guias/erros) traz os textos exatos.
+
+## Exemplos
+
+<RequestExample>
+
+```bash cURL
+curl --get "https://core.clubtrack.com.br/api/b2b/v1/devices/019a0f3c-8000-78d6-8995-8bf9b9e561a5/locations" \
+  --header "X-Api-Key: $CLUBTRACK_API_KEY" \
+  --header "Accept: application/json" \
+  --data-urlencode "filter[from]=2026-10-18T03:00:00Z" \
+  --data-urlencode "filter[to]=2026-10-19T02:59:59Z" \
+  --data-urlencode "filter[min_satellites]=4" \
+  --data-urlencode "sort=recorded_at" \
+  --data-urlencode "per_page=2"
+```
+
+```javascript JavaScript
+const deviceId = "019a0f3c-8000-78d6-8995-8bf9b9e561a5";
+
+const params = new URLSearchParams({
+  "filter[from]": "2026-10-18T03:00:00Z",
+  "filter[to]": "2026-10-19T02:59:59Z",
+  "filter[min_satellites]": "4",
+  sort: "recorded_at",
+  per_page: "2",
+});
+
+const resposta = await fetch(
+  `https://core.clubtrack.com.br/api/b2b/v1/devices/${deviceId}/locations?${params}`,
+  {
+    headers: {
+      "X-Api-Key": process.env.CLUBTRACK_API_KEY,
+      Accept: "application/json",
+    },
+  },
+);
+
+const posicoes = await resposta.json();
+```
+
+```python Python
+import os
+import requests
+
+device_id = "019a0f3c-8000-78d6-8995-8bf9b9e561a5"
+
+resposta = requests.get(
+    f"https://core.clubtrack.com.br/api/b2b/v1/devices/{device_id}/locations",
+    headers={
+        "X-Api-Key": os.environ["CLUBTRACK_API_KEY"],
+        "Accept": "application/json",
+    },
+    params={
+        "filter[from]": "2026-10-18T03:00:00Z",
+        "filter[to]": "2026-10-19T02:59:59Z",
+        "filter[min_satellites]": 4,
+        "sort": "recorded_at",
+        "per_page": 2,
+    },
+    timeout=30,
+)
+
+posicoes = resposta.json()
+```
+
+```php PHP
+use GuzzleHttp\Client;
+
+$http = new Client(['base_uri' => 'https://core.clubtrack.com.br']);
+
+$deviceId = '019a0f3c-8000-78d6-8995-8bf9b9e561a5';
+
+$resposta = $http->get("/api/b2b/v1/devices/{$deviceId}/locations", [
+    'headers' => [
+        'X-Api-Key' => getenv('CLUBTRACK_API_KEY'),
+        'Accept' => 'application/json',
+    ],
+    'query' => [
+        'filter' => [
+            'from' => '2026-10-18T03:00:00Z',
+            'to' => '2026-10-19T02:59:59Z',
+            'min_satellites' => 4,
+        ],
+        'sort' => 'recorded_at',
+        'per_page' => 2,
+    ],
+]);
+
+$posicoes = json_decode((string) $resposta->getBody(), true);
+```
+
+</RequestExample>
+
+<ResponseExample>
+
+```json 200
+{
+  "data": [
+    {
+      "id": 48213655,
+      "device_id": "019a0f3c-8000-78d6-8995-8bf9b9e561a5",
+      "latitude": -23.561414,
+      "longitude": -46.655881,
+      "speed_kmh": 0.0,
+      "estimated_speed_kmh": null,
+      "heading": 135.0,
+      "accuracy_meters": 8.0,
+      "altitude_meters": 761.0,
+      "satellites": 9,
+      "battery_level": 5,
+      "battery_percent": 83,
+      "battery_level_updated_at": "2026-10-19T16:50:12+00:00",
+      "recorded_at": "2026-10-18T11:02:15+00:00"
+    },
+    {
+      "id": 48213907,
+      "device_id": "019a0f3c-8000-78d6-8995-8bf9b9e561a5",
+      "latitude": -23.56302,
+      "longitude": -46.65412,
+      "speed_kmh": 0.0,
+      "estimated_speed_kmh": 3,
+      "heading": 142.0,
+      "accuracy_meters": null,
+      "altitude_meters": null,
+      "satellites": 10,
+      "battery_level": 5,
+      "battery_percent": 83,
+      "battery_level_updated_at": "2026-10-19T16:50:12+00:00",
+      "recorded_at": "2026-10-18T11:07:20+00:00"
+    }
+  ],
+  "links": {
+    "first": "https://core.clubtrack.com.br/api/b2b/v1/devices/019a0f3c-8000-78d6-8995-8bf9b9e561a5/locations?filter%5Bfrom%5D=2026-10-18T03%3A00%3A00Z&filter%5Bto%5D=2026-10-19T02%3A59%3A59Z&filter%5Bmin_satellites%5D=4&sort=recorded_at&per_page=2&page=1",
+    "last": "https://core.clubtrack.com.br/api/b2b/v1/devices/019a0f3c-8000-78d6-8995-8bf9b9e561a5/locations?filter%5Bfrom%5D=2026-10-18T03%3A00%3A00Z&filter%5Bto%5D=2026-10-19T02%3A59%3A59Z&filter%5Bmin_satellites%5D=4&sort=recorded_at&per_page=2&page=2",
+    "prev": null,
+    "next": "https://core.clubtrack.com.br/api/b2b/v1/devices/019a0f3c-8000-78d6-8995-8bf9b9e561a5/locations?filter%5Bfrom%5D=2026-10-18T03%3A00%3A00Z&filter%5Bto%5D=2026-10-19T02%3A59%3A59Z&filter%5Bmin_satellites%5D=4&sort=recorded_at&per_page=2&page=2"
+  },
+  "meta": {
+    "current_page": 1,
+    "from": 1,
+    "last_page": 2,
+    "links": [
+      { "url": null, "label": "&laquo; Previous", "active": false },
+      { "url": "https://core.clubtrack.com.br/api/b2b/v1/devices/019a0f3c-8000-78d6-8995-8bf9b9e561a5/locations?filter%5Bfrom%5D=2026-10-18T03%3A00%3A00Z&filter%5Bto%5D=2026-10-19T02%3A59%3A59Z&filter%5Bmin_satellites%5D=4&sort=recorded_at&per_page=2&page=1", "label": "1", "active": true },
+      { "url": "https://core.clubtrack.com.br/api/b2b/v1/devices/019a0f3c-8000-78d6-8995-8bf9b9e561a5/locations?filter%5Bfrom%5D=2026-10-18T03%3A00%3A00Z&filter%5Bto%5D=2026-10-19T02%3A59%3A59Z&filter%5Bmin_satellites%5D=4&sort=recorded_at&per_page=2&page=2", "label": "2", "active": false },
+      { "url": "https://core.clubtrack.com.br/api/b2b/v1/devices/019a0f3c-8000-78d6-8995-8bf9b9e561a5/locations?filter%5Bfrom%5D=2026-10-18T03%3A00%3A00Z&filter%5Bto%5D=2026-10-19T02%3A59%3A59Z&filter%5Bmin_satellites%5D=4&sort=recorded_at&per_page=2&page=2", "label": "Next &raquo;", "active": false }
+    ],
+    "path": "https://core.clubtrack.com.br/api/b2b/v1/devices/019a0f3c-8000-78d6-8995-8bf9b9e561a5/locations",
+    "per_page": 2,
+    "to": 2,
+    "total": 4
+  }
+}
+```
+
+```json 400
+{
+  "message": "Requested filter(s) `speed` are not allowed. Allowed filter(s) are `from, to, moving, stopped, min_speed, max_speed, min_satellites`."
+}
+```
+
+```json 401
+{
+  "message": "API key inválida ou revogada."
+}
+```
+
+```json 403
+{
+  "message": "Parceiro inativo ou suspenso."
+}
+```
+
+```json 404
+{
+  "message": "Dispositivo não encontrado."
+}
+```
+
+```json 422
+{
+  "message": "The per page field must be between 1 and 100.",
+  "errors": {
+    "per_page": [
+      "The per page field must be between 1 and 100."
+    ]
+  }
+}
+```
+
+</ResponseExample>
+
+## Detalhes que ajudam
+
+- **Período vazio não é erro.** Um aparelho que já foi do seu parceiro, mas não registrou nada dentro do período dele, devolve
+  `200` com `data` vazio. O `404` é só para o aparelho que nunca foi seu.
+- **Percorra com o fim fixo.** Com a ordem padrão (mais recente primeiro), cada registro novo que chega entra no topo e desloca as
+  páginas seguintes. Para ler um período inteiro sem repetir nem pular registro, fixe `filter[to]` num instante já passado antes de
+  começar e siga `links.next`.
+- **Esta chamada lê o aparelho.** Ela não consulta a assinatura nem o modelo de cobrança do parceiro. A janela do vínculo é a única
+  regra de quem enxerga o quê. Já [Listar Tags](/referencia/rastreamento/listar-tags) e [Consultar trajeto](/referencia/rastreamento/consultar-trajeto)
+  dependem da assinatura quando o parceiro é cobrado por assinatura.
+- **Bateria é do aparelho.** O nível de bateria é a última leitura conhecida do aparelho no momento da consulta, repetida em
+  todos os registros. Ele não mostra a bateria na hora de cada posição.
+- **Velocidade zero.** Como muitos aparelhos informam `speed_kmh` igual a `0`, os filtros `moving`, `stopped`, `min_speed` e
+  `max_speed`, que olham só `speed_kmh`, podem não separar o que está andando do que está parado. Nesses casos, compare
+  `estimated_speed_kmh` por conta própria.
+- **Fuso.** Os filtros `from` e `to` comparam o texto enviado com a hora do aparelho em UTC. Converta o seu horário local para UTC
+  antes de enviar.
+- A mensagem do erro `400` vem em inglês e cita os nomes aceitos. Trate pelo status, não pelo texto.

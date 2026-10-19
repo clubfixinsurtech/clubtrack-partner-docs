@@ -24,6 +24,10 @@ A voz da marca é: **diz o que está acontecendo, sem dramatizar e sem consolar.
 - Termo técnico entra quando é o nome real do campo ou do cabeçalho. Fora disso, palavra comum: "contato" e não "ping".
 - Vocabulário da marca: o produto que a pessoa final enxerga é "bem" ou "Tag" conforme o campo da API; use o nome
   que a API usa (`tag`, `device`) e explique uma vez o que é cada um.
+- A marca evita vocabulário de medo e de promessa: nada de "roubo", "furto", "perigo", "blindagem", "vigilância",
+  "revolucionário", "inovador", "solução completa", "tecnologia de ponta". Fale de rota, trajeto, posição, "chegou", "saiu".
+  Alerta de cerca é "o aparelho entrou ou saiu de uma cerca", sem dramatizar.
+- A ClubTrack comunica como marca independente. Nunca cite a ClubFix nem a seguradora nas páginas.
 - Português do Brasil, com acentos completos. Nomes de campo, rota e valor ficam como a API os escreve, sem traduzir.
 
 ## 3. De onde vem cada afirmação

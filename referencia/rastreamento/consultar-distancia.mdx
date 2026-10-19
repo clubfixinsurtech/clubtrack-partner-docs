@@ -1,0 +1,301 @@
+---
+title: "Consultar distância"
+description: "Devolve a distância estimada que uma Tag percorreu em um período de até 90 dias, em metros e em quilômetros."
+api: "GET /api/b2b/v1/tags/{id}/distance"
+---
+
+Esta chamada devolve quanto uma Tag andou num período, como um número só: metros, quilômetros, quantas posições entraram na conta e o método usado. Você usa para mostrar "km rodados no mês" ou para um relatório de uso, sem baixar o trajeto inteiro e somar posição por posição.
+
+É uma **estimativa**, e não um odômetro. A conta usa as mesmas posições que [Consultar trajeto](/referencia/rastreamento/consultar-trajeto) devolveria para o mesmo período, e `points_count` diz quantas foram. As regras de quais posições valem (só posição válida, só dentro do período em que a Tag esteve vinculada a um cliente do seu parceiro, seguindo o bem quando ele trocou de Tag) são as do trajeto e não mudam aqui.
+
+## Quando usar
+
+- Mostrar a quilometragem de uma Tag em um dia, uma semana ou um mês.
+- Comparar o uso de duas Tags no mesmo período.
+- Montar um relatório de deslocamento por cliente sem armazenar as posições.
+
+## Autenticação e permissões
+
+Aceita chave de API ou login humano. Qualquer usuário da equipe do parceiro pode consultar. Parceiro suspenso ou inativo recebe 403. O guia de [autenticação](/guias/autenticacao) explica as duas formas e como escolher a filial quando o usuário tem mais de uma.
+
+A Tag precisa ser uma que [Listar Tags](/referencia/rastreamento/listar-tags) mostraria a você: vínculo ativo, de cliente do seu parceiro (da filial ativa, no login humano) e visível pelo seu modelo de cobrança. Por assinatura, isso quer dizer assinatura ativa; na cobrança consolidada pós-paga, basta o vínculo estar ativo. Qualquer outro caso responde o mesmo 404.
+
+## Parâmetros
+
+### Cabeçalhos
+
+<ParamField header="X-Api-Key" type="string" required>
+  Sua chave de API, no formato `ttk_` seguido de 40 caracteres. Você pode enviá-la também como
+  `Authorization: Bearer <chave>`. Se estiver chamando com o token de um usuário da equipe, envie só o `Authorization`.
+</ParamField>
+
+<ParamField header="X-Partner-Branch-Id" type="string (UUID)">
+  Filial em nome da qual o usuário está consultando. Só tem efeito no login humano, e só é obrigatório quando o usuário
+  pertence a mais de uma filial. Com chave de API, o cabeçalho é ignorado.
+</ParamField>
+
+### Caminho
+
+<ParamField path="id" type="string (UUID)" required>
+  Identificador do vínculo da Tag: o `id` de uma linha de [Listar Tags](/referencia/rastreamento/listar-tags). Não é o
+  `device.id`. Um valor que não tem a forma de UUID responde 404, como a rota inexistente.
+</ParamField>
+
+### Consulta
+
+O período é obrigatório e não há paginação: a resposta é um número.
+
+<ParamField query="filter[from]" type="string (data e hora ISO 8601)" required>
+  Início do período, **incluído**. Exige data e hora completas, com `T` entre elas: `2026-10-18T00:00:00-03:00`,
+  `2026-10-18T03:00:00Z` ou `2026-10-18T03:00:00`. Frações de segundo (até seis dígitos) são aceitas. O deslocamento do fuso é
+  convertido para UTC; sem deslocamento, o valor vale como UTC, e não como horário de Brasília. Só a data (`2026-10-18`), data
+  ou hora impossíveis (`2026-02-31`) e texto com espaço no lugar do `T` respondem 422. Se você monta a URL à mão, escreva o `+`
+  de um deslocamento como `%2B`; do contrário ele chega como espaço e o valor é recusado.
+  Exemplo: `filter[from]=2026-10-18T00:00:00-03:00`.
+</ParamField>
+
+<ParamField query="filter[to]" type="string (data e hora ISO 8601)" required>
+  Fim do período, **incluído**. Mesmo formato de `filter[from]`. Não pode ser anterior a `filter[from]`, e a distância entre
+  os dois não pode passar de 90 dias: 90 dias exatos cabem, 90 dias e um segundo não. Para totais maiores, faça uma
+  chamada por período de até 90 dias e some os resultados. Exemplo: `filter[to]=2026-10-18T23:59:59-03:00`.
+</ParamField>
+
+## Resposta
+
+Status `200`. O corpo traz a Tag consultada, o período já em UTC e a distância estimada.
+
+<ResponseField name="tag" type="object">
+  A Tag consultada, no mesmo formato de uma linha de [Listar Tags](/referencia/rastreamento/listar-tags), sem a lista
+  `asset.custom_fields`. Os campos `last_communication_at`, `last_position_at` e `online` descrevem a Tag **agora**, e não
+  o período pedido.
+</ResponseField>
+
+<ResponseField name="period" type="object">
+  O período que a chamada usou, depois da conversão para UTC: `from`, `to` (no formato `2026-10-18T03:00:00+00:00`, sem
+  frações de segundo) e `timezone`, que é sempre `UTC`.
+</ResponseField>
+
+<ResponseField name="distance" type="object">
+  O resultado da conta: a distância estimada, quantas posições entraram nela e o método usado.
+</ResponseField>
+
+<ResponseField name="distance.meters" type="number">
+  Distância estimada em metros, com uma casa decimal. É `0` quando o período tem nenhuma posição válida ou uma só.
+</ResponseField>
+
+<ResponseField name="distance.kilometers" type="number">
+  A mesma distância em quilômetros, com até três casas decimais.
+</ResponseField>
+
+<ResponseField name="distance.points_count" type="integer">
+  Quantas posições válidas, dentro do período e dos períodos de vínculo, entraram na conta. Com 0 ou 1 ponto, a distância é 0.
+</ResponseField>
+
+<ResponseField name="distance.first_point_at" type="string (data e hora ISO 8601) | null">
+  Hora do aparelho, em UTC, da primeira posição que entrou na conta. `null` quando `points_count` é 0.
+</ResponseField>
+
+<ResponseField name="distance.last_point_at" type="string (data e hora ISO 8601) | null">
+  Hora do aparelho, em UTC, da última posição que entrou na conta. `null` quando `points_count` é 0.
+</ResponseField>
+
+<ResponseField name="distance.method" type="string">
+  Como o número foi calculado. Hoje o único valor é `straight_line_between_consecutive_valid_points`: soma, em linha reta, dos
+  trechos entre posições válidas consecutivas.
+</ResponseField>
+
+<ResponseField name="meta" type="object">
+  Traz `generated_at`: o instante, em UTC e pela hora da ClubTrack, em que a resposta foi montada. É a referência de `tag.online`.
+</ResponseField>
+
+## Erros
+
+| Status | Quando acontece | O que fazer |
+|---|---|---|
+| 400 | Você enviou um filtro além de `filter[from]` e `filter[to]`, ou enviou `sort` ou `include`, que esta rota não tem. A mensagem lista os nomes aceitos, em inglês. | Remova o parâmetro. A rota aceita só `filter[from]` e `filter[to]`. |
+| 400 | Login humano com usuário que tem mais de uma filial e sem `X-Partner-Branch-Id`. | Envie o cabeçalho com a filial desejada. |
+| 401 | Não há chave, a chave é inválida, foi revogada ou expirou. Com login humano: usuário inativo ou token expirado. | Confira a credencial. Revogação leva até 60 segundos para valer. |
+| 403 | O parceiro está suspenso ou inativo, ou a filial informada não pertence ao usuário. | Fale com a ClubTrack se o parceiro deveria estar ativo. |
+| 404 | `Tag não encontrada.` A Tag não existe, é de outro parceiro ou filial, o vínculo foi encerrado ou a assinatura não está ativa (parceiro cobrado por assinatura). O texto é o mesmo em todos os casos. Um `id` fora do formato UUID também responde 404, com a mensagem de rota não encontrada. | Confira o `id` em [Listar Tags](/referencia/rastreamento/listar-tags). Se a Tag não aparece na lista, ela não pode ser consultada aqui. |
+| 422 | O período não é válido. Os textos são: `The filter.from field is required.` e `The filter.to field is required.` (limite ausente); `Informe filter[from] em ISO 8601, com data e hora (ex.: 2026-10-01T00:00:00Z).` e o equivalente para `filter[to]`; `filter[to] não pode ser anterior a filter[from].`; `O período da consulta vai até 90 dias. Divida a consulta em períodos menores.` | Corrija o limite indicado em `errors`. Para períodos maiores, divida em consultas de até 90 dias. |
+| 429 | Passou de 1000 chamadas por minuto com a chave. | Espere o tempo do cabeçalho `Retry-After` e repita. |
+
+Os status 401, 403 e 429 valem para qualquer chamada. O corpo é sempre `{"message": "..."}`, e o 422 acrescenta `errors`. O guia
+de [erros](/guias/erros) traz os textos exatos.
+
+## Exemplos
+
+<RequestExample>
+
+```bash cURL
+curl --get "https://core.clubtrack.com.br/api/b2b/v1/tags/019a0f3c-a000-7d36-b6e0-c918528fd00a/distance" \
+  --header "X-Api-Key: $CLUBTRACK_API_KEY" \
+  --header "Accept: application/json" \
+  --data-urlencode "filter[from]=2026-10-18T00:00:00-03:00" \
+  --data-urlencode "filter[to]=2026-10-18T23:59:59-03:00"
+```
+
+```javascript JavaScript
+const tagId = "019a0f3c-a000-7d36-b6e0-c918528fd00a";
+
+const params = new URLSearchParams({
+  "filter[from]": "2026-10-18T00:00:00-03:00",
+  "filter[to]": "2026-10-18T23:59:59-03:00",
+});
+
+const resposta = await fetch(
+  `https://core.clubtrack.com.br/api/b2b/v1/tags/${tagId}/distance?${params}`,
+  {
+    headers: {
+      "X-Api-Key": process.env.CLUBTRACK_API_KEY,
+      Accept: "application/json",
+    },
+  },
+);
+
+const distancia = await resposta.json();
+```
+
+```python Python
+import os
+import requests
+
+tag_id = "019a0f3c-a000-7d36-b6e0-c918528fd00a"
+
+resposta = requests.get(
+    f"https://core.clubtrack.com.br/api/b2b/v1/tags/{tag_id}/distance",
+    headers={
+        "X-Api-Key": os.environ["CLUBTRACK_API_KEY"],
+        "Accept": "application/json",
+    },
+    params={
+        "filter[from]": "2026-10-18T00:00:00-03:00",
+        "filter[to]": "2026-10-18T23:59:59-03:00",
+    },
+    timeout=30,
+)
+
+distancia = resposta.json()
+```
+
+```php PHP
+use GuzzleHttp\Client;
+
+$http = new Client(['base_uri' => 'https://core.clubtrack.com.br']);
+
+$tagId = '019a0f3c-a000-7d36-b6e0-c918528fd00a';
+
+$resposta = $http->get("/api/b2b/v1/tags/{$tagId}/distance", [
+    'headers' => [
+        'X-Api-Key' => getenv('CLUBTRACK_API_KEY'),
+        'Accept' => 'application/json',
+    ],
+    'query' => [
+        'filter' => [
+            'from' => '2026-10-18T00:00:00-03:00',
+            'to' => '2026-10-18T23:59:59-03:00',
+        ],
+    ],
+]);
+
+$distancia = json_decode((string) $resposta->getBody(), true);
+```
+
+</RequestExample>
+
+<ResponseExample>
+
+```json 200
+{
+  "tag": {
+    "id": "019a0f3c-a000-7d36-b6e0-c918528fd00a",
+    "nickname": "Carro da Marina",
+    "category": "Carro",
+    "icon": "car",
+    "asset": {
+      "id": "019a0f3d-5000-7a2c-8e41-2f6b9d3c7a15"
+    },
+    "device": {
+      "id": "019a0f3c-8000-78d6-8995-8bf9b9e561a5",
+      "serial": "860000000000001",
+      "status": "active"
+    },
+    "last_communication_at": "2026-10-19T17:29:41+00:00",
+    "last_position_at": "2026-10-19T17:29:38+00:00",
+    "online": true
+  },
+  "period": {
+    "from": "2026-10-18T03:00:00+00:00",
+    "to": "2026-10-19T02:59:59+00:00",
+    "timezone": "UTC"
+  },
+  "distance": {
+    "meters": 1489.9,
+    "kilometers": 1.49,
+    "points_count": 4,
+    "first_point_at": "2026-10-18T11:02:15+00:00",
+    "last_point_at": "2026-10-18T11:17:40+00:00",
+    "method": "straight_line_between_consecutive_valid_points"
+  },
+  "meta": {
+    "generated_at": "2026-10-19T17:32:10+00:00"
+  }
+}
+```
+
+```json 400
+{
+  "message": "Requested filter(s) `speed` are not allowed. Allowed filter(s) are `from, to`."
+}
+```
+
+```json 401
+{
+  "message": "API key inválida ou revogada."
+}
+```
+
+```json 403
+{
+  "message": "Parceiro inativo ou suspenso."
+}
+```
+
+```json 404
+{
+  "message": "Tag não encontrada."
+}
+```
+
+```json 422
+{
+  "message": "filter[to] não pode ser anterior a filter[from].",
+  "errors": {
+    "filter.to": [
+      "filter[to] não pode ser anterior a filter[from]."
+    ]
+  }
+}
+```
+
+</ResponseExample>
+
+## Detalhes que ajudam
+
+- **Como a conta é feita.** A ClubTrack pega as posições válidas do período na ordem da hora do aparelho e, para cada par de posições
+  consecutivas, mede a distância em linha reta entre os dois pontos sobre a superfície da Terra (fórmula de Haversine, com o raio
+  médio da Terra de 6.371.008,8 metros). A soma desses trechos é a distância.
+- **O que a conta nunca faz.** Ela não liga o último ponto de um período de vínculo ao primeiro do seguinte. Se o bem trocou de
+  Tag, ou se o aparelho passou por outro dono ou por outro parceiro no meio do caminho, cada período entra separado, e o salto
+  entre eles não vira quilômetro.
+- **Por que é uma estimativa.** A linha reta entre dois pontos ignora a curva que o veículo fez entre eles, então posições
+  espaçadas no tempo subestimam o percurso. O GPS de um veículo parado oscila de uma leitura para outra, e essas oscilações
+  somadas podem inflar o número. A conta não filtra esse desvio. Use o valor como ordem de grandeza e não como prova de
+  quilometragem.
+- **Sem posições, distância zero.** Um período sem posição válida responde `200` com `meters` e `kilometers` iguais a `0`,
+  `points_count` igual a `0` e `first_point_at` e `last_point_at` `null`. Isso não indica erro.
+- **Mesmos pontos do trajeto.** Para conferir o resultado, peça [Consultar trajeto](/referencia/rastreamento/consultar-trajeto)
+  com o mesmo período e some você mesmo os trechos: o número de posições é `points_count`.
+- **Assinatura e modelo de cobrança.** Se o modelo de cobrança do parceiro ou a assinatura da Tag mudar, a Tag passa a ser (ou
+  deixa de ser) consultável na chamada seguinte, porque a regra é lida a cada chamada.
+- A mensagem do erro `400` vem em inglês e cita os nomes aceitos. Trate pelo status, não pelo texto.

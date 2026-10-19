@@ -1,0 +1,254 @@
+---
+title: "Última posição de um dispositivo"
+description: "Devolve o registro de posição mais recente de um aparelho dentro do período em que ele esteve vinculado a clientes do seu parceiro."
+api: "GET /api/b2b/v1/devices/{deviceId}/locations/latest"
+---
+
+Esta chamada devolve onde o aparelho esteve no último registro que ele enviou: coordenadas, velocidade, direção, satélites, bateria e a hora do aparelho. Você usa para mostrar a posição atual de uma Tag num mapa ou conferir se um aparelho voltou a transmitir.
+
+Ela devolve o registro mais recente pela hora do aparelho (`recorded_at`), dentro do período em que o aparelho esteve vinculado a um cliente do seu parceiro. Se o aparelho já foi desvinculado do seu último cliente, a resposta é a última posição **daquele período**, e não a de hoje. Se dois registros têm a mesma hora, vale o de número `id` maior.
+
+A chamada devolve o último registro, qualquer que seja a qualidade do sinal: a resposta não diz se o GPS estava válido. Olhe `satellites` e `accuracy_meters` para avaliar a leitura, e use [Consultar trajeto](/referencia/rastreamento/consultar-trajeto) quando precisar apenas de posições válidas. Para listar vários registros, use [Listar posições](/referencia/rastreamento/listar-posicoes).
+
+## Quando usar
+
+- Mostrar a posição atual de uma Tag no mapa do seu sistema.
+- Confirmar, depois de [Listar Tags](/referencia/rastreamento/listar-tags) mostrar `online` igual a `true`, em que ponto o aparelho está.
+- Ler a bateria do aparelho junto com a última posição.
+
+## Autenticação e permissões
+
+Aceita chave de API ou login humano. Qualquer usuário da equipe do parceiro pode consultar. Parceiro suspenso ou inativo recebe 403. O guia de [autenticação](/guias/autenticacao) explica as duas formas e como escolher a filial quando o usuário tem mais de uma.
+
+O aparelho precisa ter tido ao menos um vínculo com cliente do seu parceiro (da filial ativa, no login humano). A regra vale igual para parceiro cobrado por assinatura e para parceiro de cobrança consolidada pós-paga.
+
+## Parâmetros
+
+### Cabeçalhos
+
+<ParamField header="X-Api-Key" type="string" required>
+  Sua chave de API, no formato `ttk_` seguido de 40 caracteres. Você pode enviá-la também como
+  `Authorization: Bearer <chave>`. Se estiver chamando com o token de um usuário da equipe, envie só o `Authorization`.
+</ParamField>
+
+<ParamField header="X-Partner-Branch-Id" type="string (UUID)">
+  Filial em nome da qual o usuário está consultando. Só tem efeito no login humano, e só é obrigatório quando o usuário
+  pertence a mais de uma filial. Com chave de API, o cabeçalho é ignorado.
+</ParamField>
+
+### Caminho
+
+<ParamField path="deviceId" type="string (UUID)" required>
+  Identificador do aparelho: o `device.id` de uma linha de [Listar Tags](/referencia/rastreamento/listar-tags) ou o `id` de
+  [Listar dispositivos](/referencia/rastreamento/listar-dispositivos). Não é o `id` do vínculo. Use o valor como a API o devolveu.
+</ParamField>
+
+## Resposta
+
+Status `200`. O corpo traz o registro em `data`. Todos os horários estão em UTC, com `+00:00`.
+
+<ResponseField name="data" type="object">
+  O registro de posição mais recente do aparelho dentro do período do vínculo.
+</ResponseField>
+
+<ResponseField name="data.id" type="integer">
+  Número do registro na ClubTrack. É um inteiro sequencial, e não um UUID como os demais identificadores da API.
+</ResponseField>
+
+<ResponseField name="data.device_id" type="string (UUID)">
+  O aparelho que enviou o registro: sempre o que você pediu em `{deviceId}`.
+</ResponseField>
+
+<ResponseField name="data.latitude" type="number">
+  Latitude em graus decimais. Exemplo: `-23.561414`. Em registro sem sinal de GPS válido, a coordenada pode ser imprecisa, inclusive `0`.
+</ResponseField>
+
+<ResponseField name="data.longitude" type="number">
+  Longitude em graus decimais. Exemplo: `-46.655881`. Em registro sem sinal de GPS válido, a coordenada pode ser imprecisa, inclusive `0`.
+</ResponseField>
+
+<ResponseField name="data.speed_kmh" type="number">
+  Velocidade informada pelo aparelho, em km/h. Muitos aparelhos informam sempre `0`, uma característica do próprio aparelho; para
+  esses, use `estimated_speed_kmh`.
+</ResponseField>
+
+<ResponseField name="data.estimated_speed_kmh" type="integer | null">
+  Velocidade estimada pela ClubTrack, em km/h, só para registros em que o aparelho informou `speed_kmh` igual a `0`. É calculada
+  na chegada do registro, pela distância e pelo tempo desde o registro anterior do aparelho. Vem `null` quando o aparelho
+  informou velocidade acima de zero, quando não há registro anterior, quando o intervalo entre os dois passa de 10 minutos ou
+  não é positivo e quando o resultado passaria de 200 km/h. Nunca substitui `speed_kmh`.
+</ResponseField>
+
+<ResponseField name="data.heading" type="number">
+  Direção do deslocamento em graus, como o aparelho informa.
+</ResponseField>
+
+<ResponseField name="data.accuracy_meters" type="number | null">
+  Precisão da leitura, em metros, quando o aparelho a informa. `null` caso contrário.
+</ResponseField>
+
+<ResponseField name="data.altitude_meters" type="number | null">
+  Altitude em metros, quando o aparelho a informa. `null` caso contrário.
+</ResponseField>
+
+<ResponseField name="data.satellites" type="integer">
+  Quantidade de satélites que o aparelho usou na leitura.
+</ResponseField>
+
+<ResponseField name="data.battery_level" type="integer | null">
+  Nível de bateria do **aparelho**, de 0 a 6, na última vez em que ele informou. É um valor do aparelho, e não do registro:
+  ele pode ser mais recente que a posição. `null` enquanto o aparelho nunca informou o nível.
+</ResponseField>
+
+<ResponseField name="data.battery_percent" type="integer | null">
+  O mesmo nível de bateria em porcentagem, arredondada: o nível dividido por 6. Os valores possíveis são 0, 17, 33, 50, 67, 83 e
+  100. `null` enquanto o aparelho nunca informou o nível.
+</ResponseField>
+
+<ResponseField name="data.battery_level_updated_at" type="string (data e hora ISO 8601) | null">
+  Hora, em UTC, em que o aparelho registrou o nível de bateria. `null` enquanto o aparelho nunca informou.
+</ResponseField>
+
+<ResponseField name="data.recorded_at" type="string (data e hora ISO 8601)">
+  Hora em que o aparelho registrou a posição, pelo relógio do aparelho. Não é a hora em que a ClubTrack recebeu o registro.
+</ResponseField>
+
+## Erros
+
+| Status | Quando acontece | O que fazer |
+|---|---|---|
+| 400 | Login humano com usuário que tem mais de uma filial e sem `X-Partner-Branch-Id`. | Envie o cabeçalho com a filial desejada. |
+| 401 | Não há chave, a chave é inválida, foi revogada ou expirou. Com login humano: usuário inativo ou token expirado. | Confira a credencial. Revogação leva até 60 segundos para valer. |
+| 403 | O parceiro está suspenso ou inativo, ou a filial informada não pertence ao usuário. | Fale com a ClubTrack se o parceiro deveria estar ativo. |
+| 404 | `Dispositivo não encontrado.` O aparelho não existe ou nunca esteve vinculado a cliente do seu parceiro. O texto é o mesmo nos dois casos. | Confira o `deviceId` em [Listar Tags](/referencia/rastreamento/listar-tags). |
+| 404 | `Nenhuma posição encontrada para este dispositivo.` O aparelho é seu, mas não tem nenhum registro dentro do período do vínculo. | Aguarde o primeiro registro do aparelho dentro do período do vínculo e consulte de novo. |
+| 429 | Passou de 1000 chamadas por minuto com a chave. | Espere o tempo do cabeçalho `Retry-After` e repita. |
+
+Os status 401, 403 e 429 valem para qualquer chamada. O corpo é sempre `{"message": "..."}`; o guia de [erros](/guias/erros)
+traz os textos exatos.
+
+## Exemplos
+
+<RequestExample>
+
+```bash cURL
+curl "https://core.clubtrack.com.br/api/b2b/v1/devices/019a0f3c-8000-78d6-8995-8bf9b9e561a5/locations/latest" \
+  --header "X-Api-Key: $CLUBTRACK_API_KEY" \
+  --header "Accept: application/json"
+```
+
+```javascript JavaScript
+const deviceId = "019a0f3c-8000-78d6-8995-8bf9b9e561a5";
+
+const resposta = await fetch(
+  `https://core.clubtrack.com.br/api/b2b/v1/devices/${deviceId}/locations/latest`,
+  {
+    headers: {
+      "X-Api-Key": process.env.CLUBTRACK_API_KEY,
+      Accept: "application/json",
+    },
+  },
+);
+
+const posicao = await resposta.json();
+```
+
+```python Python
+import os
+import requests
+
+device_id = "019a0f3c-8000-78d6-8995-8bf9b9e561a5"
+
+resposta = requests.get(
+    f"https://core.clubtrack.com.br/api/b2b/v1/devices/{device_id}/locations/latest",
+    headers={
+        "X-Api-Key": os.environ["CLUBTRACK_API_KEY"],
+        "Accept": "application/json",
+    },
+    timeout=30,
+)
+
+posicao = resposta.json()
+```
+
+```php PHP
+use GuzzleHttp\Client;
+
+$http = new Client(['base_uri' => 'https://core.clubtrack.com.br']);
+
+$deviceId = '019a0f3c-8000-78d6-8995-8bf9b9e561a5';
+
+$resposta = $http->get("/api/b2b/v1/devices/{$deviceId}/locations/latest", [
+    'headers' => [
+        'X-Api-Key' => getenv('CLUBTRACK_API_KEY'),
+        'Accept' => 'application/json',
+    ],
+]);
+
+$posicao = json_decode((string) $resposta->getBody(), true);
+```
+
+</RequestExample>
+
+<ResponseExample>
+
+```json 200
+{
+  "data": {
+    "id": 48251870,
+    "device_id": "019a0f3c-8000-78d6-8995-8bf9b9e561a5",
+    "latitude": -23.561414,
+    "longitude": -46.655881,
+    "speed_kmh": 0.0,
+    "estimated_speed_kmh": 0,
+    "heading": 142.0,
+    "accuracy_meters": 6.0,
+    "altitude_meters": 760.0,
+    "satellites": 10,
+    "battery_level": 5,
+    "battery_percent": 83,
+    "battery_level_updated_at": "2026-10-19T16:50:12+00:00",
+    "recorded_at": "2026-10-19T17:29:38+00:00"
+  }
+}
+```
+
+```json 401
+{
+  "message": "API key inválida ou revogada."
+}
+```
+
+```json 403
+{
+  "message": "Parceiro inativo ou suspenso."
+}
+```
+
+```json 404
+{
+  "message": "Dispositivo não encontrado."
+}
+```
+
+```json 404 sem posição
+{
+  "message": "Nenhuma posição encontrada para este dispositivo."
+}
+```
+
+</ResponseExample>
+
+## Detalhes que ajudam
+
+- **Dois tipos de 404.** `Dispositivo não encontrado.` quer dizer que o aparelho não é visível para o seu parceiro (não existe ou nunca
+  foi seu, sem distinção). `Nenhuma posição encontrada para este dispositivo.` quer dizer que o aparelho é seu, mas ainda não tem
+  registro dentro do período do vínculo. Trate os dois de forma diferente: o primeiro é erro de identificador, o segundo é espera.
+- **O período do vínculo.** A posição só conta se a hora do aparelho cai entre o início do vínculo (incluído) e o fim (não incluído).
+  O que o aparelho registrou antes de chegar ao seu cliente, ou depois de sair dele, não aparece, e dois parceiros nunca enxergam o
+  histórico um do outro. A explicação completa, com exemplo, está em [Listar posições](/referencia/rastreamento/listar-posicoes).
+- **Frequência.** Cada chamada conta no limite de 1000 por minuto, somado entre todas as rotas. Com muitas Tags, não consulte todas
+  em cada ciclo: use `online` e `last_position_at` de [Listar Tags](/referencia/rastreamento/listar-tags) para escolher quais aparelhos
+  vale a pena consultar. Veja [limites e boas práticas](/guias/limites-e-boas-praticas).
+- **A bateria pode ser mais nova que a posição.** `battery_level_updated_at` marca quando o aparelho informou a bateria, e isso
+  acontece em um pacote separado do da posição.

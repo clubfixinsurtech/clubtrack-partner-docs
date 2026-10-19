@@ -1,0 +1,40 @@
+---
+title: "Histórico de mudanças"
+description: "O que mudou na API B2B, em ordem do mais recente para o mais antigo, com o que você precisa conferir no seu sistema."
+---
+
+A `v1` muda de forma aditiva: campo novo, filtro novo, rota nova. Quando uma mudança altera um comportamento que o seu
+sistema pode ter assumido (um status diferente, uma regra nova), ela aparece aqui marcada como **Muda comportamento**.
+Se a ClubTrack precisar de uma mudança que quebre a `v1`, você é avisado antes.
+
+<Update label="19 de outubro de 2026" description="Campos personalizados pela chave, travas de parceiro e erros mais claros" tags={["Novo", "Muda comportamento", "Corrigido"]}>
+
+### Novo
+
+- **A chave de API gerencia o catálogo de campos personalizados.** Com a chave você lista, cria e edita os campos que descrevem
+  o bem do cliente (placa, chassi, condutor). Antes, essas chamadas respondiam `403` para chave de API.
+  Veja [Campos personalizados](/guias/campos-personalizados).
+- **`GET /tags` aceita `include=custom_fields`.** Cada Tag da lista passa a trazer os campos personalizados preenchidos, sem
+  uma chamada por Tag. Sem o parâmetro, a resposta é a mesma de antes.
+
+### Muda comportamento
+
+- **Parceiro suspenso é barrado em mais rotas.** Assinaturas, planos e o vínculo de Tag passam a responder `403` com
+  `Parceiro inativo ou suspenso.` quando o parceiro está suspenso, como as demais rotas já faziam.
+- **Recurso de outro parceiro responde `404`.** Pedir um identificador que existe mas é de outro parceiro agora dá o mesmo
+  `404` de um identificador que não existe (`Recurso não encontrado.`). Antes, algumas rotas respondiam `403` nesse caso, e
+  `POST /subscriptions` com um vínculo inexistente respondia `422`. Se o seu código distingue `403` de `404` para decidir o
+  que fazer, trate os dois como "não é seu".
+- **Posições por aparelho têm teto de página.** `per_page` acima de 100 em
+  [Listar posições](/referencia/rastreamento/listar-posicoes) responde `422`.
+- **Posições só dentro da janela do vínculo (vale desde 18 de outubro).** O histórico de posições de um aparelho mostra apenas os períodos em que ele
+  esteve vinculado a um cliente do seu parceiro. Posições de antes do vínculo ou de depois do desvínculo não aparecem.
+
+### Corrigido
+
+- **A assinatura do webhook passa a cobrir os bytes exatos que enviamos.** Antes, quando o corpo tinha acentos, a assinatura
+  era calculada sobre uma versão do JSON diferente da que chegava. Se o seu sistema recodifica o JSON antes de conferir a
+  assinatura, passe a conferir sobre o corpo cru, como mostra o guia de [Webhook e assinatura](/guias/webhook).
+- **O `404` não cita mais nome interno.** A mensagem é sempre `Recurso não encontrado.`, sem nome de classe nem identificador.
+
+</Update>
