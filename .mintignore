@@ -2,3 +2,7 @@ README.md
 CONVENCOES.md
 .contrato/
 scripts/
+.aios/
+.synapse/
+.claude/
+.codex/

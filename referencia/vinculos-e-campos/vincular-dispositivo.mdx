@@ -58,7 +58,7 @@ e os clientes dessa filial. O guia de [autenticação](/guias/autenticacao) expl
   Número de série do dispositivo, como está no seu estoque. Até 50 caracteres; espaços no começo e no fim são ignorados.
   Série só com dígitos (até 15) é completada com zeros à esquerda antes da busca: `7260713533` e `000007260713533` encontram o
   mesmo aparelho. Série com letras é comparada como foi enviada. A busca olha só o estoque do seu parceiro: série de outro
-  parceiro responde 404, igual a série que não existe. Exemplo: `860000000000001`.
+  parceiro responde 404, igual a série que não existe. Exemplo: `000000050000001`.
 </ParamField>
 
 <ParamField body="customer_id" type="string (UUID)" required>
@@ -152,7 +152,7 @@ curl --request POST "https://core.clubtrack.com.br/api/b2b/v1/tag-bindings" \
   --header "Accept: application/json" \
   --header "Content-Type: application/json" \
   --data '{
-    "device_serial": "860000000000001",
+    "device_serial": "000000050000001",
     "customer_id": "019a0f3c-4000-7f9e-9687-b620b4389874",
     "notes": "Entregue em mãos na filial Sul"
   }'
@@ -167,7 +167,7 @@ const resposta = await fetch("https://core.clubtrack.com.br/api/b2b/v1/tag-bindi
     "Content-Type": "application/json",
   },
   body: JSON.stringify({
-    device_serial: "860000000000001",
+    device_serial: "000000050000001",
     customer_id: "019a0f3c-4000-7f9e-9687-b620b4389874",
     notes: "Entregue em mãos na filial Sul",
   }),
@@ -187,7 +187,7 @@ resposta = requests.post(
         "Accept": "application/json",
     },
     json={
-        "device_serial": "860000000000001",
+        "device_serial": "000000050000001",
         "customer_id": "019a0f3c-4000-7f9e-9687-b620b4389874",
         "notes": "Entregue em mãos na filial Sul",
     },
@@ -208,7 +208,7 @@ $resposta = $http->post('/api/b2b/v1/tag-bindings', [
         'Accept' => 'application/json',
     ],
     'json' => [
-        'device_serial' => '860000000000001',
+        'device_serial' => '000000050000001',
         'customer_id' => '019a0f3c-4000-7f9e-9687-b620b4389874',
         'notes' => 'Entregue em mãos na filial Sul',
     ],
@@ -270,7 +270,7 @@ $vinculo = json_decode((string) $resposta->getBody(), true);
 
 ```json 422 regra de negócio
 {
-  "message": "Dispositivo '860000000000001' não está disponível para vínculo (status: pending_activation)."
+  "message": "Dispositivo '000000050000001' não está disponível para vínculo (status: pending_activation)."
 }
 ```
 

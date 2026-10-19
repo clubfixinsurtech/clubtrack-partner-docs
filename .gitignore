@@ -4,3 +4,9 @@ node_modules/
 *.log
 .env
 .env.*
+
+# Estado de ferramentas de máquina (hooks e agentes), nunca versionado nem publicado
+.aios/
+.synapse/
+.claude/
+.codex/

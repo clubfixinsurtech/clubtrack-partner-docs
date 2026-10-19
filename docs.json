@@ -197,5 +197,11 @@
       "chatgpt",
       "claude"
     ]
+  },
+  "seo": {
+    "organization": {
+      "name": "ClubTrack",
+      "url": "https://clubtrack.com.br"
+    }
   }
 }

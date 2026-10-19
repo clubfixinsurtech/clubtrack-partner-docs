@@ -1,0 +1,100 @@
+---
+title: "Autenticação"
+description: "As duas formas de entrar na API, chave de API e login de usuário, quando usar cada uma e o que acontece com filiais, papéis e parceiro suspenso."
+---
+
+Toda chamada da API B2B diz quem você é e em nome de qual parceiro está agindo. Há duas formas de fazer isso. Escolha pela
+pergunta de quem está chamando: um sistema, sozinho, ou uma pessoa da equipe do parceiro.
+
+| | Chave de API | Login de usuário |
+|---|---|---|
+| **Quem usa** | O seu sistema, falando com a ClubTrack sem ninguém na frente | Uma pessoa da equipe, num painel ou aplicativo seu |
+| **Como se obtém** | A equipe da ClubTrack emite e entrega a você | [Entrar com e-mail e senha](/referencia/conta-e-equipe/entrar) devolve um token |
+| **Como se envia** | `X-Api-Key: ttk_...` ou `Authorization: Bearer ttk_...` | `Authorization: Bearer <token>` |
+| **Age em nome de** | O parceiro dono da chave | A filial escolhida pelo usuário |
+| **Limite de chamadas** | 1000 por minuto, por parceiro | Não passa pela contagem de 1000 por minuto |
+
+Quase todas as operações aceitam as duas. As poucas exceções estão dentro da página de cada operação, na seção
+"Autenticação e permissões".
+
+## Chave de API
+
+A chave é a forma de um sistema se identificar. Ela começa por `ttk_`, seguida de 40 caracteres.
+
+```bash
+curl "https://core.clubtrack.com.br/api/b2b/v1/devices" \
+  --header "X-Api-Key: $CLUBTRACK_API_KEY"
+```
+
+O mesmo valor também vale como `Authorization: Bearer <chave>`. Use a forma que o seu cliente HTTP facilitar; as duas se comportam
+igual.
+
+**Como conseguir uma.** A chave é emitida pela equipe da ClubTrack, e não existe chamada nem tela para o parceiro gerar a própria.
+Peça ao seu contato na ClubTrack. O texto da chave é mostrado uma única vez, no momento da emissão: a ClubTrack guarda só uma
+impressão digital dela e não consegue mostrá-la de novo. Se perdeu, peça uma nova.
+
+**O que ela pode.** Uma chave equivale ao parceiro inteiro. Tudo que o seu parceiro pode fazer pela API, a chave faz: cadastrar clientes,
+vincular aparelhos, criar assinaturas, ler posições. Não existe chave só de leitura nem chave limitada a algumas rotas.
+Trate-a como a senha do parceiro.
+
+**Validade e revogação.** Uma chave pode ter data de validade, e depois dela passa a responder `401`. A equipe da ClubTrack também
+pode revogá-la a qualquer momento. A revogação e o fim da validade levam **até 60 segundos** para valer: durante esse minuto a
+chave ainda pode ser aceita.
+
+**Onde guardar.** Em variável de ambiente ou num cofre de segredos. Nunca no código, no repositório, num aplicativo de celular ou
+numa página web: quem tem a chave faz tudo o que o parceiro faz. Veja [Limites e boas práticas](/guias/limites-e-boas-praticas).
+
+## Login de usuário
+
+O login serve a quem constrói uma tela para a equipe do parceiro. A pessoa informa e-mail e senha, e a API devolve um token:
+
+```bash
+curl --request POST "https://core.clubtrack.com.br/api/b2b/v1/auth/login" \
+  --header "Content-Type: application/json" \
+  --data '{ "email": "carla@parceiro.example", "password": "sua-senha" }'
+```
+
+Com o token, as demais chamadas levam `Authorization: Bearer <token>`. Detalhes de campos e erros em
+[Entrar com e-mail e senha](/referencia/conta-e-equipe/entrar).
+
+- **O token não tem prazo próprio.** Ele deixa de valer quando o usuário é desativado ou quando o acesso dele expira, e a API passa a
+  responder `401` com `Usuário inativo.`. Não existe chamada de renovação nem de saída: para encerrar uma sessão, descarte o token no
+  seu lado.
+- **Cada usuário tem um papel.** `owner` (dono) faz o que o operador faz e, além disso, gerencia usuários: convida e cria outros.
+  `operator` (operador) opera o dia a dia, mas não gerencia usuários: tentar responde `403`.
+- **E-mail ou senha errados** respondem `401` com `Credenciais inválidas.`, a mesma mensagem para os dois casos, de propósito.
+- Quem esqueceu a senha usa [Recuperar acesso por e-mail](/referencia/conta-e-equipe/recuperar-senha).
+
+## Filiais
+
+Um parceiro pode ter um parceiro principal (o hub) e filiais. Cada uma tem os próprios clientes, aparelhos e Tags.
+
+- **Chave de API:** cada chave pertence a um parceiro, e todas as chamadas feitas com ela agem em nome dele. Para agir em nome de
+  uma filial, use a chave da filial.
+- **Login de usuário:** um usuário pode estar ligado a mais de uma filial. Se estiver ligado a **uma** só, ela é usada sem você
+  informar nada. Se estiver ligado a **mais de uma**, toda chamada precisa do cabeçalho `X-Partner-Branch-Id` com o identificador da
+  filial. Sem ele, a resposta é `400`. Com o identificador de uma filial que não é do usuário, a resposta é `403`.
+  [Listar o hub e as filiais](/referencia/conta-e-equipe/listar-filiais) devolve as filiais e os identificadores.
+
+Com chave de API, o cabeçalho `X-Partner-Branch-Id` é ignorado.
+
+## Parceiro suspenso
+
+Se o parceiro estiver suspenso ou inativo, a API recusa as chamadas dele com `403` e `Parceiro inativo ou suspenso.`, mesmo com a
+credencial válida. Suspender o parceiro principal derruba também as suas filiais. Suspender uma filial não afeta o principal nem as
+outras filiais.
+
+## O que a API responde quando a credencial não serve
+
+| Status | `message` | O que fazer |
+|---|---|---|
+| `401` | `API key ausente.` | Envie `X-Api-Key` ou `Authorization`. |
+| `401` | `API key inválida ou revogada.` | Confira a chave. Ela pode ter sido revogada ou ter expirado. |
+| `401` | `Usuário inativo.` | O usuário foi desativado ou o acesso dele expirou. |
+| `401` | `Usuário sem filial vinculada.` | O usuário não pertence a nenhuma filial. Fale com a ClubTrack. |
+| `400` | `Usuário tem mais de uma filial` (a frase segue pedindo o cabeçalho) | Envie `X-Partner-Branch-Id`. |
+| `403` | `Filial informada não pertence a este usuário.` | Use uma filial que `GET /branches` devolve para esse usuário. |
+| `403` | `Parceiro inativo ou suspenso.` | O parceiro, ou o principal dele, está suspenso. |
+| `429` | `Limite de requisições atingido. Tente novamente em Ns.` | Espere o tempo de `Retry-After`. |
+
+Todos os textos exatos de erro estão em [Erros e códigos](/guias/erros).

@@ -1,0 +1,238 @@
+---
+title: "Consultar cliente"
+description: "Devolve os dados cadastrais de um cliente do seu parceiro, a partir do id que a ClubTrack deu a ele no cadastro."
+api: "GET /api/b2b/v1/customers/{id}"
+---
+
+Esta chamada devolve um cliente do seu parceiro, pelo `id` que a ClubTrack deu a ele. Você usa quando já tem o `id` (guardado
+no cadastro ou lido de uma lista) e precisa dos dados atuais: nome, e-mail, telefone, documento e situação.
+
+Ela mostra só o cadastro. A resposta não traz endereços nem Tags. Para eles, use
+[Listar endereços do cliente](/referencia/clientes-e-enderecos/listar-enderecos) e
+[Listar as Tags de um cliente](/referencia/clientes-e-enderecos/listar-tags-do-cliente). Cliente de outro parceiro responde
+`404`, como se não existisse.
+
+## Quando usar
+
+- Depois de [cadastrar o cliente](/referencia/clientes-e-enderecos/cadastrar-cliente), para conferir o que ficou gravado.
+- Antes de [vincular um dispositivo](/referencia/vinculos-e-campos/vincular-dispositivo) ou de criar uma assinatura, para
+  confirmar que o `customer_id` guardado ainda é de um cliente seu.
+- Para atualizar a tela de um cliente no seu sistema sem percorrer a lista inteira.
+
+## Autenticação e permissões
+
+Aceita chave de API ou login humano. Qualquer usuário da equipe do parceiro pode consultar. Parceiro suspenso recebe 403.
+O guia de [autenticação](/guias/autenticacao) explica as duas formas e como escolher a filial quando o usuário tem mais de uma.
+
+## Parâmetros
+
+### Cabeçalhos
+
+<ParamField header="X-Api-Key" type="string" required>
+  Sua chave de API, no formato `ttk_` seguido de 40 caracteres. Você pode enviá-la também como
+  `Authorization: Bearer <chave>`. Se estiver chamando com o token de um usuário da equipe, envie só o `Authorization`.
+</ParamField>
+
+<ParamField header="X-Partner-Branch-Id" type="string (UUID)">
+  Filial em nome da qual o usuário está consultando. Só tem efeito no login humano, e só é obrigatório quando o usuário
+  pertence a mais de uma filial. Com chave de API, o cabeçalho é ignorado.
+</ParamField>
+
+### Caminho
+
+<ParamField path="id" type="string (UUID)" required>
+  Identificador do cliente na ClubTrack: o `data.id` devolvido por
+  [Cadastrar cliente](/referencia/clientes-e-enderecos/cadastrar-cliente) ou o `id` de cada item de
+  [Listar clientes](/referencia/clientes-e-enderecos/listar-clientes). Precisa ser o UUID completo, de 36 caracteres. Não serve o
+  `external_id` do seu sistema: para achar um cliente por ele, use `filter[external_id]` na lista.
+  Exemplo: `019a0f3c-4000-7f9e-9687-b620b4389874`.
+</ParamField>
+
+### Consulta
+
+<ParamField query="include" type="string">
+  Aceita `tagBindings` e `activeTagBindings`, e as variações `tagBindingsCount`, `tagBindingsExists`, `activeTagBindingsCount` e
+  `activeTagBindingsExists`. Hoje a resposta do cliente não traz nenhum desses dados: o parâmetro é aceito e não muda nada no
+  corpo. Qualquer outro valor responde `400`. Para ver as Tags de um cliente, use
+  [Listar as Tags de um cliente](/referencia/clientes-e-enderecos/listar-tags-do-cliente).
+</ParamField>
+
+## Resposta
+
+Status `200`. O corpo traz o cliente em `data`.
+
+<ResponseField name="data.id" type="string (UUID)">
+  Identificador do cliente na ClubTrack. É o valor que você usa nas chamadas que pedem `customer_id` ou `{id}` de cliente.
+</ResponseField>
+
+<ResponseField name="data.partner_id" type="string (UUID)">
+  Parceiro dono do cliente: sempre o seu.
+</ResponseField>
+
+<ResponseField name="data.external_id" type="string | null">
+  O identificador que você deu ao cliente no cadastro, até 100 caracteres. `null` quando não foi informado.
+</ResponseField>
+
+<ResponseField name="data.name" type="string">
+  Nome da pessoa ou razão social da empresa, com até 150 caracteres.
+</ResponseField>
+
+<ResponseField name="data.email" type="string | null">
+  E-mail do cliente, como foi cadastrado. `null` quando não foi informado.
+</ResponseField>
+
+<ResponseField name="data.phone" type="string | null">
+  Telefone como foi cadastrado. `null` quando não foi informado.
+</ResponseField>
+
+<ResponseField name="data.cpf_cnpj" type="string | null">
+  CPF ou CNPJ do cliente, exatamente como foi cadastrado. `null` quando não foi informado.
+</ResponseField>
+
+<ResponseField name="data.document_type" type="string | null">
+  Tipo do documento: `pessoa_fisica` (pessoa) ou `pessoa_juridica` (empresa). Clientes cadastrados por esta API sempre têm
+  o tipo preenchido.
+</ResponseField>
+
+<ResponseField name="data.status" type="string">
+  Situação do cliente: `active` (em uso) ou `inactive` (desativado). Esta API não tem chamada para mudar a situação.
+</ResponseField>
+
+<ResponseField name="data.created_at" type="string (data e hora ISO 8601)">
+  Quando o cliente foi cadastrado, em UTC.
+</ResponseField>
+
+<ResponseField name="data.updated_at" type="string (data e hora ISO 8601)">
+  Última alteração do cadastro, em UTC. Muda também quando o próprio cliente atualiza os dados dele.
+</ResponseField>
+
+## Erros
+
+| Status | Quando acontece | O que fazer |
+|---|---|---|
+| 400 | Você enviou um valor de `include` que a rota não aceita. A mensagem lista os nomes aceitos, em inglês. | Tire o parâmetro `include`: ele não acrescenta nada à resposta. |
+| 400 | Login humano com usuário que tem mais de uma filial e sem `X-Partner-Branch-Id`. | Envie o cabeçalho com a filial desejada. |
+| 401 | Não há chave, a chave é inválida, foi revogada ou expirou. Com login humano: usuário inativo ou token expirado. | Confira a credencial. Revogação leva até 60 segundos para valer. |
+| 403 | O parceiro está suspenso ou inativo, ou a filial informada não pertence ao usuário. | Fale com a ClubTrack se o parceiro deveria estar ativo. |
+| 404 | `Recurso não encontrado.`: o cliente não existe ou é de outro parceiro. A resposta é a mesma nos dois casos. | Confira o `id` na lista de clientes do seu parceiro. |
+| 429 | Passou de 1000 chamadas por minuto com a chave. | Espere o tempo do cabeçalho `Retry-After` e repita. |
+
+Os status 401, 403 e 429 valem para qualquer chamada. O corpo é sempre `{"message": "..."}`; o guia de [erros](/guias/erros)
+traz os textos exatos.
+
+## Exemplos
+
+<RequestExample>
+
+```bash cURL
+curl --request GET "https://core.clubtrack.com.br/api/b2b/v1/customers/019a0f3c-4000-7f9e-9687-b620b4389874" \
+  --header "X-Api-Key: $CLUBTRACK_API_KEY" \
+  --header "Accept: application/json"
+```
+
+```javascript JavaScript
+const clienteId = "019a0f3c-4000-7f9e-9687-b620b4389874";
+
+const resposta = await fetch(
+  `https://core.clubtrack.com.br/api/b2b/v1/customers/${clienteId}`,
+  {
+    headers: {
+      "X-Api-Key": process.env.CLUBTRACK_API_KEY,
+      Accept: "application/json",
+    },
+  },
+);
+
+const cliente = await resposta.json();
+```
+
+```python Python
+import os
+import requests
+
+cliente_id = "019a0f3c-4000-7f9e-9687-b620b4389874"
+
+resposta = requests.get(
+    f"https://core.clubtrack.com.br/api/b2b/v1/customers/{cliente_id}",
+    headers={
+        "X-Api-Key": os.environ["CLUBTRACK_API_KEY"],
+        "Accept": "application/json",
+    },
+    timeout=30,
+)
+
+cliente = resposta.json()
+```
+
+```php PHP
+use GuzzleHttp\Client;
+
+$http = new Client(['base_uri' => 'https://core.clubtrack.com.br']);
+
+$clienteId = '019a0f3c-4000-7f9e-9687-b620b4389874';
+
+$resposta = $http->get("/api/b2b/v1/customers/{$clienteId}", [
+    'headers' => [
+        'X-Api-Key' => getenv('CLUBTRACK_API_KEY'),
+        'Accept' => 'application/json',
+    ],
+]);
+
+$cliente = json_decode((string) $resposta->getBody(), true);
+```
+
+</RequestExample>
+
+<ResponseExample>
+
+```json 200
+{
+  "data": {
+    "id": "019a0f3c-4000-7f9e-9687-b620b4389874",
+    "partner_id": "019a0f3c-0000-7a36-8f98-0b409e8a22c8",
+    "external_id": "CLI-000184",
+    "name": "Marina Souza Exemplo",
+    "email": "marina@cliente.example",
+    "phone": "11987654321",
+    "cpf_cnpj": "52998224725",
+    "document_type": "pessoa_fisica",
+    "status": "active",
+    "created_at": "2026-10-05T18:22:09+00:00",
+    "updated_at": "2026-10-07T11:40:31+00:00"
+  }
+}
+```
+
+```json 400
+{
+  "message": "Requested include(s) `partner` are not allowed. Allowed include(s) are `tagBindings, tagBindingsCount, tagBindingsExists, activeTagBindings, activeTagBindingsCount, activeTagBindingsExists`."
+}
+```
+
+```json 401
+{
+  "message": "API key inválida ou revogada."
+}
+```
+
+```json 403
+{
+  "message": "Parceiro inativo ou suspenso."
+}
+```
+
+```json 404
+{
+  "message": "Recurso não encontrado."
+}
+```
+
+</ResponseExample>
+
+## Detalhes que ajudam
+
+- A resposta de `404` é idêntica para cliente que não existe e para cliente de outro parceiro. Trate os dois do mesmo jeito:
+  o `id` não é um cliente seu.
+- `updated_at` muda quando o cadastro é alterado, inclusive pelo próprio cliente. Se você mantém uma cópia, compare esse campo
+  para saber se precisa atualizar.
+- Cliente `inactive` continua sendo devolvido. A consulta não esconde cliente desativado.

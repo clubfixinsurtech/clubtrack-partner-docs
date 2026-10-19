@@ -25,6 +25,11 @@ PROIBIDOS = [
 # Vocabulário que a marca evita (DNA): aviso, não erro
 EVITAR = [r'\broubo', r'\bfurto', r'\bperigo', r'\bblindagem', r'\brevolucion', r'\binovador', r'\bdisruptiv',
           r'solução completa', r'tecnologia de ponta', r'\bvigilância']
+# Marcas de texto automático em português (critério do humanizer): aviso
+TEXTO_ARTIFICIAL = [r'vale (a pena )?(ressaltar|destacar|lembrar)', r'é (importante|fundamental|crucial) (notar|destacar|ressaltar|lembrar)',
+                    r'\bmergulh', r'\bdesbloqu', r'no cenário atual', r'\brobust[oa]', r'\bpoderos[oa]', r'\bperfeitamente\b',
+                    r'\bsem dúvida\b', r'\bnesse sentido\b', r'\bem suma\b', r'\bou seja, ', r'\bnão apenas .{1,60} mas também',
+                    r'\bleva (a|o) próximo nível', r'\bjornada\b', r'\bpotencializ', r'\bviabiliz', r'\balavanc']
 IDIOMAS = [('bash', 'cURL'), ('javascript', 'JavaScript'), ('python', 'Python'), ('php', 'PHP')]
 
 
@@ -95,6 +100,10 @@ def checar_texto_publico(rel, txt, erros, avisos):
         m = re.search(padrao, sem_codigo, flags=re.I)
         if m:
             avisos.append(f'{rel}: vocabulário que a marca evita: "{m.group(0)}"')
+    for padrao in TEXTO_ARTIFICIAL:
+        m = re.search(padrao, sem_codigo, flags=re.I)
+        if m:
+            avisos.append(f'{rel}: marca de texto automático: "{m.group(0)}"')
     for tracos in ('—', '–'):
         if tracos in sem_codigo:
             erros.append(f'{rel}: travessão ({tracos}) fora de bloco de código')

@@ -23,7 +23,8 @@
     "field_chassi": "019a0f3d-1000-7f4e-9eb3-70555a4d9693",
     "field_condutor": "019a0f3d-2000-7021-80e7-961680966262",
     "geofence_a": "019a0f3d-3000-754d-9e43-38dd864bc4d3",
-    "api_key_id": "019a0f3d-4000-7dd6-b971-d9a7b8abcc2f"
+    "api_key_id": "019a0f3d-4000-7dd6-b971-d9a7b8abcc2f",
+    "asset_a": "019a0f3d-5000-7a2c-8e41-2f6b9d3c7a15"
   },
   "parceiro": {
     "hub": "Exemplo Mobilidade Ltda",
@@ -66,12 +67,13 @@
   "dispositivos": [
     {
       "id": "019a0f3c-8000-78d6-8995-8bf9b9e561a5",
-      "serial": "TT-50000001",
-      "imei": "860000000000001"
+      "serial": "000000050000001",
+      "imei": "860000000000001",
+      "observacao": "serial numérico de até 15 dígitos (o código completa com zeros à esquerda)"
     },
     {
       "id": "019a0f3c-9000-7bea-ad46-da90612bbeb8",
-      "serial": "TT-50000002",
+      "serial": "000000050000002",
       "imei": "860000000000002"
     }
   ],
@@ -117,5 +119,16 @@
   "datas": {
     "agora": "2026-10-19T14:32:10-03:00",
     "observacao": "use o formato exato que a API devolve (fuso e sufixo)"
+  },
+  "ligacoes": {
+    "binding_a": {
+      "device": "device_a",
+      "customer": "customer_pf"
+    },
+    "binding_b": {
+      "device": "device_b",
+      "customer": "customer_pj"
+    },
+    "observacao": "ligações usadas nos exemplos; asset_a é o bem do binding_a"
   }
 }

@@ -1,0 +1,264 @@
+---
+title: "Listar endereços do cliente"
+description: "Devolve todos os endereços de um cliente seu, com o principal primeiro. A lista não é paginada e não tem filtros."
+api: "GET /api/b2b/v1/customers/{customerId}/addresses"
+---
+
+Esta chamada devolve todos os endereços cadastrados para um cliente do seu parceiro. O endereço principal vem primeiro, e os
+outros seguem do mais novo para o mais antigo. Você usa para mostrar os endereços do cliente, para conferir se ele já tem um
+endereço antes de [cadastrar outro](/referencia/clientes-e-enderecos/cadastrar-endereco) e para descobrir o `id` do endereço
+que será [definido como principal](/referencia/clientes-e-enderecos/definir-endereco-principal).
+
+A lista vem inteira, numa única resposta: não tem paginação (`per_page` e `page` não valem aqui), não tem `links` nem `meta`,
+e não aceita filtro, ordenação ou `include`. Um cliente sem endereço recebe `200` com `data` vazio.
+
+## Quando usar
+
+- Antes de cadastrar um endereço, para não repetir um que o cliente já tem.
+- Para escolher qual endereço promover a principal.
+- Para ler o endereço de entrega ou de cobrança de um cliente e copiá-lo para o seu sistema.
+
+## Autenticação e permissões
+
+Aceita chave de API ou login humano. Qualquer usuário da equipe do parceiro pode consultar. Parceiro suspenso recebe 403.
+O guia de [autenticação](/guias/autenticacao) explica as duas formas e como escolher a filial quando o usuário tem mais de uma.
+
+## Parâmetros
+
+### Cabeçalhos
+
+<ParamField header="X-Api-Key" type="string" required>
+  Sua chave de API, no formato `ttk_` seguido de 40 caracteres. Você pode enviá-la também como
+  `Authorization: Bearer <chave>`. Se estiver chamando com o token de um usuário da equipe, envie só o `Authorization`.
+</ParamField>
+
+<ParamField header="X-Partner-Branch-Id" type="string (UUID)">
+  Filial em nome da qual o usuário está consultando. Só tem efeito no login humano, e só é obrigatório quando o usuário
+  pertence a mais de uma filial. Com chave de API, o cabeçalho é ignorado.
+</ParamField>
+
+### Caminho
+
+<ParamField path="customerId" type="string (UUID)" required>
+  Identificador do cliente, o `id` devolvido por [Cadastrar cliente](/referencia/clientes-e-enderecos/cadastrar-cliente) ou por
+  [Listar clientes](/referencia/clientes-e-enderecos/listar-clientes). O cliente precisa ser do seu parceiro. Cliente que não
+  existe e cliente de outro parceiro dão a mesma resposta, `404`. Exemplo: `019a0f3c-4000-7f9e-9687-b620b4389874`.
+</ParamField>
+
+## Resposta
+
+Status `200`. O corpo traz a lista em `data`. Não há `links` nem `meta`.
+
+<ResponseField name="data" type="object[]">
+  Os endereços do cliente, todos, com o principal primeiro e os demais do mais novo para o mais antigo. Vem vazio (`[]`) quando
+  o cliente não tem endereço.
+</ResponseField>
+
+<ResponseField name="data[].id" type="string (UUID)">
+  Identificador do endereço. É o valor que
+  [Definir endereço principal](/referencia/clientes-e-enderecos/definir-endereco-principal) pede em `addressId`.
+</ResponseField>
+
+<ResponseField name="data[].label" type="string | null">
+  Nome que identifica o endereço, como "Residência" ou "Comercial", com até 150 caracteres. `null` quando não foi informado.
+</ResponseField>
+
+<ResponseField name="data[].postal_code" type="string | null">
+  CEP, como foi cadastrado, com até 9 caracteres (`01310-100` ou `01310100`). `null` quando não foi informado.
+</ResponseField>
+
+<ResponseField name="data[].street" type="string | null">
+  Logradouro (rua, avenida), com até 255 caracteres. `null` quando não foi informado.
+</ResponseField>
+
+<ResponseField name="data[].number" type="string | null">
+  Número do imóvel, como texto, com até 20 caracteres. Pode ser `S/N`. `null` quando não foi informado.
+</ResponseField>
+
+<ResponseField name="data[].complement" type="string | null">
+  Complemento (sala, bloco, apartamento), com até 255 caracteres. `null` quando não foi informado.
+</ResponseField>
+
+<ResponseField name="data[].neighborhood" type="string | null">
+  Bairro, com até 255 caracteres. `null` quando não foi informado.
+</ResponseField>
+
+<ResponseField name="data[].city" type="string | null">
+  Cidade, com até 255 caracteres. `null` quando não foi informada.
+</ResponseField>
+
+<ResponseField name="data[].state" type="string | null">
+  Sigla do estado, com 2 caracteres, como foi cadastrada (`SP`). `null` quando não foi informada.
+</ResponseField>
+
+<ResponseField name="data[].latitude" type="number | null">
+  Latitude do endereço, em graus decimais, de -90 a 90, com até 7 casas decimais. `null` quando não foi informada.
+</ResponseField>
+
+<ResponseField name="data[].longitude" type="number | null">
+  Longitude do endereço, em graus decimais, de -180 a 180, com até 7 casas decimais. `null` quando não foi informada.
+</ResponseField>
+
+<ResponseField name="data[].is_primary" type="boolean">
+  `true` no endereço principal do cliente, `false` nos outros. Um cliente com endereços tem exatamente um principal.
+</ResponseField>
+
+<ResponseField name="data[].created_at" type="string (data e hora ISO 8601)">
+  Quando o endereço foi cadastrado, em UTC.
+</ResponseField>
+
+<ResponseField name="data[].updated_at" type="string (data e hora ISO 8601)">
+  Última alteração do endereço, em UTC. Muda quando o endereço passa a ser, ou deixa de ser, o principal.
+</ResponseField>
+
+## Erros
+
+| Status | Quando acontece | O que fazer |
+|---|---|---|
+| 400 | Login humano com usuário que tem mais de uma filial e sem `X-Partner-Branch-Id`. | Envie o cabeçalho com a filial desejada. |
+| 401 | Não há chave, a chave é inválida, foi revogada ou expirou. Com login humano: usuário inativo ou token expirado. | Confira a credencial. Revogação leva até 60 segundos para valer. |
+| 403 | O parceiro está suspenso ou inativo, ou a filial informada não pertence ao usuário. | Fale com a ClubTrack se o parceiro deveria estar ativo. |
+| 404 | `Recurso não encontrado.`: o cliente não existe ou é de outro parceiro. A resposta é a mesma nos dois casos. | Confira o `customerId` na lista de clientes do seu parceiro. |
+| 429 | Passou de 1000 chamadas por minuto com a chave. | Espere o tempo do cabeçalho `Retry-After` e repita. |
+
+Os status 401, 403 e 429 valem para qualquer chamada. O corpo é sempre `{"message": "..."}`; o guia de [erros](/guias/erros)
+traz os textos exatos.
+
+## Exemplos
+
+<RequestExample>
+
+```bash cURL
+curl --request GET "https://core.clubtrack.com.br/api/b2b/v1/customers/019a0f3c-4000-7f9e-9687-b620b4389874/addresses" \
+  --header "X-Api-Key: $CLUBTRACK_API_KEY" \
+  --header "Accept: application/json"
+```
+
+```javascript JavaScript
+const clienteId = "019a0f3c-4000-7f9e-9687-b620b4389874";
+
+const resposta = await fetch(
+  `https://core.clubtrack.com.br/api/b2b/v1/customers/${clienteId}/addresses`,
+  {
+    headers: {
+      "X-Api-Key": process.env.CLUBTRACK_API_KEY,
+      Accept: "application/json",
+    },
+  },
+);
+
+const enderecos = await resposta.json();
+```
+
+```python Python
+import os
+import requests
+
+cliente_id = "019a0f3c-4000-7f9e-9687-b620b4389874"
+
+resposta = requests.get(
+    f"https://core.clubtrack.com.br/api/b2b/v1/customers/{cliente_id}/addresses",
+    headers={
+        "X-Api-Key": os.environ["CLUBTRACK_API_KEY"],
+        "Accept": "application/json",
+    },
+    timeout=30,
+)
+
+enderecos = resposta.json()
+```
+
+```php PHP
+use GuzzleHttp\Client;
+
+$http = new Client(['base_uri' => 'https://core.clubtrack.com.br']);
+
+$clienteId = '019a0f3c-4000-7f9e-9687-b620b4389874';
+
+$resposta = $http->get("/api/b2b/v1/customers/{$clienteId}/addresses", [
+    'headers' => [
+        'X-Api-Key' => getenv('CLUBTRACK_API_KEY'),
+        'Accept' => 'application/json',
+    ],
+]);
+
+$enderecos = json_decode((string) $resposta->getBody(), true);
+```
+
+</RequestExample>
+
+<ResponseExample>
+
+```json 200
+{
+  "data": [
+    {
+      "id": "019a0f3c-6000-7fda-ae85-e6b5e5ab3350",
+      "label": "Residência",
+      "postal_code": "01310-100",
+      "street": "Avenida Paulista",
+      "number": "1000",
+      "complement": null,
+      "neighborhood": "Bela Vista",
+      "city": "São Paulo",
+      "state": "SP",
+      "latitude": -23.561414,
+      "longitude": -46.655881,
+      "is_primary": true,
+      "created_at": "2026-10-05T18:25:40+00:00",
+      "updated_at": "2026-10-05T18:25:40+00:00"
+    },
+    {
+      "id": "019a0f3c-7000-7a74-8771-cf329113e5e9",
+      "label": "Comercial",
+      "postal_code": "01304-001",
+      "street": "Rua Augusta",
+      "number": "1500",
+      "complement": "Sala 42",
+      "neighborhood": "Consolação",
+      "city": "São Paulo",
+      "state": "SP",
+      "latitude": null,
+      "longitude": null,
+      "is_primary": false,
+      "created_at": "2026-10-12T15:20:44+00:00",
+      "updated_at": "2026-10-12T15:20:44+00:00"
+    }
+  ]
+}
+```
+
+```json 400
+{
+  "message": "Usuário tem mais de uma filial — informe qual via header X-Partner-Branch-Id."
+}
+```
+
+```json 401
+{
+  "message": "API key inválida ou revogada."
+}
+```
+
+```json 403
+{
+  "message": "Parceiro inativo ou suspenso."
+}
+```
+
+```json 404
+{
+  "message": "Recurso não encontrado."
+}
+```
+
+</ResponseExample>
+
+## Detalhes que ajudam
+
+- A lista vem completa e sem paginação. Se o seu sistema só precisa do endereço principal, pegue o primeiro item de `data`:
+  o principal sempre vem na frente.
+- Os campos de endereço voltam como foram cadastrados. A ClubTrack não padroniza CEP, estado nem maiúsculas.
+- Esta API não tem chamada para editar nem remover um endereço. Para trocar o endereço de um cliente,
+  [cadastre o novo](/referencia/clientes-e-enderecos/cadastrar-endereco) e
+  [defina-o como principal](/referencia/clientes-e-enderecos/definir-endereco-principal).

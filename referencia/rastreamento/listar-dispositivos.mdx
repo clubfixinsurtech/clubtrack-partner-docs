@@ -51,7 +51,7 @@ Os filtros se somam, e vários valores separados por vírgula no mesmo filtro va
 
 <ParamField query="filter[serial]" type="string">
   Parte do número de série, em qualquer posição, sem diferenciar maiúscula de minúscula. `filter[serial]=5000` acha
-  "TT-50000001".
+  "000000050000001".
 </ParamField>
 
 <ParamField query="filter[model]" type="string">
@@ -196,7 +196,7 @@ curl --get "https://core.clubtrack.com.br/api/b2b/v1/devices" \
   --header "X-Api-Key: $CLUBTRACK_API_KEY" \
   --header "Accept: application/json" \
   --data-urlencode "filter[status]=assigned_to_partner,active" \
-  --data-urlencode "filter[search]=TT-5000" \
+  --data-urlencode "filter[search]=50000" \
   --data-urlencode "sort=serial" \
   --data-urlencode "per_page=2"
 ```
@@ -204,7 +204,7 @@ curl --get "https://core.clubtrack.com.br/api/b2b/v1/devices" \
 ```javascript JavaScript
 const params = new URLSearchParams({
   "filter[status]": "assigned_to_partner,active",
-  "filter[search]": "TT-5000",
+  "filter[search]": "50000",
   sort: "serial",
   per_page: "2",
 });
@@ -234,7 +234,7 @@ resposta = requests.get(
     },
     params={
         "filter[status]": "assigned_to_partner,active",
-        "filter[search]": "TT-5000",
+        "filter[search]": "50000",
         "sort": "serial",
         "per_page": 2,
     },
@@ -255,7 +255,7 @@ $resposta = $http->get('/api/b2b/v1/devices', [
         'Accept' => 'application/json',
     ],
     'query' => [
-        'filter' => ['status' => 'assigned_to_partner,active', 'search' => 'TT-5000'],
+        'filter' => ['status' => 'assigned_to_partner,active', 'search' => '50000'],
         'sort' => 'serial',
         'per_page' => 2,
     ],
@@ -274,7 +274,7 @@ $dispositivos = json_decode((string) $resposta->getBody(), true);
     {
       "id": "019a0f3c-8000-78d6-8995-8bf9b9e561a5",
       "partner_id": "019a0f3c-0000-7a36-8f98-0b409e8a22c8",
-      "serial": "TT-50000001",
+      "serial": "000000050000001",
       "imei": "860000000000001",
       "model": "TT-100",
       "status": "active",
@@ -288,7 +288,7 @@ $dispositivos = json_decode((string) $resposta->getBody(), true);
     {
       "id": "019a0f3c-9000-7bea-ad46-da90612bbeb8",
       "partner_id": "019a0f3c-0000-7a36-8f98-0b409e8a22c8",
-      "serial": "TT-50000002",
+      "serial": "000000050000002",
       "imei": "860000000000002",
       "model": "TT-100",
       "status": "assigned_to_partner",
@@ -301,8 +301,8 @@ $dispositivos = json_decode((string) $resposta->getBody(), true);
     }
   ],
   "links": {
-    "first": "https://core.clubtrack.com.br/api/b2b/v1/devices?filter%5Bstatus%5D=assigned_to_partner%2Cactive&filter%5Bsearch%5D=TT-5000&sort=serial&per_page=2&page=1",
-    "last": "https://core.clubtrack.com.br/api/b2b/v1/devices?filter%5Bstatus%5D=assigned_to_partner%2Cactive&filter%5Bsearch%5D=TT-5000&sort=serial&per_page=2&page=1",
+    "first": "https://core.clubtrack.com.br/api/b2b/v1/devices?filter%5Bstatus%5D=assigned_to_partner%2Cactive&filter%5Bsearch%5D=50000&sort=serial&per_page=2&page=1",
+    "last": "https://core.clubtrack.com.br/api/b2b/v1/devices?filter%5Bstatus%5D=assigned_to_partner%2Cactive&filter%5Bsearch%5D=50000&sort=serial&per_page=2&page=1",
     "prev": null,
     "next": null
   },
@@ -312,7 +312,7 @@ $dispositivos = json_decode((string) $resposta->getBody(), true);
     "last_page": 1,
     "links": [
       { "url": null, "label": "&laquo; Previous", "active": false },
-      { "url": "https://core.clubtrack.com.br/api/b2b/v1/devices?filter%5Bstatus%5D=assigned_to_partner%2Cactive&filter%5Bsearch%5D=TT-5000&sort=serial&per_page=2&page=1", "label": "1", "active": true },
+      { "url": "https://core.clubtrack.com.br/api/b2b/v1/devices?filter%5Bstatus%5D=assigned_to_partner%2Cactive&filter%5Bsearch%5D=50000&sort=serial&per_page=2&page=1", "label": "1", "active": true },
       { "url": null, "label": "Next &raquo;", "active": false }
     ],
     "path": "https://core.clubtrack.com.br/api/b2b/v1/devices",
