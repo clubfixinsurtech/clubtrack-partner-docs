@@ -1,0 +1,352 @@
+[
+  {
+    "n": 1,
+    "method": "POST",
+    "path": "/api/b2b/v1/auth/login",
+    "group": "conta-e-equipe",
+    "group_title": "Conta e equipe",
+    "slug": "entrar",
+    "title": "Entrar com e-mail e senha",
+    "page": "referencia/conta-e-equipe/entrar.mdx"
+  },
+  {
+    "n": 2,
+    "method": "GET",
+    "path": "/api/b2b/v1/device-orders",
+    "group": "comercial",
+    "group_title": "Pedidos, assinaturas e planos",
+    "slug": "listar-pedidos-de-dispositivo",
+    "title": "Listar pedidos de dispositivo",
+    "page": "referencia/comercial/listar-pedidos-de-dispositivo.mdx"
+  },
+  {
+    "n": 3,
+    "method": "POST",
+    "path": "/api/b2b/v1/device-orders",
+    "group": "comercial",
+    "group_title": "Pedidos, assinaturas e planos",
+    "slug": "criar-pedido-de-dispositivo",
+    "title": "Criar pedido de dispositivo",
+    "page": "referencia/comercial/criar-pedido-de-dispositivo.mdx"
+  },
+  {
+    "n": 4,
+    "method": "GET",
+    "path": "/api/b2b/v1/customers",
+    "group": "clientes-e-enderecos",
+    "group_title": "Clientes e endereços",
+    "slug": "listar-clientes",
+    "title": "Listar clientes",
+    "page": "referencia/clientes-e-enderecos/listar-clientes.mdx"
+  },
+  {
+    "n": 5,
+    "method": "POST",
+    "path": "/api/b2b/v1/customers",
+    "group": "clientes-e-enderecos",
+    "group_title": "Clientes e endereços",
+    "slug": "cadastrar-cliente",
+    "title": "Cadastrar cliente",
+    "page": "referencia/clientes-e-enderecos/cadastrar-cliente.mdx"
+  },
+  {
+    "n": 6,
+    "method": "GET",
+    "path": "/api/b2b/v1/customers/{id}",
+    "group": "clientes-e-enderecos",
+    "group_title": "Clientes e endereços",
+    "slug": "consultar-cliente",
+    "title": "Consultar cliente",
+    "page": "referencia/clientes-e-enderecos/consultar-cliente.mdx"
+  },
+  {
+    "n": 7,
+    "method": "GET",
+    "path": "/api/b2b/v1/customers/{customerId}/bindings",
+    "group": "clientes-e-enderecos",
+    "group_title": "Clientes e endereços",
+    "slug": "listar-tags-do-cliente",
+    "title": "Listar as Tags de um cliente",
+    "page": "referencia/clientes-e-enderecos/listar-tags-do-cliente.mdx"
+  },
+  {
+    "n": 8,
+    "method": "GET",
+    "path": "/api/b2b/v1/customers/{customerId}/addresses",
+    "group": "clientes-e-enderecos",
+    "group_title": "Clientes e endereços",
+    "slug": "listar-enderecos",
+    "title": "Listar endereços do cliente",
+    "page": "referencia/clientes-e-enderecos/listar-enderecos.mdx"
+  },
+  {
+    "n": 9,
+    "method": "POST",
+    "path": "/api/b2b/v1/customers/{customerId}/addresses",
+    "group": "clientes-e-enderecos",
+    "group_title": "Clientes e endereços",
+    "slug": "cadastrar-endereco",
+    "title": "Cadastrar endereço",
+    "page": "referencia/clientes-e-enderecos/cadastrar-endereco.mdx"
+  },
+  {
+    "n": 10,
+    "method": "PATCH",
+    "path": "/api/b2b/v1/customers/{customerId}/addresses/{addressId}/set-primary",
+    "group": "clientes-e-enderecos",
+    "group_title": "Clientes e endereços",
+    "slug": "definir-endereco-principal",
+    "title": "Definir endereço principal",
+    "page": "referencia/clientes-e-enderecos/definir-endereco-principal.mdx"
+  },
+  {
+    "n": 11,
+    "method": "POST",
+    "path": "/api/b2b/v1/tag-bindings",
+    "group": "vinculos-e-campos",
+    "group_title": "Vínculos e campos personalizados",
+    "slug": "vincular-dispositivo",
+    "title": "Vincular dispositivo a um cliente",
+    "page": "referencia/vinculos-e-campos/vincular-dispositivo.mdx"
+  },
+  {
+    "n": 12,
+    "method": "GET",
+    "path": "/api/b2b/v1/tag-bindings/{id}/custom-fields",
+    "group": "vinculos-e-campos",
+    "group_title": "Vínculos e campos personalizados",
+    "slug": "ler-campos-do-vinculo",
+    "title": "Ler os campos de um vínculo",
+    "page": "referencia/vinculos-e-campos/ler-campos-do-vinculo.mdx"
+  },
+  {
+    "n": 13,
+    "method": "PATCH",
+    "path": "/api/b2b/v1/tag-bindings/{id}/custom-fields",
+    "group": "vinculos-e-campos",
+    "group_title": "Vínculos e campos personalizados",
+    "slug": "gravar-campos-do-vinculo",
+    "title": "Gravar os campos de um vínculo",
+    "page": "referencia/vinculos-e-campos/gravar-campos-do-vinculo.mdx"
+  },
+  {
+    "n": 14,
+    "method": "GET",
+    "path": "/api/b2b/v1/custom-fields",
+    "group": "vinculos-e-campos",
+    "group_title": "Vínculos e campos personalizados",
+    "slug": "listar-campos-do-catalogo",
+    "title": "Listar o catálogo de campos",
+    "page": "referencia/vinculos-e-campos/listar-campos-do-catalogo.mdx"
+  },
+  {
+    "n": 15,
+    "method": "POST",
+    "path": "/api/b2b/v1/custom-fields",
+    "group": "vinculos-e-campos",
+    "group_title": "Vínculos e campos personalizados",
+    "slug": "criar-campo-do-catalogo",
+    "title": "Criar campo no catálogo",
+    "page": "referencia/vinculos-e-campos/criar-campo-do-catalogo.mdx"
+  },
+  {
+    "n": 16,
+    "method": "PATCH",
+    "path": "/api/b2b/v1/custom-fields/{id}",
+    "group": "vinculos-e-campos",
+    "group_title": "Vínculos e campos personalizados",
+    "slug": "editar-campo-do-catalogo",
+    "title": "Editar campo do catálogo",
+    "page": "referencia/vinculos-e-campos/editar-campo-do-catalogo.mdx"
+  },
+  {
+    "n": 17,
+    "method": "GET",
+    "path": "/api/b2b/v1/tags",
+    "group": "rastreamento",
+    "group_title": "Tags, dispositivos e posições",
+    "slug": "listar-tags",
+    "title": "Listar Tags",
+    "page": "referencia/rastreamento/listar-tags.mdx"
+  },
+  {
+    "n": 18,
+    "method": "GET",
+    "path": "/api/b2b/v1/tags/{id}/track",
+    "group": "rastreamento",
+    "group_title": "Tags, dispositivos e posições",
+    "slug": "consultar-trajeto",
+    "title": "Consultar trajeto",
+    "page": "referencia/rastreamento/consultar-trajeto.mdx"
+  },
+  {
+    "n": 19,
+    "method": "GET",
+    "path": "/api/b2b/v1/tags/{id}/distance",
+    "group": "rastreamento",
+    "group_title": "Tags, dispositivos e posições",
+    "slug": "consultar-distancia",
+    "title": "Consultar distância",
+    "page": "referencia/rastreamento/consultar-distancia.mdx"
+  },
+  {
+    "n": 20,
+    "method": "GET",
+    "path": "/api/b2b/v1/devices",
+    "group": "rastreamento",
+    "group_title": "Tags, dispositivos e posições",
+    "slug": "listar-dispositivos",
+    "title": "Listar dispositivos",
+    "page": "referencia/rastreamento/listar-dispositivos.mdx"
+  },
+  {
+    "n": 21,
+    "method": "GET",
+    "path": "/api/b2b/v1/devices/{id}",
+    "group": "rastreamento",
+    "group_title": "Tags, dispositivos e posições",
+    "slug": "consultar-dispositivo",
+    "title": "Consultar dispositivo",
+    "page": "referencia/rastreamento/consultar-dispositivo.mdx"
+  },
+  {
+    "n": 22,
+    "method": "GET",
+    "path": "/api/b2b/v1/subscriptions",
+    "group": "comercial",
+    "group_title": "Pedidos, assinaturas e planos",
+    "slug": "listar-assinaturas",
+    "title": "Listar assinaturas",
+    "page": "referencia/comercial/listar-assinaturas.mdx"
+  },
+  {
+    "n": 23,
+    "method": "POST",
+    "path": "/api/b2b/v1/subscriptions",
+    "group": "comercial",
+    "group_title": "Pedidos, assinaturas e planos",
+    "slug": "criar-assinatura",
+    "title": "Criar assinatura",
+    "page": "referencia/comercial/criar-assinatura.mdx"
+  },
+  {
+    "n": 24,
+    "method": "GET",
+    "path": "/api/b2b/v1/subscriptions/{id}",
+    "group": "comercial",
+    "group_title": "Pedidos, assinaturas e planos",
+    "slug": "consultar-assinatura",
+    "title": "Consultar assinatura",
+    "page": "referencia/comercial/consultar-assinatura.mdx"
+  },
+  {
+    "n": 25,
+    "method": "GET",
+    "path": "/api/b2b/v1/plans",
+    "group": "comercial",
+    "group_title": "Pedidos, assinaturas e planos",
+    "slug": "listar-planos",
+    "title": "Listar planos",
+    "page": "referencia/comercial/listar-planos.mdx"
+  },
+  {
+    "n": 26,
+    "method": "GET",
+    "path": "/api/b2b/v1/devices/{deviceId}/locations",
+    "group": "rastreamento",
+    "group_title": "Tags, dispositivos e posições",
+    "slug": "listar-posicoes",
+    "title": "Listar posições de um dispositivo",
+    "page": "referencia/rastreamento/listar-posicoes.mdx"
+  },
+  {
+    "n": 27,
+    "method": "GET",
+    "path": "/api/b2b/v1/devices/{deviceId}/locations/latest",
+    "group": "rastreamento",
+    "group_title": "Tags, dispositivos e posições",
+    "slug": "ultima-posicao",
+    "title": "Última posição de um dispositivo",
+    "page": "referencia/rastreamento/ultima-posicao.mdx"
+  },
+  {
+    "n": 28,
+    "method": "GET",
+    "path": "/api/b2b/v1/geofences",
+    "group": "cercas",
+    "group_title": "Cercas virtuais",
+    "slug": "listar-cercas",
+    "title": "Listar cercas",
+    "page": "referencia/cercas/listar-cercas.mdx"
+  },
+  {
+    "n": 29,
+    "method": "POST",
+    "path": "/api/b2b/v1/geofences",
+    "group": "cercas",
+    "group_title": "Cercas virtuais",
+    "slug": "criar-cerca",
+    "title": "Criar cerca",
+    "page": "referencia/cercas/criar-cerca.mdx"
+  },
+  {
+    "n": 30,
+    "method": "GET",
+    "path": "/api/b2b/v1/geofences/{id}",
+    "group": "cercas",
+    "group_title": "Cercas virtuais",
+    "slug": "consultar-cerca",
+    "title": "Consultar cerca",
+    "page": "referencia/cercas/consultar-cerca.mdx"
+  },
+  {
+    "n": 31,
+    "method": "DELETE",
+    "path": "/api/b2b/v1/geofences/{id}",
+    "group": "cercas",
+    "group_title": "Cercas virtuais",
+    "slug": "desativar-cerca",
+    "title": "Desativar cerca",
+    "page": "referencia/cercas/desativar-cerca.mdx"
+  },
+  {
+    "n": 32,
+    "method": "GET",
+    "path": "/api/b2b/v1/branches",
+    "group": "conta-e-equipe",
+    "group_title": "Conta e equipe",
+    "slug": "listar-filiais",
+    "title": "Listar o hub e as filiais",
+    "page": "referencia/conta-e-equipe/listar-filiais.mdx"
+  },
+  {
+    "n": 33,
+    "method": "GET",
+    "path": "/api/b2b/v1/partner-users",
+    "group": "conta-e-equipe",
+    "group_title": "Conta e equipe",
+    "slug": "listar-usuarios",
+    "title": "Listar usuários da equipe",
+    "page": "referencia/conta-e-equipe/listar-usuarios.mdx"
+  },
+  {
+    "n": 34,
+    "method": "POST",
+    "path": "/api/b2b/v1/partner-users",
+    "group": "conta-e-equipe",
+    "group_title": "Conta e equipe",
+    "slug": "convidar-usuario",
+    "title": "Convidar usuário",
+    "page": "referencia/conta-e-equipe/convidar-usuario.mdx"
+  },
+  {
+    "n": 35,
+    "method": "POST",
+    "path": "/api/b2b/v1/partner-users/{id}/password",
+    "group": "conta-e-equipe",
+    "group_title": "Conta e equipe",
+    "slug": "definir-senha-do-usuario",
+    "title": "Definir senha pelo convite",
+    "page": "referencia/conta-e-equipe/definir-senha-do-usuario.mdx"
+  }
+]

@@ -1,0 +1,2529 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "ClubTrack API — B2B v1",
+    "version": "1.9.0",
+    "description": "API de integração para o **Parceiro** (empresa que revende/distribui dispositivos GPS ClubTrack — ex.: lojista, revendedor) do `tagtrack-core`, plataforma de rastreamento de tags GPS B2B2C. A ClubTrack é uma empresa apartada da Clubfix Seguradora (integração via API de parceiros, sem relação societária) — código hospedado em `~/workspaces/clubfix/apps/tagtrack-core` por conveniência histórica de path.\n\nEsta é a API que o **sistema do próprio parceiro** consome para operar de forma programática: cadastrar clientes, vincular tags, criar assinaturas, consultar localização e cercas virtuais (geofences). Não atende o cliente final (`api/b2c/v1/*`, spec separada `openapi-b2c.json`) nem o time interno da ClubTrack (`api/admin/*`, fora de escopo desta spec).\n\n**Sem prefixo de versão de path** (`api/b2b/v1/*`, ao contrário de `api/b2c/v1/*`) — decisão de fato observada no código, não documentada em nenhum ADR encontrado; provavelmente porque esta API já existe há mais tempo e antecede a decisão de versionamento tomada para o B2C (ARCHITECTURE-PLATAFORMA-CENTRAL.md §12.8).\n\n**Duas formas de autenticação, não intercambiáveis por rota** — ver `components.securitySchemes` para o detalhe de cada uma:\n1. **API Key de máquina** (`ttk_...`) — pensada para o sistema do parceiro chamar diretamente, sem humano na frente. Enviável via header `X-Api-Key` OU `Authorization: Bearer <api_key>` (mesmo middleware aceita as duas formas — `ResolvesPartnerFromApiKey::handle()`, `$raw = $request->header('X-Api-Key') ?? $request->bearerToken();`).\n2. **Login humano** (`POST /api/b2b/v1/auth/login`) — Sanctum Personal Access Token, para um usuário (`PartnerUser`) da equipe do parceiro logado num painel/app.\n\nA maioria das rotas aceita **qualquer uma das duas** (middleware `partner.access` — tenta Sanctum primeiro, cai para API key se não achar). Um subconjunto aceita **só API key** (`partner.api_key` — locations, geofences). E duas rotas de escrita sensíveis (`POST device-orders`, `POST partner-users`) aceitam as duas no middleware mas impõem regra de negócio adicional no controller que restringe quem pode de fato usar cada uma — documentado operação a operação abaixo, não é invenção.\n\n**Escopo por tenant é sempre implícito.** Nenhum endpoint aceita `partner_id` no payload — o parceiro é sempre resolvido do contexto de autenticação (`resolved_partner_id`, setado pelo middleware), nunca de um campo de entrada. Isso é verificado em cada FormRequest/controller lido, não presumido.\n\n**Estado de implantação (verificado em código e infra, 2026-08-31): toda esta API está mergeada em `main` do repositório `clubfixinsurtech/clubtrack-core`** (`git ls-tree main` confirma as rotas B2B presentes; commit mais recente relevante `4ef1632`), diferente da API B2C (que vive só em branches locais não mergeadas). **Porém o backend inteiro do `tagtrack-core` nunca foi implantado em nenhum servidor** — `docs/infra/forge.md`: domínio `core.clubtrack.com.br` registrado em 2026-08-29, servidor `clubtrack` (ClubTech) provisionado, mas deploy \"Ainda não deployado — Story 1.3, aguardando autorização do Sergio\". Por isso toda operação desta spec carrega `x-status: \"merged-main-not-deployed\"` — o código existe, está testado e em `main`, mas não há nenhum ambiente rodando fora do Sail local de cada worktree.\n\n**Autoatendimento de credencial não existe ainda.** A emissão/revogação de API Key (`POST/DELETE /api/admin/partners/{id}/api-keys`) é hoje exclusiva do time interno da ClubTrack, autenticado como usuário admin, via `tagtrack-admin`. Não há nenhuma rota B2B nem tela no `tagtrack-partner-portal` para o próprio parceiro gerar sua chave — decisão de arquitetura pendente, fora do escopo desta spec (que documenta só o que já está exposto ao parceiro).\n\n**Valores de `x-status`.** `merged-main-not-deployed`: no `main`, estado de implantação conforme o texto acima (legado de 2026-08-31, a revisar). `merged-main`: no `main`; o estado de implantação **não é afirmado aqui** (confirmar com a operação). `pull-request-open`: código completo e testado em Pull Request aberto, **ainda não mesclado**. `not-merged-draft`: legado, não usar mais.\n\n**Versão da API.** O caminho oficial é `/api/b2b/v1`. O caminho sem versão (`/api/b2b/...`) continua respondendo igual, mas é **obsoleto**: toda resposta dele traz o cabeçalho `Deprecation` (RFC 9745), e a data em que ele deixa de existir ainda não foi definida. Dentro de `v1` só entram mudanças aditivas (campo novo, filtro novo, rota nova). Remover ou renomear um campo, ou mudar o tipo dele, exige uma nova versão (`v2`).",
+    "contact": {
+      "name": "ClubTrack — Plataforma Central",
+      "url": "https://github.com/clubfixinsurtech/clubtrack-core"
+    }
+  },
+  "servers": [
+    {
+      "url": "http://localhost",
+      "description": "Ambiente de desenvolvimento local via Laravel Sail. Porta real definida por `APP_PORT` no `.env` de cada worktree (não versionado) — `.env.example` usa o default `${APP_PORT:-80}`, mas é convenção do spoke (`.claude/rules/git-worktrees.md`) customizar essa porta por worktree para evitar colisão com outros serviços Sail rodando em paralelo. Confirmar a porta real do ambiente antes de testar."
+    },
+    {
+      "url": "https://core.clubtrack.com.br",
+      "description": "Domínio de produção reservado (registrado 2026-08-29). NÃO EXISTE AINDA — nenhum servidor Forge foi provisionado com deploy real para este app (Story 1.3, deploy, ainda aguarda autorização explícita do Sergio, apesar do código estar pronto em `main`). Incluído aqui só como destino final planejado, não como ambiente disponível."
+    }
+  ],
+  "tags": [
+    { "name": "Auth", "description": "Login do usuário humano do parceiro (Sanctum Bearer token)." },
+    { "name": "Device Orders", "description": "Pedidos de dispositivo GPS feitos pelo parceiro (para si próprio ou para um Customer seu)." },
+    { "name": "Customers", "description": "Cadastro de clientes finais do parceiro (titulares de dispositivo)." },
+    { "name": "Customer Addresses", "description": "Endereços do cliente final, usados no envio direto de dispositivo." },
+    { "name": "Tag Bindings", "description": "Vínculo Device↔Customer (a \"Tag\" na visão do parceiro)." },
+    { "name": "Tags", "description": "As Tags do parceiro, vistas como lista pesquisável. `GET /api/b2b/v1/tags` devolve uma linha por vínculo de Tag ativo de cliente do parceiro, com o apelido, a categoria e o ícone que o cliente deu à Tag, o ativo (`asset`: só o `id`, nulo enquanto o ativo ainda não existe), o aparelho (`device`) e a comunicação (`last_communication_at`, `last_position_at`, `online`). Filtra por categoria, apelido e por campo personalizado, pela **chave** estável do campo. O ativo (`asset`) é o que a Tag identifica, e o parceiro decide o que ele é (um veículo, uma máquina, um equipamento). Nenhum campo do ativo é fixo: o que o parceiro quer saber dele (o número do contrato, o número de série de uma máquina) é um campo personalizado que ele mesmo cria." },
+    { "name": "Custom Fields", "description": "Campos personalizados do ativo: o parceiro define campos de texto próprios (por exemplo, o número do contrato ou o centro de custo) e guarda um valor por ativo.\n\n**Como funciona, de ponta a ponta**\n\n1. **Definir (Portal ou chave de API).** O hub cria, ordena, ativa e desativa os campos em `GET/POST/PATCH /api/b2b/v1/custom-fields` (até 20 por hub), pelo Portal ou com a mesma chave de API que lê e grava os valores. A chave só vale em `/api/b2b/v1`: no caminho obsoleto sem versão recebe `403`. A filial lê o catálogo herdado. Cada campo diz se o cliente final o **vê** (`customer_visible`) e se o **edita** (`customer_editable`); editar exige ver. Um valor **padrão** opcional é aplicado uma única vez, quando o ativo nasce.\n2. **Chegar ao ativo.** O ativo é identificado pelo **vínculo de Tag**. O id do vínculo vem de `active_tag_binding_id` em `GET /api/b2b/v1/devices` e `/devices/{id}` (ou da resposta de `POST /api/b2b/v1/tag-bindings`).\n3. **Ler.** `GET /api/b2b/v1/tag-bindings/{id}/custom-fields` devolve os campos do catálogo com o valor, quem gravou por último (`customer` ou `partner`) e quando.\n4. **Gravar.** `PATCH /api/b2b/v1/tag-bindings/{id}/custom-fields` grava os campos que o cliente **não** edita (ocultos e só leitura). O campo que o cliente edita é do cliente, que o preenche no app dele.\n\n**Regras que valem para tudo:** valor é texto de até 255 caracteres; `null` limpa; vazio ou só espaço é `422`; nenhuma resposta de erro repete valor ou chave; o valor fica cifrado em repouso. A API **não distingue** o valor padrão da resposta digitada pelo cliente." },
+    { "name": "Devices", "description": "Dispositivos GPS atribuídos ao parceiro." },
+    { "name": "Subscriptions", "description": "Assinaturas de plano por Tag Binding, com cobrança." },
+    { "name": "Plans", "description": "Catálogo de planos do parceiro (somente leitura via B2B)." },
+    { "name": "Locations", "description": "Histórico e última posição GPS de um dispositivo — somente API Key." },
+    { "name": "Geofences", "description": "Cercas virtuais por dispositivo — somente API Key." },
+    { "name": "Partner Users", "description": "Equipe (usuários humanos) do próprio parceiro." },
+    { "name": "Branches", "description": "O hub do parceiro e as suas filiais (somente leitura)." }
+  ],
+  "security": [
+    { "ApiKeyHeader": [] },
+    { "ApiKeyBearer": [] },
+    { "PartnerUserBearer": [] }
+  ],
+  "paths": {
+    "/api/b2b/v1/auth/login": {
+      "post": {
+        "tags": ["Auth"],
+        "summary": "Login do usuário do parceiro",
+        "description": "Autentica um `PartnerUser` por e-mail e senha e emite um Personal Access Token do Sanctum. Rota pública — **sem nenhum middleware**, inclusive sem o rate limit de 1000 req/min que protege as demais rotas B2B (esse limite só existe dentro de `ResolvesPartnerFromApiKey`, que esta rota não usa).\n\nCredenciais inválidas e usuário com `status != Active` retornam **mensagens diferentes** (não é a mesma resposta genérica): `'Credenciais inválidas.'` para e-mail/senha incorretos, `'Usuário inativo.'` quando a senha está correta mas o usuário está inativo — pequeno vazamento de severidade baixa (revela que a conta existe), verificado em código.\n\nA resposta de sucesso **não usa `PartnerUserResource`** — é um array montado manualmente no controller, com campos diferentes do Resource usado no resto da API (sem `status`, sem `created_at`).",
+        "x-status": "merged-main-not-deployed",
+        "security": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/LoginRequest" },
+              "example": { "email": "operador@parceiro.com.br", "password": "secret123" }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Login bem-sucedido.",
+            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/LoginResponse" } } }
+          },
+          "401": {
+            "description": "Credenciais inválidas OU usuário inativo — mensagens distintas, ver descrição.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/UnauthorizedError" },
+                "examples": {
+                  "credenciais_invalidas": { "value": { "message": "Credenciais inválidas." } },
+                  "usuario_inativo": { "value": { "message": "Usuário inativo." } }
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Campos `email`/`password` ausentes ou inválidos.",
+            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ValidationError" } } }
+          }
+        }
+      }
+    },
+    "/api/b2b/v1/device-orders": {
+      "get": {
+        "tags": ["Device Orders"],
+        "summary": "Lista pedidos de dispositivo do parceiro",
+        "description": "Escopo fixo: `recipient_type = Partner AND recipient_id = resolved_partner_id`. **Achado/possível gap**: não existe filtro para listar pedidos feitos em nome de um `customer_id` específico — mesmo que existam pedidos com `recipient_type = Customer` (criados via `POST` com `customer_id`), esta listagem só retorna os que têm o próprio parceiro como destinatário.\n\nOs campos `recipient` e `shipment` do Resource nunca aparecem aqui — não são eager-loaded por este endpoint.",
+        "x-status": "merged-main-not-deployed",
+        "parameters": [
+          { "$ref": "#/components/parameters/PartnerBranchHeader" },
+          {
+            "name": "filter",
+            "in": "query",
+            "style": "deepObject",
+            "explode": true,
+            "description": "Único filtro permitido: `status`. Qualquer outra chave retorna 400.",
+            "schema": {
+              "type": "object",
+              "properties": {
+                "status": { "$ref": "#/components/schemas/DeviceOrderStatus" }
+              }
+            }
+          },
+          { "$ref": "#/components/parameters/PerPage" }
+        ],
+        "responses": {
+          "200": {
+            "description": "Coleção paginada, ordenada por `-created_at` (default, sem outro sort permitido).",
+            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/DeviceOrderCollection" } } }
+          },
+          "400": { "$ref": "#/components/responses/BadRequestFilterSort" },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "403": { "$ref": "#/components/responses/PartnerInactive" }
+        }
+      },
+      "post": {
+        "tags": ["Device Orders"],
+        "summary": "Cria pedido de dispositivo",
+        "description": "**Exige login humano** — mesmo o middleware `partner.access` aceitando API key ou Sanctum, o controller checa `resolved_partner_user_id` explicitamente e responde 403 se a requisição veio só de API key. Ou seja: este endpoint específico não funciona com API key pura, apesar de estar listado como `partner.access`.\n\nSe `customer_id` for informado, precisa pertencer ao parceiro autenticado (`Rule::exists('customers','id')->where('partner_id', ...)`) E ter endereço completo cadastrado (`hasCompleteAddress()`) — senão 422 no campo `customer_id`.",
+        "x-status": "merged-main-not-deployed",
+        "parameters": [{ "$ref": "#/components/parameters/PartnerBranchHeader" }],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/CreateDeviceOrderRequest" },
+              "example": { "model": "ClubTrack Tag v3", "quantity": 5, "acquisition_model": "comodato" }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Pedido criado.",
+            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/DeviceOrderEnvelope" } } }
+          },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "403": {
+            "description": "Parceiro inativo/suspenso OU requisição autenticada só por API key (sem login humano) — mensagens distintas.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ForbiddenError" },
+                "examples": {
+                  "parceiro_inativo": { "value": { "message": "Parceiro inativo ou suspenso." } },
+                  "exige_login_humano": { "value": { "message": "Pedido de Dispositivos exige login de usuário do parceiro -- não é permitido via API key." } }
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Campo obrigatório ausente/inválido, ou Customer sem endereço completo cadastrado.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ValidationError" },
+                "example": { "message": "The customer id field is invalid.", "errors": { "customer_id": ["O Customer selecionado não tem endereço completo cadastrado — obrigatório para envio direto de Dispositivos."] } }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/b2b/v1/customers": {
+      "get": {
+        "tags": ["Customers"],
+        "summary": "Lista clientes do parceiro",
+        "description": "Escopo: `CustomerModel::forPartner(resolved_partner_id)`.",
+        "x-status": "merged-main-not-deployed",
+        "parameters": [
+          { "$ref": "#/components/parameters/PartnerBranchHeader" },
+          {
+            "name": "filter",
+            "in": "query",
+            "style": "deepObject",
+            "explode": true,
+            "description": "`name`/`phone` são busca parcial (`LIKE`); `email`/`status`/`external_id` são exatos. `active`/`with_binding`/`without_binding` são scopes sem argumento útil — presença da chave já ativa o scope, o valor é ignorado. `search` faz `LIKE %term%` case-insensitive em `name` (redundante com `name`, história separada de implementação).",
+            "schema": {
+              "type": "object",
+              "properties": {
+                "name": { "type": "string", "description": "Busca parcial." },
+                "email": { "type": "string", "format": "email" },
+                "status": { "$ref": "#/components/schemas/CustomerStatus" },
+                "external_id": { "type": "string" },
+                "phone": { "type": "string", "description": "Busca parcial." },
+                "active": { "type": "string", "description": "Scope `scopeActive()` — não recebe parâmetro real; presença da chave ativa o filtro." },
+                "search": { "type": "string", "description": "`LIKE %term%` case-insensitive em `name`." },
+                "with_binding": { "type": "string", "description": "Scope — clientes com ao menos um TagBinding `active`." },
+                "without_binding": { "type": "string", "description": "Scope — clientes sem nenhum TagBinding `active`." }
+              }
+            }
+          },
+          {
+            "name": "sort",
+            "in": "query",
+            "description": "Prefixo `-` para descendente. Valores permitidos: `created_at`, `name`, `status`.",
+            "schema": { "type": "string" },
+            "example": "-created_at"
+          },
+          {
+            "name": "include",
+            "in": "query",
+            "description": "Valores permitidos: `tagBindings`, `activeTagBindings`.",
+            "schema": { "type": "string" }
+          },
+          { "$ref": "#/components/parameters/PerPage" }
+        ],
+        "responses": {
+          "200": { "description": "Coleção paginada.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/CustomerCollection" } } } },
+          "400": { "$ref": "#/components/responses/BadRequestFilterSort" },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "403": { "$ref": "#/components/responses/PartnerInactive" }
+        }
+      },
+      "post": {
+        "tags": ["Customers"],
+        "summary": "Cadastra um cliente para o parceiro",
+        "description": "`partner_id` é sempre `resolved_partner_id` — não existe no payload aceito (comentário explícito no controller). `cpf`, quando enviado, precisa ter exatamente 11 dígitos (`digits:11`, sem validação de dígito verificador).",
+        "x-status": "merged-main-not-deployed",
+        "parameters": [{ "$ref": "#/components/parameters/PartnerBranchHeader" }],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/RegisterCustomerRequest" },
+              "example": { "name": "Maria Souza", "email": "maria@example.com", "phone": "48999998888" }
+            }
+          }
+        },
+        "responses": {
+          "201": { "description": "Cliente criado.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/CustomerEnvelope" } } } },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "403": { "$ref": "#/components/responses/PartnerInactive" },
+          "422": { "$ref": "#/components/responses/ValidationFailed" }
+        }
+      }
+    },
+    "/api/b2b/v1/customers/{id}": {
+      "get": {
+        "tags": ["Customers"],
+        "summary": "Exibe um cliente do parceiro",
+        "description": "`CustomerModel::forPartner(resolved_partner_id)->firstOrFail()` — **404** tanto para id inexistente quanto para cliente de outro parceiro (indistinguível, resposta única «Recurso não encontrado.»).",
+        "x-status": "merged-main-not-deployed",
+        "parameters": [
+          { "$ref": "#/components/parameters/PartnerBranchHeader" },
+          { "name": "id", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } },
+          {
+            "name": "include",
+            "in": "query",
+            "description": "Valores permitidos: `tagBindings`, `activeTagBindings`.",
+            "schema": { "type": "string" }
+          }
+        ],
+        "responses": {
+          "200": { "description": "Cliente encontrado.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/CustomerEnvelope" } } } },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "403": { "$ref": "#/components/responses/PartnerInactive" },
+          "404": { "$ref": "#/components/responses/NotFound" }
+        }
+      }
+    },
+    "/api/b2b/v1/customers/{customerId}/bindings": {
+      "get": {
+        "tags": ["Customers", "Tag Bindings"],
+        "summary": "Lista as tags (bindings) de um cliente",
+        "description": "Valida posse do Customer via `firstOrFail()` antes de listar — 404 «Recurso não encontrado.» se não existir ou não pertencer ao parceiro, sem distinguir.",
+        "x-status": "merged-main-not-deployed",
+        "parameters": [
+          { "$ref": "#/components/parameters/PartnerBranchHeader" },
+          { "name": "customerId", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } },
+          {
+            "name": "filter",
+            "in": "query",
+            "style": "deepObject",
+            "explode": true,
+            "description": "`bound_after`/`bound_before` **não têm validação de formato** — o valor é repassado direto para comparação SQL (`where('bound_at', '>=', $valor)`); recomenda-se ISO 8601, mas o backend aceita qualquer string que o Postgres consiga comparar.",
+            "schema": {
+              "type": "object",
+              "properties": {
+                "status": { "$ref": "#/components/schemas/BindingStatus" },
+                "device_id": { "type": "string", "format": "uuid" },
+                "active": { "type": "string", "description": "Scope sem argumento útil." },
+                "bound_after": { "type": "string", "description": "Sem validação de formato." },
+                "bound_before": { "type": "string", "description": "Sem validação de formato." }
+              }
+            }
+          },
+          {
+            "name": "sort",
+            "in": "query",
+            "description": "Valores permitidos: `bound_at`, `unbound_at`, `status`.",
+            "schema": { "type": "string" }
+          },
+          {
+            "name": "include",
+            "in": "query",
+            "description": "Valores permitidos: `device`, `statusHistories`.",
+            "schema": { "type": "string" }
+          },
+          { "$ref": "#/components/parameters/PerPage" }
+        ],
+        "responses": {
+          "200": { "description": "Coleção paginada de tag bindings do cliente.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/TagBindingCollection" } } } },
+          "400": { "$ref": "#/components/responses/BadRequestFilterSort" },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "403": { "$ref": "#/components/responses/PartnerInactive" },
+          "404": { "$ref": "#/components/responses/NotFound" }
+        }
+      }
+    },
+    "/api/b2b/v1/customers/{customerId}/addresses": {
+      "get": {
+        "tags": ["Customer Addresses"],
+        "summary": "Lista endereços do cliente",
+        "description": "Valida posse do Customer via `firstOrFail()` — 404 «Recurso não encontrado.» se não existir ou não pertencer ao parceiro, sem distinguir. **Sem paginação, sem filtros, sem sorts** — coleção simples (`Collection`, não passa por Spatie QueryBuilder), ordenada `is_primary DESC, created_at DESC`.",
+        "x-status": "merged-main-not-deployed",
+        "parameters": [
+          { "$ref": "#/components/parameters/PartnerBranchHeader" },
+          { "name": "customerId", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } }
+        ],
+        "responses": {
+          "200": { "description": "Coleção de endereços (sem `links`/`meta`).", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/AddressCollection" } } } },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "403": { "$ref": "#/components/responses/PartnerInactive" },
+          "404": { "$ref": "#/components/responses/NotFound" }
+        }
+      },
+      "post": {
+        "tags": ["Customer Addresses"],
+        "summary": "Cadastra um endereço para o cliente",
+        "description": "**Todos os campos são opcionais e nuláveis** — `POST` com corpo `{}` passa na validação e cria um endereço vazio. Não há verificação de \"pelo menos um campo preenchido\" (comportamento real do código, provavelmente não é o design pretendido para consumo externo).",
+        "x-status": "merged-main-not-deployed",
+        "parameters": [
+          { "$ref": "#/components/parameters/PartnerBranchHeader" },
+          { "name": "customerId", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/CreateAddressRequest" },
+              "example": { "postal_code": "88010-000", "street": "Rua Felipe Schmidt", "number": "100", "city": "Florianópolis", "state": "SC" }
+            }
+          }
+        },
+        "responses": {
+          "201": { "description": "Endereço criado.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/AddressEnvelope" } } } },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "403": { "$ref": "#/components/responses/PartnerInactive" },
+          "404": { "$ref": "#/components/responses/NotFound" },
+          "422": { "$ref": "#/components/responses/ValidationFailed" }
+        }
+      }
+    },
+    "/api/b2b/v1/customers/{customerId}/addresses/{addressId}/set-primary": {
+      "patch": {
+        "tags": ["Customer Addresses"],
+        "summary": "Define um endereço como principal",
+        "description": "Sem FormRequest/payload — só path params. Cliente inexistente ou de outro parceiro → 404 «Recurso não encontrado.»; endereço não encontrado para este cliente → 404 `'Endereço não encontrado para este cliente.'`.",
+        "x-status": "merged-main-not-deployed",
+        "parameters": [
+          { "$ref": "#/components/parameters/PartnerBranchHeader" },
+          { "name": "customerId", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } },
+          { "name": "addressId", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } }
+        ],
+        "responses": {
+          "200": { "description": "Endereço definido como principal.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/AddressEnvelope" } } } },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "403": { "$ref": "#/components/responses/PartnerInactive" },
+          "404": {
+            "description": "Cliente não encontrado («Recurso não encontrado.», inexistente ou de outro parceiro, sem distinguir) ou endereço não encontrado para este cliente («Endereço não encontrado para este cliente.»).",
+            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/NotFoundError" }, "example": { "message": "Endereço não encontrado para este cliente." } } }
+          }
+        }
+      }
+    },
+    "/api/b2b/v1/tag-bindings": {
+      "post": {
+        "tags": ["Tag Bindings"],
+        "summary": "Vincula um dispositivo a um cliente (cria uma Tag)",
+        "description": "Parceiro suspenso ou inativo (ou com o hub suspenso) recebe 403 antes de qualquer efeito.\n\nGuards de posse checados no controller, ambos **404**: `device_serial` precisa existir e pertencer ao parceiro autenticado («Dispositivo não encontrado.»); `customer_id` precisa existir e pertencer ao parceiro autenticado («Cliente não encontrado.»). Mesma resposta 404 tanto para inexistente quanto para de outro parceiro. O **422** fica só para formato inválido.\n\n`activateImmediately` é **sempre forçado a `false`** — o binding nunca ativa localização na hora, depende de confirmação de pagamento (assinatura).",
+        "x-status": "merged-main-not-deployed",
+        "parameters": [{ "$ref": "#/components/parameters/PartnerBranchHeader" }],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/BindTagRequest" },
+              "example": { "device_serial": "CT-000123", "customer_id": "b3f1c2a0-1234-4abc-9def-000000000001" }
+            }
+          }
+        },
+        "responses": {
+          "201": { "description": "Tag binding criado.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/TagBindingEnvelope" } } } },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "403": { "$ref": "#/components/responses/PartnerInactive" },
+          "404": {
+            "description": "Dispositivo (pelo serial) ou cliente inexistente ou de outro parceiro, sem distinguir.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/NotFoundError" },
+                "examples": {
+                  "device": { "value": { "message": "Dispositivo não encontrado." } },
+                  "customer": { "value": { "message": "Cliente não encontrado." } }
+                }
+              }
+            }
+          },
+          "422": { "$ref": "#/components/responses/ValidationFailed" }
+        }
+      }
+    },
+    "/api/b2b/v1/tag-bindings/{id}/custom-fields": {
+      "get": {
+        "tags": ["Tag Bindings", "Custom Fields"],
+        "summary": "Lê o que o cliente preencheu nos campos personalizados do ativo de um vínculo de Tag",
+        "description": "Story E15.13. Devolve, **por vínculo de Tag**, os campos personalizados do catálogo do hub do parceiro com o valor que o cliente (ou o próprio parceiro, pelo valor padrão aplicado quando o ativo nasce) gravou. **Este `GET` só lê:** não cria ativo e não grava nada. `POST`, `PUT` e `DELETE` neste caminho respondem 405; a escrita é o `PATCH` abaixo. Exige `partner.access` (Portal ou chave de API) **e** `partner.active`. Vale a filial **ativa** (`X-Partner-Branch-Id`), e só o parceiro dono do vínculo lê: o hub não lê o vínculo de uma filial.\n\n**Lista:** ordenada por `sort_order` e `key`; Campo inativo só aparece quando já tem valor, com `active: false`. Os campos aparecem independentemente de o cliente poder vê-los ou editá-los: o catálogo é do parceiro. Sem ativo ainda, todos os `value` são `null`. Antes de o catálogo ser ativado (E15.4), responde **200** com lista vazia.\n\n**`written_by`:** `customer` quando a última gravação foi disparada pelo cliente e `partner` quando foi disparada pelo Portal ou pela chave de API. **Atenção:** o valor padrão do catálogo é copiado quando o ativo nasce e leva o autor de quem disparou o nascimento. Se foi o cliente, um campo que ele nunca viu pode sair como `customer`. A API não distingue padrão de resposta digitada. Nenhum identificador do autor é devolvido.\n\n**Vínculo inexistente, de outro parceiro ou já encerrado respondem o mesmo 404**, com o mesmo corpo. O valor é dado pessoal: fica cifrado em repouso e nunca aparece em mensagem de erro.",
+        "x-status": "pull-request-open",
+        "x-last-validated": "2026-10-15",
+        "parameters": [
+          { "name": "id", "in": "path", "required": true, "description": "Id (UUID) do vínculo de Tag. Id malformado responde 404 da própria rota.", "schema": { "type": "string", "format": "uuid" } },
+          { "$ref": "#/components/parameters/PartnerBranchHeader" }
+        ],
+        "responses": {
+          "200": {
+            "description": "Campos personalizados do ativo com o valor gravado (ou `null`).",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/PartnerCustomerFieldCollection" },
+                "example": { "data": [
+                  { "key": "cor", "label": "Cor", "sort_order": 1, "active": true, "value": "Verde (exemplo)", "written_by": "customer", "written_at": "2026-10-15T14:00:00Z" },
+                  { "key": "apelido", "label": "Apelido", "sort_order": 2, "active": true, "value": null, "written_by": null, "written_at": null }
+                ] }
+              }
+            }
+          },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "403": { "$ref": "#/components/responses/PartnerInactive" },
+          "404": {
+            "description": "Vínculo inexistente, de outro parceiro ou já encerrado. Os três casos têm o mesmo status e o mesmo corpo.",
+            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/NotFoundError" }, "example": { "message": "Vínculo não encontrado." } } }
+          },
+          "500": {
+            "description": "Falha técnica ao ler (por exemplo, valor que não decifra). Mensagem fixa, sem valor, sem chave e sem detalhe de banco.",
+            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/NotFoundError" }, "example": { "message": "Não foi possível ler os campos agora." } } }
+          }
+        }
+      },
+      "patch": {
+        "tags": ["Tag Bindings", "Custom Fields"],
+        "summary": "Grava os campos personalizados do ativo que o cliente não edita (ocultos e só leitura)",
+        "description": "Story E15.16. O parceiro grava, **por vínculo de Tag**, o valor dos campos personalizados do catálogo do hub que o cliente **não** edita: os **ocultos** e os **visíveis só leitura**. O campo que o cliente edita é do cliente: o parceiro não o sobrescreve. Exige `partner.access` (Portal ou chave de API) **e** `partner.active`. Vale a filial **ativa** (`X-Partner-Branch-Id`), e só o parceiro dono do vínculo grava.\n\n**Escrita parcial e tudo ou nada:** chave ausente não mexe no valor; `null` **limpa** o campo. Para limpar, envie `null`: string vazia ou só espaço é **422**, nunca limpeza. Se qualquer chave é recusada (desconhecida, inativa, editável pelo cliente), a requisição inteira é recusada com **a mesma 422**, sem citar chave nem valor, e **nada é gravado**. Texto de até 255 caracteres. Corpo JSON obrigatório (`Content-Type: application/json`).\n\nA primeira escrita cria o ativo e liga ao vínculo, aplicando os valores padrão do catálogo uma única vez, com o autor do parceiro. Um corpo que só limpa, num vínculo sem ativo, é **422** e não cria nada. Se o ativo do vínculo é de outro parceiro, a resposta é o mesmo **404**. Antes de o catálogo ser ativado (E15.4) a resposta é **404** `Recurso indisponível.` e nada é gravado.\n\n**Vínculo inexistente, de outro parceiro ou já encerrado respondem o mesmo 404**, com o mesmo corpo. O valor é dado pessoal: fica cifrado em repouso e nunca aparece em mensagem de erro. A resposta é a mesma do `GET`.",
+        "x-status": "pull-request-open",
+        "x-last-validated": "2026-10-15",
+        "parameters": [
+          { "name": "id", "in": "path", "required": true, "description": "Id (UUID) do vínculo de Tag. Id malformado responde 404 da própria rota.", "schema": { "type": "string", "format": "uuid" } },
+          { "$ref": "#/components/parameters/PartnerBranchHeader" }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/WritePartnerCustomFieldsRequest" },
+              "examples": {
+                "gravar-contrato": { "summary": "Grava um campo oculto e um só leitura", "value": { "values": { "contrato": "C-102 (exemplo)", "nota": "Anotação de exemplo" } } },
+                "limpar-um-campo": { "summary": "null limpa o campo", "value": { "values": { "contrato": null } } }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Campos gravados. Devolve a lista de campos do ativo, como o `GET`.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/PartnerCustomerFieldCollection" },
+                "example": { "data": [
+                  { "key": "contrato", "label": "Contrato", "sort_order": 1, "active": true, "value": "C-102 (exemplo)", "written_by": "partner", "written_at": "2026-10-15T14:00:00Z" },
+                  { "key": "nota", "label": "Nota", "sort_order": 2, "active": true, "value": "Anotação de exemplo", "written_by": "partner", "written_at": "2026-10-15T14:00:00Z" }
+                ] }
+              }
+            }
+          },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "403": { "$ref": "#/components/responses/PartnerInactive" },
+          "404": {
+            "description": "Vínculo inexistente, de outro parceiro ou já encerrado (mesmo status e mesmo corpo), ativo de outro parceiro, ou catálogo ainda não ativado (`Recurso indisponível.`).",
+            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/NotFoundError" }, "example": { "message": "Vínculo não encontrado." } } }
+          },
+          "422": {
+            "description": "Corpo inválido: `values` ausente, vazio ou que não seja objeto; valor que não é texto nem `null`; string vazia ou só espaço; mais de 255 caracteres; Content-Type que não é JSON; chave recusada (a mesma resposta para todas, sem citar a chave); ou corpo que só limpa num vínculo sem ativo. Nada é gravado.",
+            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ValidationError" } } }
+          },
+          "500": {
+            "description": "Falha técnica ao gravar (por exemplo, valor padrão que não decifra). Mensagem fixa, sem valor, sem chave e sem detalhe de banco; nada é gravado.",
+            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/NotFoundError" }, "example": { "message": "Não foi possível gravar os campos agora." } } }
+          }
+        }
+      }
+    },
+    "/api/b2b/v1/custom-fields": {
+      "get": {
+        "tags": [
+          "Custom Fields"
+        ],
+        "summary": "Lista o catálogo de campos personalizados do hub",
+        "x-status": "pull-request-open",
+        "x-last-validated": "2026-10-15",
+        "description": "**Quem pode chamar:** o usuário do Portal do Parceiro (Owner ou Operator) e a **chave de API** do parceiro (`X-Api-Key`), só em `/api/b2b/v1/custom-fields`. No caminho obsoleto sem versão (`/api/b2b/custom-fields`) a chave de API recebe **403**; o Portal funciona nos dois. Há dois **403** distintos: `Parceiro inativo ou suspenso.` (parceiro suspenso) e `Você não tem permissão para administrar o catálogo.` (chave no caminho sem versão, ou usuário ou chave de filial ao criar ou editar). O hub é derivado do servidor a partir do parceiro autenticado; `hub_id`, `partner_id` e `catalog_hub_id` enviados no corpo são ignorados. Se o recurso não foi liberado para o parceiro, ou antes de o catálogo ser ativado, a rota responde **404** com a mesma mensagem, sem distinguir o motivo (falha fechada). As chamadas por chave contam no limite de 1000 requisições por minuto do parceiro. Desativar, nunca excluir: não existe `DELETE`. Nenhuma resposta de erro cita valor, default ou chave recebida.\n\n**Hub** lê o catálogo inteiro, com o `default_value`. **Filial** lê o MESMO catálogo herdado, **sem** a chave `default_value`. Ordem: `sort_order`, `key`, `id`. `meta.limit` é o teto de campos personalizados do hub (20 por padrão; inativos contam). `meta.can_manage` diz se quem chama é o hub (`true`) ou uma filial (`false`), para o Portal esconder os controles de edição; é só informativo.",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/PartnerBranchHeader"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Catálogo do hub (vazio se ainda não há definição).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CustomFieldCollection"
+                },
+                "example": {
+                  "data": [
+                    {
+                      "id": "b3f1c2a0-1234-4abc-9def-0000000000c1",
+                      "key": "cor",
+                      "label": "Cor (exemplo)",
+                      "kind": "custom",
+                      "sort_order": 0,
+                      "is_active": true,
+                      "customer_visible": true,
+                      "customer_editable": false,
+                      "default_value": "Exemplo"
+                    }
+                  ],
+                  "meta": {
+                    "limit": 20,
+                    "count": 1,
+                    "can_manage": true
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "description": "Parceiro inativo ou suspenso, ou chave de API no caminho sem versão.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CatalogError"
+                },
+                "example": {
+                  "message": "Você não tem permissão para administrar o catálogo."
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Catálogo ainda não ativado.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CatalogError"
+                },
+                "example": {
+                  "message": "Recurso indisponível."
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "Custom Fields"
+        ],
+        "summary": "Cria um campo personalizado no catálogo do hub",
+        "x-status": "pull-request-open",
+        "x-last-validated": "2026-10-15",
+        "description": "**Quem pode chamar:** o usuário do Portal do Parceiro (Owner ou Operator) e a **chave de API** do parceiro (`X-Api-Key`), só em `/api/b2b/v1/custom-fields`. No caminho obsoleto sem versão (`/api/b2b/custom-fields`) a chave de API recebe **403**; o Portal funciona nos dois. Há dois **403** distintos: `Parceiro inativo ou suspenso.` (parceiro suspenso) e `Você não tem permissão para administrar o catálogo.` (chave no caminho sem versão, ou usuário ou chave de filial ao criar ou editar). O hub é derivado do servidor a partir do parceiro autenticado; `hub_id`, `partner_id` e `catalog_hub_id` enviados no corpo são ignorados. Se o recurso não foi liberado para o parceiro, ou antes de o catálogo ser ativado, a rota responde **404** com a mesma mensagem, sem distinguir o motivo (falha fechada). As chamadas por chave contam no limite de 1000 requisições por minuto do parceiro. Desativar, nunca excluir: não existe `DELETE`. Nenhuma resposta de erro cita valor, default ou chave recebida.\n\nSó o **hub** cria (usuário de filial recebe **403**). A primeira definição cria o catálogo do hub e a herança de todas as filiais diretas, na mesma transação. Chave `^[a-z][a-z0-9_]{0,49}$`, imutável; nenhuma chave é reservada: o parceiro dá ao campo a chave que fizer sentido para o ativo dele. Rótulo de 1 a 100 caracteres. `default_value` é texto de até 255 caracteres ou `null` e é guardado **cifrado**; é aplicado só aos ativos criados DEPOIS, nunca retroativamente. `customer_editable` exige `customer_visible` (**422**). Chave repetida no hub: **409**. Teto de campos atingido: **422**.",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/PartnerBranchHeader"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateCustomFieldRequest"
+              },
+              "examples": {
+                "basico": {
+                  "summary": "Campo simples",
+                  "value": {
+                    "key": "cor",
+                    "label": "Cor (exemplo)"
+                  }
+                },
+                "com-default-e-cliente": {
+                  "summary": "Com default, visível e editável pelo cliente",
+                  "value": {
+                    "key": "apelido",
+                    "label": "Apelido (exemplo)",
+                    "default_value": "Exemplo",
+                    "sort_order": 2,
+                    "customer_visible": true,
+                    "customer_editable": true
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Campo criado.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CustomFieldEnvelope"
+                },
+                "example": {
+                  "data": {
+                    "id": "b3f1c2a0-1234-4abc-9def-0000000000c2",
+                    "key": "apelido",
+                    "label": "Apelido (exemplo)",
+                    "kind": "custom",
+                    "sort_order": 2,
+                    "is_active": true,
+                    "customer_visible": true,
+                    "customer_editable": true,
+                    "default_value": "Exemplo"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "description": "Parceiro inativo ou suspenso; chave de API no caminho sem versão; usuário ou chave de filial.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CatalogError"
+                },
+                "example": {
+                  "message": "Você não tem permissão para administrar o catálogo."
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Catálogo ainda não ativado.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CatalogError"
+                },
+                "example": {
+                  "message": "Recurso indisponível."
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Já existe um campo com esta chave no hub.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CatalogError"
+                },
+                "example": {
+                  "message": "Já existe um campo com esta chave."
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validação, chave reservada, editável sem visível, ou teto de campos atingido.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CatalogError"
+                },
+                "example": {
+                  "message": "O limite de campos personalizados foi atingido."
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/b2b/v1/custom-fields/{id}": {
+      "patch": {
+        "tags": [
+          "Custom Fields"
+        ],
+        "summary": "Edita, ordena, ativa ou desativa um campo do catálogo",
+        "x-status": "pull-request-open",
+        "x-last-validated": "2026-10-15",
+        "description": "**Quem pode chamar:** o usuário do Portal do Parceiro (Owner ou Operator) e a **chave de API** do parceiro (`X-Api-Key`), só em `/api/b2b/v1/custom-fields`. No caminho obsoleto sem versão (`/api/b2b/custom-fields`) a chave de API recebe **403**; o Portal funciona nos dois. Há dois **403** distintos: `Parceiro inativo ou suspenso.` (parceiro suspenso) e `Você não tem permissão para administrar o catálogo.` (chave no caminho sem versão, ou usuário ou chave de filial ao criar ou editar). O hub é derivado do servidor a partir do parceiro autenticado; `hub_id`, `partner_id` e `catalog_hub_id` enviados no corpo são ignorados. Se o recurso não foi liberado para o parceiro, ou antes de o catálogo ser ativado, a rota responde **404** com a mesma mensagem, sem distinguir o motivo (falha fechada). As chamadas por chave contam no limite de 1000 requisições por minuto do parceiro. Desativar, nunca excluir: não existe `DELETE`. Nenhuma resposta de erro cita valor, default ou chave recebida.\n\nParcial: só as chaves enviadas mudam. `default_value: null` limpa o default. A **chave** (`key`) é imutável: enviá-la é **422**. Desativar (`is_active: false`) **preserva** a definição e todos os valores; um campo inativo não recebe valor novo. Editar não regrava ativos existentes. **Id inexistente, de outro hub ou de campo de sistema respondem o mesmo 404**, com o mesmo corpo.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "Id (UUID) do campo do catálogo. Id malformado responde 404 da própria rota.",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "$ref": "#/components/parameters/PartnerBranchHeader"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateCustomFieldRequest"
+              },
+              "examples": {
+                "desativar": {
+                  "summary": "Desativa o campo",
+                  "value": {
+                    "is_active": false
+                  }
+                },
+                "editar": {
+                  "summary": "Rótulo e ordem",
+                  "value": {
+                    "label": "Novo rótulo (exemplo)",
+                    "sort_order": 5
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Campo atualizado.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CustomFieldEnvelope"
+                },
+                "example": {
+                  "data": {
+                    "id": "b3f1c2a0-1234-4abc-9def-0000000000c2",
+                    "key": "apelido",
+                    "label": "Novo rótulo (exemplo)",
+                    "kind": "custom",
+                    "sort_order": 5,
+                    "is_active": true,
+                    "customer_visible": true,
+                    "customer_editable": true,
+                    "default_value": "Exemplo"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "description": "Parceiro inativo ou suspenso; chave de API no caminho sem versão; usuário ou chave de filial.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CatalogError"
+                },
+                "example": {
+                  "message": "Você não tem permissão para administrar o catálogo."
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Id inexistente, de outro hub, de campo de sistema, ou catálogo ainda não ativado.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CatalogError"
+                },
+                "example": {
+                  "message": "Campo não encontrado."
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validação, `key` enviada, ou editável sem visível.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CatalogError"
+                },
+                "example": {
+                  "message": "A chave do campo é imutável."
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/b2b/v1/tags": {
+      "get": {
+        "tags": ["Tags"],
+        "summary": "Lista as Tags do parceiro, com filtros",
+        "description": "Story E15.24. Uma linha por **vínculo de Tag ativo** de cliente do parceiro. Vale a filial **ativa** (`X-Partner-Branch-Id`): ela vê a carteira dela, e o hub não lê a de uma filial. Vínculo encerrado e Tag de estoque sem vínculo não aparecem. **Modelo de cobrança do parceiro:** parceiro **por assinatura** só vê o vínculo que tem uma assinatura ativa (assinatura pendente, em atraso ou cancelada esconde a Tag); parceiro **consolidado pós-pago** vê todos, com ou sem assinatura. O modelo é lido do parceiro a cada requisição (a filial ativa tem o dela), e o que a lista esconde também não entra no total nem nos filtros. Só leitura (`POST`, `PUT`, `PATCH` e `DELETE` respondem 405). **Esta rota existe só em `/api/b2b/v1`**: o caminho obsoleto sem versão não a tem.\n\n**Filtros** (`filter[...]`, todos combinam com **E**; cada um funciona sozinho): `category`, igualdade sem diferenciar caixa nem espaço nas pontas (acento conta; a caixa de letra com acento segue o banco de dados); `nickname`, contém, sem diferenciar caixa; `custom_fields[<chave>]`, igualdade do valor de um campo personalizado, sem diferenciar caixa, espaço nas pontas, espaço repetido nem a forma Unicode do acento (acento, hífen e espaço interno contam: `LOC-123`, `LOC 123` e `LOC123` são três valores). A `<chave>` é a **chave estável** do campo (a de `GET /custom-fields`), nunca o rótulo; vários campos exigem todos. Não existe \"contém\" em campo personalizado. A vírgula faz parte do texto: `filter[category]=Carro,Moto` busca a categoria literal «Carro,Moto», e não duas. `true` e `false` são texto. Filtro desconhecido, chave de campo que o catálogo do hub não tem, valor vazio em `custom_fields` e lista onde se espera um texto respondem **400**, e a mensagem nunca repete o valor digitado. `sort` não existe aqui e responde 400. `include` só aceita `custom_fields` (ver abaixo); qualquer outro nome responde 400.\n\n**Linha:** chaves fixas. `id` é o do **vínculo** (o mesmo de `/tag-bindings/{id}/custom-fields`). `asset` traz o `id` (`null` enquanto o ativo não foi criado) e, só com `include=custom_fields`, a lista `custom_fields`. `device` traz `id`, `serial` e `status`. Nunca saem coordenadas, IMEI, bateria, dados do cliente nem identificadores internos de busca.\n\n**Campos do ativo na listagem (`include=custom_fields`).** O parâmetro `include` é opcional e o único valor aceito é `custom_fields`; qualquer outro nome (inclusive `custom_fieldsCount`, `custom_fieldsExists` e `device`) responde **400**, e `include=` vazio vale como sem `include`. Com ele, cada linha ganha `asset.custom_fields`, uma lista de objetos com `key`, `label`, `sort_order`, `active`, `value`, `written_by` e `written_at`: a mesma projeção, na mesma ordem, de `GET /tag-bindings/{id}/custom-fields`. Sem `include`, a chave não existe. Regras: a lista é vazia (`[]`) quando o recurso de campos personalizados não está ligado ou liberado para o parceiro; campo inativo só aparece com valor salvo; o ativo só é entregue ao parceiro dono dele (linha sem ativo traz os campos ativos do catálogo com `value: null`). O custo da página não depende de `per_page` (máximo de 100 Tags por página; até 20 campos por catálogo). Valor é dado pessoal: se algum valor da página não puder ser lido, a página inteira responde **500** com a mensagem fixa «Não foi possível ler os campos agora.», sem valor, sem chave e sem detalhe interno. O trajeto e a distância de uma Tag não ganham `custom_fields`.\n\n**Comunicação.** `last_communication_at`: instante, pela hora da plataforma, em que chegou o registro de posição mais recente deste aparelho (o mais recente pelo relógio dele), contado desde o início do vínculo atual. Registro com coordenada inválida conta; pacote que só traz bateria não conta; um lote atrasado de pontos antigos não faz a Tag parecer ao vivo. Vazio se nada chegou. `last_position_at`: hora, pelo relógio do aparelho, da última posição com coordenada plausível desde o início do vínculo atual (dentro dos limites da Terra, diferente de (0, 0), marcada como válida pelo aparelho e sem hora no futuro além de 1 minuto); não garante fixação de satélite. `online`: verdadeiro se a última comunicação foi nos últimos 60 minutos (inclusive), contados de `meta.generated_at`. É uma regra de recência, não tempo real: um aparelho funcionando pode aparecer como offline por atraso de entrega. Não recalcule no cliente.\n\n**Resposta.** `meta.generated_at` é o instante, pela hora da plataforma, em que a resposta foi montada (duas respostas não formam um retrato único) e `meta.online_threshold_minutes` é o limite usado em `online`. Ordem estável: vínculo mais recente primeiro, desempate pelo id. `per_page` vai de 1 a 100 (padrão 25); fora disso é **422**, nunca corte silencioso.",
+        "x-status": "pull-request-open",
+        "x-last-validated": "2026-10-15",
+        "parameters": [
+          { "$ref": "#/components/parameters/PartnerBranchHeader" },
+          {
+            "name": "filter",
+            "in": "query",
+            "style": "deepObject",
+            "explode": true,
+            "description": "Todos opcionais; combinam com E. Exemplos: `filter[category]=carro`, `filter[custom_fields][contrato]=loc-123`.",
+            "schema": {
+              "type": "object",
+              "properties": {
+                "category": { "type": "string", "description": "Igualdade, sem diferenciar caixa nem espaço nas pontas." },
+                "nickname": { "type": "string", "description": "Contém, sem diferenciar caixa." },
+                "custom_fields": { "type": "object", "description": "Chave estável do campo => texto buscado (igualdade). Vários campos exigem todos.", "additionalProperties": { "type": "string" } }
+              }
+            }
+          },
+          { "name": "include", "in": "query", "required": false, "description": "Opcional. O único valor aceito é `custom_fields`, que acrescenta `asset.custom_fields` a cada linha. Qualquer outro nome responde 400; vazio vale como sem `include`.", "schema": { "type": "string", "enum": ["custom_fields"] } },
+          { "name": "per_page", "in": "query", "description": "Tamanho de página, de 1 a 100. Padrão 25. Fora do intervalo é 422.", "schema": { "type": "integer", "default": 25, "minimum": 1, "maximum": 100 } },
+          { "name": "page", "in": "query", "description": "Página (a partir de 1).", "schema": { "type": "integer", "default": 1, "minimum": 1 } }
+        ],
+        "responses": {
+          "200": {
+            "description": "Página de Tags, com `links` e `meta`. Com `include=custom_fields`, cada linha traz `asset.custom_fields` (exemplos abaixo).",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/PartnerTagCollection" },
+                "examples": {
+                  "semInclude": {
+                    "summary": "Sem include",
+                    "value": {
+                  "data": [
+                    {
+                      "id": "01a141ea-01a9-7025-920f-90db11dde251",
+                      "nickname": "Fiorino da entrega",
+                      "category": "Carro",
+                      "icon": "car",
+                      "asset": { "id": "01a141ea-01c8-72d7-bd59-ca95e73b61ca" },
+                      "device": { "id": "01a141ea-01a5-7346-8aab-1b00801c5741", "serial": "TT-00000001", "status": "assigned_to_partner" },
+                      "last_communication_at": "2026-10-15T11:48:00+00:00",
+                      "last_position_at": "2026-10-15T11:47:00+00:00",
+                      "online": true
+                    }
+                  ],
+                  "links": { "first": "https://core.clubtrack.com.br/api/b2b/v1/tags?page=1", "last": "https://core.clubtrack.com.br/api/b2b/v1/tags?page=1", "prev": null, "next": null },
+                  "meta": { "current_page": 1, "from": 1, "last_page": 1, "path": "https://core.clubtrack.com.br/api/b2b/v1/tags", "per_page": 25, "to": 1, "total": 1, "generated_at": "2026-10-15T12:00:00+00:00", "online_threshold_minutes": 60 }
+                }
+                  },
+                  "comInclude": {
+                    "summary": "Com include=custom_fields (valores fictícios; a segunda linha ainda não tem ativo)",
+                    "value": {
+                      "data": [
+                        {
+                          "id": "01a141ea-01a9-7025-920f-90db11dde251",
+                          "nickname": "Fiorino da entrega",
+                          "category": "Carro",
+                          "icon": "car",
+                          "asset": {
+                            "id": "01a141ea-01c8-72d7-bd59-ca95e73b61ca",
+                            "custom_fields": [
+                              { "key": "contrato", "label": "Contrato", "sort_order": 1, "active": true, "value": "CT-2026-0001", "written_by": "partner", "written_at": "2026-10-14T09:30:00Z" },
+                              { "key": "cor", "label": "Cor", "sort_order": 2, "active": true, "value": "Azul", "written_by": "customer", "written_at": "2026-10-14T10:05:00Z" }
+                            ]
+                          },
+                          "device": { "id": "01a141ea-01a5-7346-8aab-1b00801c5741", "serial": "TT-00000001", "status": "assigned_to_partner" },
+                          "last_communication_at": "2026-10-15T11:48:00+00:00",
+                          "last_position_at": "2026-10-15T11:47:00+00:00",
+                          "online": true
+                        },
+                        {
+                          "id": "01a141ea-01a9-7025-920f-90db11dde252",
+                          "nickname": "Moto reserva",
+                          "category": "Moto",
+                          "icon": "motorcycle",
+                          "asset": {
+                            "id": null,
+                            "custom_fields": [
+                              { "key": "contrato", "label": "Contrato", "sort_order": 1, "active": true, "value": null, "written_by": null, "written_at": null },
+                              { "key": "cor", "label": "Cor", "sort_order": 2, "active": true, "value": null, "written_by": null, "written_at": null }
+                            ]
+                          },
+                          "device": { "id": "01a141ea-01a5-7346-8aab-1b00801c5742", "serial": "TT-00000002", "status": "assigned_to_partner" },
+                          "last_communication_at": null,
+                          "last_position_at": null,
+                          "online": false
+                        }
+                      ],
+                      "links": { "first": "https://core.clubtrack.com.br/api/b2b/v1/tags?page=1", "last": "https://core.clubtrack.com.br/api/b2b/v1/tags?page=1", "prev": null, "next": null },
+                      "meta": { "current_page": 1, "from": 1, "last_page": 1, "path": "https://core.clubtrack.com.br/api/b2b/v1/tags", "per_page": 25, "to": 2, "total": 2, "generated_at": "2026-10-15T12:00:00+00:00", "online_threshold_minutes": 60 }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": { "$ref": "#/components/responses/BadRequestFilterSort" },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "403": { "$ref": "#/components/responses/PartnerInactive" },
+          "422": { "$ref": "#/components/responses/ValidationFailed" },
+          "500": {
+            "description": "Só com `include=custom_fields`: algum valor da página não pôde ser lido. A página inteira falha, sem resposta parcial. Mensagem fixa, sem valor, sem chave e sem detalhe interno.",
+            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/NotFoundError" }, "example": { "message": "Não foi possível ler os campos agora." } } }
+          }
+        }
+      }
+    },
+    "/api/b2b/v1/tags/{id}/track": {
+      "get": {
+        "tags": ["Tags"],
+        "summary": "Trajeto de uma Tag num período",
+        "description": "Story E15.25. O trajeto de **uma Tag** num período. `{id}` é o **id do vínculo** que `GET /api/b2b/v1/tags` devolve. A Tag precisa ser uma que a lista mostraria a você (vínculo ativo de cliente seu, e visível pelo seu modelo de cobrança); **inexistente, de outro parceiro, encerrada, de outra filial e escondida pelo modelo de cobrança respondem o mesmo 404**, com o mesmo corpo. Vale a filial **ativa** (`X-Partner-Branch-Id`). Só leitura. **Esta rota existe só em `/api/b2b/v1`**.\n\n**Período.** `filter[from]` e `filter[to]` são obrigatórios, em ISO 8601 com data e hora (`2026-10-01T00:00:00Z`; um deslocamento como `-03:00` é convertido para UTC e, sem deslocamento, vale UTC; só a data não é aceita). As duas pontas são **incluídas**. `from` não pode ser depois de `to`, e o período vai **até 90 dias**: acima disso é **422**, e a API nunca trunca em silêncio (divida a consulta). Filtro desconhecido, `sort` e `include` são 400.\n\n**O que entra.** Só posições dentro dos períodos em que o **ativo** (o `asset` da Tag) esteve vinculado a cliente **seu**: o vínculo pedido e os outros vínculos do mesmo ativo (quando o ativo continuou numa Tag nova, os períodos das Tags anteriores contam e você recebe o percurso contínuo). Cada período de posse é semiaberto: a posição na hora exata do início entra, a da hora exata do fim não (o aparelho já é de outro vínculo). Posições de antes, de depois e de outro dono ou outro parceiro que usou o mesmo aparelho **nunca** entram. Só posição com coordenada plausível (dentro dos limites da Terra, diferente de (0, 0), marcada como válida pelo aparelho e sem hora no futuro além de 1 minuto).\n\n**Resposta.** `tag` (os mesmos dados de uma linha da lista), `period` (em UTC) e `positions[]` com `latitude`, `longitude`, `recorded_at` (hora do aparelho, `+00:00`) e `device_id`: o `device_id` de cada posição permite quebrar a linha no mapa quando o rastreador mudou. Ordem `(recorded_at, id)`, crescente. **Paginação por cursor**: `per_page` de 1 a 1000 (padrão 100); `meta.next_cursor` (e `links.next`) vem preenchido enquanto houver mais; guarde-o e envie em `cursor` junto dos **mesmos** `filter[from]` e `filter[to]`. O cursor vale só para este vínculo e este período (outro é 422). O percurso não repete nem pula posição entre páginas; um ponto que chega atrasado depois da primeira página aparece num percurso **novo**, nunca duplica o atual. Nunca saem IMEI, bateria, velocidade, satélites nem dados do cliente.",
+        "x-status": "pull-request-open",
+        "x-last-validated": "2026-10-15",
+        "parameters": [
+          { "$ref": "#/components/parameters/PartnerBranchHeader" },
+          { "name": "id", "in": "path", "required": true, "description": "Id do vínculo da Tag (o `id` de uma linha de `GET /tags`).", "schema": { "type": "string", "format": "uuid" } },
+          {
+            "name": "filter",
+            "in": "query",
+            "required": true,
+            "style": "deepObject",
+            "explode": true,
+            "description": "`filter[from]` e `filter[to]`, obrigatórios, ISO 8601 com data e hora. Pontas incluídas. Período de até 90 dias.",
+            "schema": {
+              "type": "object",
+              "required": ["from", "to"],
+              "properties": {
+                "from": { "type": "string", "description": "Início (incluído). Ex.: `2026-10-01T00:00:00Z`." },
+                "to": { "type": "string", "description": "Fim (incluído). Ex.: `2026-10-08T00:00:00Z`." }
+              }
+            }
+          },
+          { "name": "per_page", "in": "query", "description": "Posições por página, de 1 a 1000. Padrão 100. Fora do intervalo é 422.", "schema": { "type": "integer", "default": 100, "minimum": 1, "maximum": 1000 } },
+          { "name": "cursor", "in": "query", "description": "O `meta.next_cursor` da página anterior, com os MESMOS `filter[from]` e `filter[to]`. De outro vínculo ou de outro período é 422.", "schema": { "type": "string", "maxLength": 300 } }
+        ],
+        "responses": {
+          "200": {
+            "description": "Uma página do trajeto.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/TagTrack" },
+                "example": {
+                  "tag": {
+                    "id": "01a141ea-01a9-7025-920f-90db11dde251",
+                    "nickname": "Fiorino da entrega",
+                    "category": "Carro",
+                    "icon": "car",
+                    "asset": { "id": "01a141ea-01c8-72d7-bd59-ca95e73b61ca" },
+                    "device": { "id": "01a141ea-01a5-7346-8aab-1b00801c5741", "serial": "TT-00000001", "status": "assigned_to_partner" },
+                    "last_communication_at": "2026-10-15T11:48:00+00:00",
+                    "last_position_at": "2026-10-15T11:47:00+00:00",
+                    "online": true
+                  },
+                  "period": { "from": "2026-10-01T00:00:00+00:00", "to": "2026-10-08T00:00:00+00:00", "timezone": "UTC" },
+                  "positions": [
+                    { "latitude": -25.4284, "longitude": -49.2733, "recorded_at": "2026-10-01T08:00:00+00:00", "device_id": "01a141ea-01a5-7346-8aab-1b00801c5741" }
+                  ],
+                  "links": { "next": null },
+                  "meta": { "per_page": 100, "next_cursor": null, "generated_at": "2026-10-15T12:00:00+00:00" }
+                }
+              }
+            }
+          },
+          "400": { "$ref": "#/components/responses/BadRequestFilterSort" },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "403": { "$ref": "#/components/responses/PartnerInactive" },
+          "404": { "$ref": "#/components/responses/NotFound" },
+          "422": { "$ref": "#/components/responses/ValidationFailed" }
+        }
+      }
+    },
+    "/api/b2b/v1/tags/{id}/distance": {
+      "get": {
+        "tags": ["Tags"],
+        "summary": "Distância estimada de uma Tag num período",
+        "description": "Story E15.10. A distância **estimada** que **uma Tag** andou num período. `{id}` é o **id do vínculo** que `GET /api/b2b/v1/tags` devolve; o acesso, o 404 único, o período e as posições que contam são **os mesmos do trajeto** (`GET /api/b2b/v1/tags/{id}/track`): a Tag precisa ser uma que a lista mostraria a você, e inexistente, de outro parceiro, encerrada, de outra filial e escondida pelo modelo de cobrança respondem o mesmo 404. Vale a filial **ativa** (`X-Partner-Branch-Id`). Só leitura. **Esta rota existe só em `/api/b2b/v1`**.\n\n**Período.** `filter[from]` e `filter[to]` obrigatórios, em ISO 8601 com data e hora (`2026-10-01T00:00:00Z`; um deslocamento é convertido para UTC e, sem deslocamento, vale UTC). As duas pontas são **incluídas**. `from` não pode ser depois de `to`, e o período vai **até 90 dias**: acima disso é **422**, sem truncar em silêncio. Filtro desconhecido, `sort` e `include` são 400.\n\n**Como é calculada.** Soma, em linha reta, dos trechos entre **posições válidas consecutivas** (fórmula de Haversine, raio médio da Terra de 6.371.008,8 m) dentro de cada período de posse. **Nunca liga duas posses diferentes**: quando a Tag mudou de aparelho, ou o aparelho passou a outro dono ou outro parceiro, a distância é a soma de cada período, sem trecho entre o fim de um e o começo do outro. Um trecho que cruza a borda do período pedido não conta (só há trecho entre duas posições dentro do período). Sem posição, ou com uma só, a distância é **0**.\n\n**É uma estimativa, não um odômetro.** O GPS parado pode oscilar e inflar o número, e poucas posições podem fazer a distância parecer menor do que foi. Nenhum filtro de oscilação é aplicado, e a resposta diz o método (`method`). Use como ordem de grandeza.\n\n**Resposta.** `tag` (os mesmos dados de uma linha da lista), `period` (em UTC) e `distance` com `meters` (uma casa), `kilometers` (três casas), `points_count` (quantas posições válidas entraram), `first_point_at` e `last_point_at` (hora do aparelho; nulos sem posição) e `method`. A resposta não traz coordenada, aparelho nem dados do cliente.",
+        "x-status": "pull-request-open",
+        "x-last-validated": "2026-10-16",
+        "parameters": [
+          { "$ref": "#/components/parameters/PartnerBranchHeader" },
+          { "name": "id", "in": "path", "required": true, "description": "Id do vínculo da Tag (o `id` de uma linha de `GET /tags`).", "schema": { "type": "string", "format": "uuid" } },
+          {
+            "name": "filter",
+            "in": "query",
+            "required": true,
+            "style": "deepObject",
+            "explode": true,
+            "description": "`filter[from]` e `filter[to]`, obrigatórios, ISO 8601 com data e hora. Pontas incluídas. Período de até 90 dias.",
+            "schema": {
+              "type": "object",
+              "required": ["from", "to"],
+              "properties": {
+                "from": { "type": "string", "description": "Início (incluído). Ex.: `2026-10-01T00:00:00Z`." },
+                "to": { "type": "string", "description": "Fim (incluído). Ex.: `2026-10-08T00:00:00Z`." }
+              }
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "A distância estimada no período.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/TagDistance" },
+                "example": {
+                  "tag": {
+                    "id": "01a141ea-01a9-7025-920f-90db11dde251",
+                    "nickname": "Fiorino da entrega",
+                    "category": "Carro",
+                    "icon": "car",
+                    "asset": { "id": "01a141ea-01c8-72d7-bd59-ca95e73b61ca" },
+                    "device": { "id": "01a141ea-01a5-7346-8aab-1b00801c5741", "serial": "TT-00000001", "status": "assigned_to_partner" },
+                    "last_communication_at": "2026-10-15T11:48:00+00:00",
+                    "last_position_at": "2026-10-15T11:47:00+00:00",
+                    "online": true
+                  },
+                  "period": { "from": "2026-10-01T00:00:00+00:00", "to": "2026-10-08T00:00:00+00:00", "timezone": "UTC" },
+                  "distance": { "meters": 18432.7, "kilometers": 18.433, "points_count": 412, "first_point_at": "2026-10-01T08:00:00+00:00", "last_point_at": "2026-10-07T21:30:00+00:00", "method": "straight_line_between_consecutive_valid_points" },
+                  "meta": { "generated_at": "2026-10-15T12:00:00+00:00" }
+                }
+              }
+            }
+          },
+          "400": { "$ref": "#/components/responses/BadRequestFilterSort" },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "403": { "$ref": "#/components/responses/PartnerInactive" },
+          "404": { "$ref": "#/components/responses/NotFound" },
+          "422": { "$ref": "#/components/responses/ValidationFailed" }
+        }
+      }
+    },
+    "/api/b2b/v1/devices": {
+      "get": {
+        "tags": ["Devices"],
+        "summary": "Lista dispositivos do parceiro",
+        "description": "Escopo: `DeviceModel::where('partner_id', resolved_partner_id)`.\n\n**Janela de visibilidade da posição.** Rotas afetadas: `locations`, `locations/latest` e `include=statusHistories` em `devices` e `devices/{id}`. Com `include=statusHistories`, o parceiro lê só as linhas a partir da última entrada dele no aparelho; falha fechada se não houver entrada. O que não muda: as chaves do JSON e o 403 de posse não mudam nesta mudança (desde a versão 1.9.0 o acesso a aparelho de outro parceiro responde 404, ver as notas). Quem perde: o parceiro que devolveu o aparelho deixa de ler clientes novos e o histórico de status dele começa na última entrada dele. Vigência: vale a partir do dia da implantação desta versão em produção, sem fase de transição. Prazo para os integradores: sem prazo de espera; a regra é a mesma para parceiro por assinatura e para parceiro consolidado.",
+        "x-status": "merged-main-not-deployed",
+        "parameters": [
+          { "$ref": "#/components/parameters/PartnerBranchHeader" },
+          {
+            "name": "filter",
+            "in": "query",
+            "style": "deepObject",
+            "explode": true,
+            "description": "`serial`/`model` são busca parcial. `assignedToPartner` é o próprio nome do scope, sem alias (`?filter[assignedToPartner]=1`).",
+            "schema": {
+              "type": "object",
+              "properties": {
+                "status": { "$ref": "#/components/schemas/DeviceStatus" },
+                "serial": { "type": "string", "description": "Busca parcial." },
+                "model": { "type": "string", "description": "Busca parcial." },
+                "active": { "type": "string" },
+                "inactive": { "type": "string" },
+                "assignedToPartner": { "type": "string" },
+                "registered_after": { "type": "string", "format": "date-time" },
+                "registered_before": { "type": "string", "format": "date-time" }
+              }
+            }
+          },
+          {
+            "name": "sort",
+            "in": "query",
+            "description": "Valores permitidos: `created_at`, `registered_at`, `serial`, `status`.",
+            "schema": { "type": "string" }
+          },
+          {
+            "name": "include",
+            "in": "query",
+            "description": "Único valor permitido: `statusHistories`.",
+            "schema": { "type": "string" }
+          },
+          { "$ref": "#/components/parameters/PerPage" }
+        ],
+        "responses": {
+          "200": { "description": "Coleção paginada.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/DeviceCollection" } } } },
+          "400": { "$ref": "#/components/responses/BadRequestFilterSort" },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "403": { "$ref": "#/components/responses/PartnerInactive" }
+        }
+      }
+    },
+    "/api/b2b/v1/devices/{id}": {
+      "get": {
+        "tags": ["Devices"],
+        "summary": "Exibe um dispositivo do parceiro",
+        "description": "404 «Dispositivo não encontrado.» tanto para device inexistente quanto para device de outro parceiro, de propósito (mesma resposta). 403 só para parceiro inativo ou suspenso.\n\n**Janela de visibilidade da posição.** Rotas afetadas: `locations`, `locations/latest` e `include=statusHistories` em `devices` e `devices/{id}`. Com `include=statusHistories`, o parceiro lê só as linhas a partir da última entrada dele no aparelho; falha fechada se não houver entrada. O que não muda: as chaves do JSON e o 403 de posse não mudam nesta mudança (desde a versão 1.9.0 o acesso a aparelho de outro parceiro responde 404, ver as notas). Quem perde: o parceiro que devolveu o aparelho deixa de ler clientes novos e o histórico de status dele começa na última entrada dele. Vigência: vale a partir do dia da implantação desta versão em produção, sem fase de transição. Prazo para os integradores: sem prazo de espera; a regra é a mesma para parceiro por assinatura e para parceiro consolidado.",
+        "x-status": "merged-main-not-deployed",
+        "parameters": [
+          { "$ref": "#/components/parameters/PartnerBranchHeader" },
+          { "name": "id", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } },
+          { "name": "include", "in": "query", "description": "Único valor permitido: `statusHistories`.", "schema": { "type": "string" } }
+        ],
+        "responses": {
+          "200": { "description": "Dispositivo encontrado.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/DeviceEnvelope" } } } },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "403": { "$ref": "#/components/responses/PartnerInactive" },
+          "404": { "description": "Dispositivo inexistente ou de outro parceiro, sem distinguir.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/NotFoundError" }, "example": { "message": "Dispositivo não encontrado." } } } }
+        }
+      }
+    },
+    "/api/b2b/v1/subscriptions": {
+      "get": {
+        "tags": ["Subscriptions"],
+        "summary": "Lista assinaturas do parceiro",
+        "description": "Parceiro suspenso ou inativo recebe 403. `plan` e `tagBindings.customer` são **sempre** eager-loaded aqui (incondicional, não depende de `?include=` — que, aliás, não é permitido: qualquer `?include=` retorna 400 nesta rota).",
+        "x-status": "merged-main-not-deployed",
+        "parameters": [
+          { "$ref": "#/components/parameters/PartnerBranchHeader" },
+          {
+            "name": "filter",
+            "in": "query",
+            "style": "deepObject",
+            "explode": true,
+            "description": "`pastDue` é o próprio nome do scope, sem alias (`?filter[pastDue]=1`).",
+            "schema": {
+              "type": "object",
+              "properties": {
+                "status": { "$ref": "#/components/schemas/SubscriptionStatus" },
+                "active": { "type": "string" },
+                "pastDue": { "type": "string" }
+              }
+            }
+          },
+          {
+            "name": "sort",
+            "in": "query",
+            "description": "Valores permitidos: `next_billing_date`, `created_at`.",
+            "schema": { "type": "string" }
+          },
+          { "$ref": "#/components/parameters/PerPage" }
+        ],
+        "responses": {
+          "200": { "description": "Coleção paginada — cada item já vem com `plan` e `customer` (via `tagBindings.customer`).", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/SubscriptionCollection" } } } },
+          "400": { "$ref": "#/components/responses/BadRequestFilterSort" },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "403": { "$ref": "#/components/responses/PartnerInactive" }
+        }
+      },
+      "post": {
+        "tags": ["Subscriptions"],
+        "summary": "Cria uma assinatura",
+        "description": "Guards de negócio, na ordem — 404/422/409/502 conforme a falha (403 só para parceiro inativo ou suspenso):\n1. Todos os `tag_binding_ids` existem e pertencem a Customer do parceiro autenticado (contagem estrita) → senão **404** «Um ou mais vínculos de tag não foram encontrados.» (id inexistente ou de outro parceiro, sem distinguir; antes era 422/403).\n2. Todos os `tag_binding_ids` pertencem ao **mesmo** Customer → senão **422**.\n3. `plan_id` existe e pertence ao parceiro autenticado → senão **404** «Plano não encontrado.». O **422** fica para formato inválido (não-UUID), vínculos duplicados e regras de quota ou de cliente.\n4. `count(tag_binding_ids) <= plan.tag_quota` → senão **422** (retorna `tag_quota` e `tag_binding_ids_count` no corpo).\n5. Assinatura duplicada (`DuplicateSubscriptionException`) → **409**.\n6. Cobrança no gateway falhou (`SubscriptionChargeFailedException`) → **502**.\n\nResposta de criação: `plan` **ausente** (não eager-loaded no store), `customer` presente com **valor `null`** (a checagem interna de `relationLoaded` não é satisfeita nesta rota, diferente do `index`).",
+        "x-status": "merged-main-not-deployed",
+        "parameters": [{ "$ref": "#/components/parameters/PartnerBranchHeader" }],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/CreateSubscriptionRequest" },
+              "example": { "tag_binding_ids": ["b3f1c2a0-1234-4abc-9def-000000000001"], "plan_id": "c4a2d3b1-5678-4def-8abc-000000000002", "payment_method": "pix_automatico" }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Assinatura criada. Ver descrição sobre `plan` ausente e `customer` nulo nesta resposta específica.",
+            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/SubscriptionEnvelope" } } }
+          },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "403": { "$ref": "#/components/responses/PartnerInactive" },
+          "404": {
+            "description": "Vínculo de tag ou plano inexistente ou de outro parceiro, sem distinguir.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/NotFoundError" },
+                "examples": {
+                  "tag_binding": { "value": { "message": "Um ou mais vínculos de tag não foram encontrados." } },
+                  "plan": { "value": { "message": "Plano não encontrado." } }
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Assinatura duplicada para o(s) mesmo(s) tag_binding_ids/plan.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ConflictError" },
+                "example": { "message": "Já existe uma assinatura ativa para este(s) vínculo(s).", "tag_binding_ids": ["b3f1c2a0-1234-4abc-9def-000000000001"], "plan_id": "c4a2d3b1-5678-4def-8abc-000000000002" }
+              }
+            }
+          },
+          "422": {
+            "description": "Formato inválido (por exemplo, id que não é UUID), vínculos de clientes diferentes na mesma assinatura, ou quota do plano excedida.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ValidationError" },
+                "examples": {
+                  "clientes_diferentes": { "value": { "message": "Todos os vínculos de uma assinatura precisam ser do mesmo cliente." } },
+                  "quota_excedida": { "value": { "message": "Este plano permite no máximo 1 tag(s).", "tag_quota": 1, "tag_binding_ids_count": 3 } }
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "Cobrança no gateway de pagamento falhou — assinatura não foi criada com sucesso.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/BadGatewayError" },
+                "example": { "message": "Falha ao processar cobrança no gateway.", "subscription_id": "d5b3e4c2-9012-4abc-9def-000000000003" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/b2b/v1/subscriptions/{id}": {
+      "get": {
+        "tags": ["Subscriptions"],
+        "summary": "Exibe uma assinatura do parceiro",
+        "description": "404 «Assinatura não encontrada.» para inexistente ou de outro parceiro (mesma resposta, de propósito); 403 só para parceiro inativo ou suspenso. **Diferente do `index`: aqui só `tagBindings` é eager-loaded** — `plan` e `customer` (que depende de `tagBindings.customer`) ficam ausentes na resposta.",
+        "x-status": "merged-main-not-deployed",
+        "parameters": [
+          { "$ref": "#/components/parameters/PartnerBranchHeader" },
+          { "name": "id", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } }
+        ],
+        "responses": {
+          "200": { "description": "Assinatura encontrada (sem `plan`/`customer` no corpo, ver descrição).", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/SubscriptionEnvelope" } } } },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "403": { "$ref": "#/components/responses/PartnerInactive" },
+          "404": { "description": "Assinatura inexistente ou de outro parceiro, sem distinguir.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/NotFoundError" }, "example": { "message": "Assinatura não encontrada." } } } }
+        }
+      }
+    },
+    "/api/b2b/v1/plans": {
+      "get": {
+        "tags": ["Plans"],
+        "summary": "Lista o catálogo de planos do parceiro",
+        "description": "Parceiro suspenso ou inativo recebe 403. Não existe `GET /api/b2b/v1/plans/{id}` — só listagem. `features` é sempre eager-loaded (incondicional).",
+        "x-status": "merged-main-not-deployed",
+        "parameters": [
+          { "$ref": "#/components/parameters/PartnerBranchHeader" },
+          {
+            "name": "filter",
+            "in": "query",
+            "style": "deepObject",
+            "explode": true,
+            "schema": {
+              "type": "object",
+              "properties": {
+                "status": { "$ref": "#/components/schemas/PlanStatus" },
+                "billing_cycle": { "$ref": "#/components/schemas/BillingCycle" },
+                "active": { "type": "string" }
+              }
+            }
+          },
+          {
+            "name": "sort",
+            "in": "query",
+            "description": "Valores permitidos: `created_at`, `price_cents`, `name`.",
+            "schema": { "type": "string" }
+          },
+          { "$ref": "#/components/parameters/PerPage" }
+        ],
+        "responses": {
+          "200": { "description": "Coleção paginada de planos.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/PlanCollection" } } } },
+          "400": { "$ref": "#/components/responses/BadRequestFilterSort" },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "403": { "$ref": "#/components/responses/PartnerInactive" }
+        }
+      }
+    },
+    "/api/b2b/v1/devices/{deviceId}/locations": {
+      "get": {
+        "tags": ["Locations"],
+        "summary": "Histórico de posições GPS de um dispositivo",
+        "description": "**Somente API Key** (`partner.api_key`) — não aceita login humano (Sanctum), diferente da maioria das outras rotas B2B.\n\n**Janela de visibilidade da posição.** Rotas afetadas: `locations`, `locations/latest` e `include=statusHistories` em `devices` e `devices/{id}`. Regra: a posição aparece se existe vínculo de cliente do parceiro com bound_at <= recorded_at < unbound_at. Novo observável: `index` fora da janela é 200 com `data: []`; `latest` é a última posição do período ou 404. O que não muda: as chaves do JSON e o 403 de posse não mudam nesta mudança (desde a versão 1.9.0 o acesso a aparelho de outro parceiro responde 404, ver as notas). Quem perde: o parceiro que devolveu o aparelho deixa de ler clientes novos e o histórico de status dele começa na última entrada dele. Vigência: vale a partir do dia da implantação desta versão em produção, sem fase de transição. Prazo para os integradores: sem prazo de espera; a regra é a mesma para parceiro por assinatura e para parceiro consolidado. Exemplo: o parceiro tem o cliente X no aparelho de 2026-03-01 12:00:00 a 2026-03-11 12:00:00 (bound_at e unbound_at). Posições gravadas em 2026-02-28 12:00:00, 2026-03-01 12:00:00, 2026-03-05 12:00:00, 2026-03-11 12:00:00 e 2026-03-15 12:00:00: `index` devolve só as de 2026-03-01 12:00:00 (entra, igual a bound_at) e 2026-03-05 12:00:00; a de 2026-03-11 12:00:00 não entra (igual a unbound_at); `latest` devolve a de 2026-03-05 12:00:00.\n\n`filter[moving]`/`filter[stopped]` **não são booleanos** apesar do nome — são limiares de velocidade em km/h (`speed_kmh > X` / `speed_kmh <= X`, default 3.0 quando a chave está presente sem valor útil no scope). `?filter[moving]=1` filtra `speed_kmh > 1`, não \"true\".\n\n`per_page` default **100** (diferente das demais listagens B2B, que usam 25).",
+        "x-status": "merged-main-not-deployed",
+        "parameters": [
+          { "name": "deviceId", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } },
+          {
+            "name": "filter",
+            "in": "query",
+            "style": "deepObject",
+            "explode": true,
+            "schema": {
+              "type": "object",
+              "properties": {
+                "from": { "type": "string", "format": "date-time", "description": "`scopeRecordedAfter`." },
+                "to": { "type": "string", "format": "date-time", "description": "`scopeRecordedBefore`." },
+                "moving": { "type": "number", "format": "double", "description": "Limiar de velocidade km/h (não booleano) — filtra `speed_kmh > X`. Default do scope: 3.0." },
+                "stopped": { "type": "number", "format": "double", "description": "Limiar de velocidade km/h (não booleano) — filtra `speed_kmh <= X`. Default do scope: 3.0." },
+                "min_speed": { "type": "number", "format": "double" },
+                "max_speed": { "type": "number", "format": "double" },
+                "min_satellites": { "type": "integer" }
+              }
+            }
+          },
+          {
+            "name": "sort",
+            "in": "query",
+            "description": "Valores permitidos: `recorded_at`, `speed_kmh`, `accuracy_meters`.",
+            "schema": { "type": "string" }
+          },
+          { "name": "include", "in": "query", "description": "Único valor permitido: `device`.", "schema": { "type": "string" } },
+          { "name": "per_page", "in": "query", "description": "Tamanho de página, de 1 a 100. Padrão 100 (diferente das demais listagens). Valor fora desse intervalo responde 422.", "schema": { "type": "integer", "minimum": 1, "maximum": 100, "default": 100 } }
+        ],
+        "responses": {
+          "200": { "description": "Coleção paginada de posições.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/GpsLocationCollection" } } } },
+          "400": { "$ref": "#/components/responses/BadRequestFilterSort" },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "403": { "$ref": "#/components/responses/PartnerInactive" },
+          "404": { "description": "Dispositivo inexistente ou de outro parceiro, sem distinguir.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/NotFoundError" }, "example": { "message": "Dispositivo não encontrado." } } } },
+          "422": { "$ref": "#/components/responses/ValidationFailed" }
+        }
+      }
+    },
+    "/api/b2b/v1/devices/{deviceId}/locations/latest": {
+      "get": {
+        "tags": ["Locations"],
+        "summary": "Última posição GPS conhecida do dispositivo",
+        "description": "**Somente API Key.** `firstOrFail()` sobre a janela, ordenado por `recorded_at` decrescente — 404 em dois casos: «Dispositivo não encontrado.» (inexistente ou de outro parceiro, sem distinguir) e «Nenhuma posição encontrada para este dispositivo.» (aparelho do parceiro sem registro de GPS na janela do vínculo).\n\n**Janela de visibilidade da posição.** Rotas afetadas: `locations`, `locations/latest` e `include=statusHistories` em `devices` e `devices/{id}`. Regra: a posição aparece se existe vínculo de cliente do parceiro com bound_at <= recorded_at < unbound_at. Novo observável: `index` fora da janela é 200 com `data: []`; `latest` é a última posição do período ou 404. O que não muda: as chaves do JSON e o 403 de posse não mudam nesta mudança (desde a versão 1.9.0 o acesso a aparelho de outro parceiro responde 404, ver as notas). Quem perde: o parceiro que devolveu o aparelho deixa de ler clientes novos e o histórico de status dele começa na última entrada dele. Vigência: vale a partir do dia da implantação desta versão em produção, sem fase de transição. Prazo para os integradores: sem prazo de espera; a regra é a mesma para parceiro por assinatura e para parceiro consolidado. Exemplo: o parceiro tem o cliente X no aparelho de 2026-03-01 12:00:00 a 2026-03-11 12:00:00 (bound_at e unbound_at). Posições gravadas em 2026-02-28 12:00:00, 2026-03-01 12:00:00, 2026-03-05 12:00:00, 2026-03-11 12:00:00 e 2026-03-15 12:00:00: `index` devolve só as de 2026-03-01 12:00:00 (entra, igual a bound_at) e 2026-03-05 12:00:00; a de 2026-03-11 12:00:00 não entra (igual a unbound_at); `latest` devolve a de 2026-03-05 12:00:00.",
+        "x-status": "merged-main-not-deployed",
+        "parameters": [
+          { "name": "deviceId", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } }
+        ],
+        "responses": {
+          "200": { "description": "Última posição.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/GpsLocationEnvelope" } } } },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "403": { "$ref": "#/components/responses/PartnerInactive" },
+          "404": {
+            "description": "Dispositivo inexistente ou de outro parceiro (sem distinguir), ou aparelho do parceiro sem nenhuma posição na janela do vínculo.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/NotFoundError" },
+                "examples": {
+                  "dispositivo": { "value": { "message": "Dispositivo não encontrado." } },
+                  "sem_posicao": { "value": { "message": "Nenhuma posição encontrada para este dispositivo." } }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/b2b/v1/geofences": {
+      "get": {
+        "tags": ["Geofences"],
+        "summary": "Lista geofences do parceiro",
+        "description": "**Somente API Key** (`partner.api_key`) — não aceita login humano. `per_page` default **50**.",
+        "x-status": "merged-main-not-deployed",
+        "parameters": [
+          {
+            "name": "filter",
+            "in": "query",
+            "style": "deepObject",
+            "explode": true,
+            "schema": {
+              "type": "object",
+              "properties": {
+                "name": { "type": "string", "description": "Busca parcial." },
+                "status": { "type": "string", "description": "Valores reais em uso: `active`/`inactive` — ver `Geofence.status` na descrição do schema para a inconsistência com o enum de domínio." },
+                "trigger": { "$ref": "#/components/schemas/GeofenceTrigger" },
+                "active": { "type": "string" },
+                "inactive": { "type": "string" },
+                "search": { "type": "string", "description": "`LIKE %term%` em `name`." },
+                "min_radius": { "type": "number" },
+                "max_radius": { "type": "number" }
+              }
+            }
+          },
+          {
+            "name": "sort",
+            "in": "query",
+            "description": "Valores permitidos: `created_at`, `name`, `radius_meters`, `status`.",
+            "schema": { "type": "string" }
+          },
+          { "name": "include", "in": "query", "description": "Valores permitidos: `statusHistories`, `alertDispatches`.", "schema": { "type": "string" } },
+          { "name": "per_page", "in": "query", "description": "Default 50.", "schema": { "type": "integer", "default": 50 } }
+        ],
+        "responses": {
+          "200": { "description": "Coleção paginada.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/GeofenceCollection" } } } },
+          "400": { "$ref": "#/components/responses/BadRequestFilterSort" },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "403": { "$ref": "#/components/responses/PartnerInactive" }
+        }
+      },
+      "post": {
+        "tags": ["Geofences"],
+        "summary": "Cria uma geofence",
+        "description": "**Somente API Key.** `status` é **hardcoded como `active`** na criação — não vem do request, não há como criar já `paused`. Também grava uma entrada em `GeofenceStatusHistory` (`from_status: null, to_status: 'active', changed_by: 'partner'`).",
+        "x-status": "merged-main-not-deployed",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/CreateGeofenceRequest" },
+              "example": { "name": "Perímetro Loja", "latitude": -27.5954, "longitude": -48.548, "radius_meters": 300, "trigger": "both" }
+            }
+          }
+        },
+        "responses": {
+          "201": { "description": "Geofence criada, sempre com `status: active`.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/GeofenceEnvelope" } } } },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "403": { "$ref": "#/components/responses/PartnerInactive" },
+          "422": { "$ref": "#/components/responses/ValidationFailed" }
+        }
+      }
+    },
+    "/api/b2b/v1/geofences/{id}": {
+      "get": {
+        "tags": ["Geofences"],
+        "summary": "Exibe uma geofence do parceiro",
+        "description": "**Somente API Key.** `firstOrFail()` — **404** para inexistente ou de outro parceiro, sem distinguir.",
+        "x-status": "merged-main-not-deployed",
+        "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } }],
+        "responses": {
+          "200": { "description": "Geofence encontrada.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/GeofenceEnvelope" } } } },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "403": { "$ref": "#/components/responses/PartnerInactive" },
+          "404": { "$ref": "#/components/responses/NotFound" }
+        }
+      },
+      "delete": {
+        "tags": ["Geofences"],
+        "summary": "Desativa uma geofence (soft delete)",
+        "description": "**Não deleta de fato** — muda `status` para `inactive` e grava histórico. Retorna **200** (não 204) com `{\"message\": \"Geofence desativada.\"}` — não retorna o Resource.\n\n**Inconsistência de domínio real, verificada em código**: o enum `Src\\Tracking\\Domain\\Enums\\GeofenceStatus` só define `Active`/`Paused` — não existe caso `Inactive`. Mas a coluna `status` não é castada para esse enum no `GeofenceModel` (é string livre); tanto os scopes quanto os controllers (`store`/`destroy`) usam literalmente `'active'`/`'inactive'`. Os valores reais no contrato HTTP são `active`/`inactive`, não `active`/`paused` como o enum de domínio sugeriria.",
+        "x-status": "merged-main-not-deployed",
+        "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } }],
+        "responses": {
+          "200": {
+            "description": "Geofence desativada.",
+            "content": { "application/json": { "schema": { "type": "object", "properties": { "message": { "type": "string" } }, "required": ["message"] }, "example": { "message": "Geofence desativada." } } }
+          },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "403": { "$ref": "#/components/responses/PartnerInactive" },
+          "404": { "$ref": "#/components/responses/NotFound" }
+        }
+      }
+    },
+    "/api/b2b/v1/branches": {
+      "get": {
+        "tags": ["Branches"],
+        "summary": "Lista o hub do parceiro e as suas filiais (somente leitura)",
+        "description": "Story E15.18 (documentação de uma rota que já existia, Story 22.4). Devolve o **hub** do parceiro autenticado, **sempre primeiro**, e depois as suas filiais por ordem alfabética de nome. Vale tanto para um usuário do hub quanto para um usuário de filial: a lista é sempre a do **hub dele**, nunca a de outro hub. Existe para escolher a quem dar acesso ao convidar um membro da equipe. **Somente leitura**: o parceiro não cria, edita nem desativa filiais por esta API (isso é do admin). Exige `partner.access` (Portal ou chave de API) **e** `partner.active`. Coleção não paginada, sem `links`/`meta`.",
+        "x-status": "merged-main-not-deployed",
+        "x-last-validated": "2026-10-15",
+        "parameters": [
+          { "$ref": "#/components/parameters/PartnerBranchHeader" }
+        ],
+        "responses": {
+          "200": {
+            "description": "O hub e as suas filiais.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/BranchCollection" },
+                "example": { "data": [
+                  { "id": "b3f1c2a0-1234-4abc-9def-0000000000d1", "name": "Matriz (exemplo)", "cnpj": "00.000.000/0001-00", "is_hub": true },
+                  { "id": "b3f1c2a0-1234-4abc-9def-0000000000d2", "name": "Filial Norte (exemplo)", "cnpj": null, "is_hub": false }
+                ] }
+              }
+            }
+          },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "403": { "$ref": "#/components/responses/PartnerInactive" }
+        }
+      }
+    },
+    "/api/b2b/v1/partner-users": {
+      "get": {
+        "tags": ["Partner Users"],
+        "summary": "Lista os usuários (equipe) do próprio parceiro",
+        "description": "**Sem paginação, sem QueryBuilder, sem filtros/sorts** — retorna todos os `PartnerUser` do parceiro de uma vez, ordenados por `name`.",
+        "x-status": "merged-main-not-deployed",
+        "parameters": [{ "$ref": "#/components/parameters/PartnerBranchHeader" }],
+        "responses": {
+          "200": { "description": "Todos os usuários do parceiro (coleção não paginada).", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/PartnerUserCollection" } } } },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "403": { "$ref": "#/components/responses/PartnerInactive" }
+        }
+      },
+      "post": {
+        "tags": ["Partner Users"],
+        "summary": "Convida/cria um novo usuário para a equipe do parceiro",
+        "description": "**RBAC assimétrico por tipo de autenticação**: se a requisição veio de login humano e o `role` do autenticado não é `owner`, responde 403 (`'operator'` não pode gerenciar outros usuários). **Requisições autenticadas só por API key passam sem checagem de role** — comentário explícito no código: \"auth de máquina é inerentemente confiada\".\n\n**Sem cadência de convite por e-mail nesta rota** — o `owner`/API key precisa informar a senha do novo usuário diretamente no payload (`password` obrigatório). Isso é distinto do fluxo usado quando o Admin interno cria o parceiro (que envia convite por link assinado) — divergência real entre os dois caminhos de criação de usuário, documentada como gap explícito no ADR `docs/adr-auth-equipe-filiais-parceiro.md` (2026-08-27, status \"Proposta\", ainda não implementado).",
+        "x-status": "merged-main-not-deployed",
+        "parameters": [{ "$ref": "#/components/parameters/PartnerBranchHeader" }],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/CreatePartnerUserRequest" },
+              "example": { "name": "João Operador", "email": "joao@parceiro.com.br", "password": "senha-temporaria-8+", "role": "operator" }
+            }
+          }
+        },
+        "responses": {
+          "201": { "description": "Usuário criado.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/PartnerUserEnvelope" } } } },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "403": {
+            "description": "Parceiro inativo OU `operator` tentando gerenciar usuários (login humano apenas).",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ForbiddenError" },
+                "examples": {
+                  "role_insuficiente": { "value": { "message": "Papel 'operator' não pode gerenciar outros usuários do parceiro." } }
+                }
+              }
+            }
+          },
+          "422": { "$ref": "#/components/responses/ValidationFailed" }
+        }
+      }
+    },
+    "/api/b2b/v1/partner-users/{id}/password": {
+      "post": {
+        "tags": ["Partner Users"],
+        "summary": "Define a senha de um usuário do parceiro (via link de convite)",
+        "description": "**Não usa `partner.access`/`partner.active`** — protegida só por assinatura de URL do Laravel (`->middleware('signed')`), consumida a partir do link enviado por e-mail no convite. Não é uma rota de API tradicional: o cliente chega aqui a partir do link do e-mail, não chamando a API programaticamente com credenciais próprias.\n\n`findOrFail($id)` — 404 se o id não existir. **Não valida se o usuário já tinha senha definida** nem se o \"convite\" já foi consumido antes — reutilizável enquanto a assinatura da URL não expirar. Retorna `{\"message\": \"Senha definida com sucesso.\"}`, **não** retorna o `PartnerUserResource`.\n\nOs parâmetros `expires`/`signature` são adicionados automaticamente pelo Laravel a URLs assinadas (`URL::temporarySignedRoute`) — não são gerados manualmente pelo consumidor da API, só encaminhados como vieram no link do e-mail.",
+        "x-status": "merged-main-not-deployed",
+        "security": [],
+        "parameters": [
+          { "name": "id", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } },
+          { "name": "expires", "in": "query", "required": true, "description": "Timestamp Unix de expiração da assinatura — gerado pelo Laravel, não pelo consumidor.", "schema": { "type": "integer" } },
+          { "name": "signature", "in": "query", "required": true, "description": "HMAC da URL assinada — gerado pelo Laravel, não pelo consumidor.", "schema": { "type": "string" } }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/SetPartnerUserPasswordRequest" },
+              "example": { "password": "nova-senha-8+" }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Senha definida.",
+            "content": { "application/json": { "schema": { "type": "object", "properties": { "message": { "type": "string" } }, "required": ["message"] }, "example": { "message": "Senha definida com sucesso." } } }
+          },
+          "403": { "description": "Assinatura da URL inválida ou expirada (comportamento padrão do middleware `signed` do Laravel — resposta 403 genérica do framework, não customizada pelo projeto)." },
+          "404": { "$ref": "#/components/responses/NotFound" },
+          "422": { "$ref": "#/components/responses/ValidationFailed" }
+        }
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "ApiKeyHeader": {
+        "type": "apiKey",
+        "in": "header",
+        "name": "X-Api-Key",
+        "description": "API Key de máquina do parceiro (formato `ttk_` + 40 caracteres aleatórios). Emitida hoje **só pelo time interno da ClubTrack** via `tagtrack-admin` (`POST /api/admin/partners/{partnerId}/api-keys`, fora do escopo desta spec) — não existe autoatendimento para o parceiro gerar a própria chave. O valor em texto plano só é exibido uma vez, no momento da emissão; o backend guarda apenas o hash SHA-256.\n\nResolvida por `ResolvesPartnerFromApiKey` — cache de 60s, rate limit de **1000 requisições/minuto por parceiro** (todas as rotas que aceitam API key compartilham este limite, não há limite adicional por rota)."
+      },
+      "ApiKeyBearer": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "ttk_... (API Key de máquina, mesmo valor aceito via X-Api-Key)",
+        "description": "A mesma API Key de máquina (ver `ApiKeyHeader`) também é aceita via `Authorization: Bearer <api_key>` — `ResolvesPartnerFromApiKey::handle()` lê `X-Api-Key` primeiro, cai para `$request->bearerToken()` se ausente. É o MESMO header (`Authorization: Bearer`) usado por `PartnerUserBearer`; o servidor resolve qual dos dois tipos de token é tentando a tabela do Sanctum primeiro (rotas `partner.access`) e só então tratando o valor como API Key."
+      },
+      "PartnerUserBearer": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "Sanctum Personal Access Token",
+        "description": "Token emitido por `POST /api/b2b/v1/auth/login`, para um `PartnerUser` (humano da equipe do parceiro). Resolvido por `ResolvesPartnerContext` — tentado ANTES da API Key nas rotas `partner.access`. Se o `PartnerUser` tiver mais de uma filial vinculada, é obrigatório o header `X-Partner-Branch-Id` (ver `PartnerBranchHeader`) para desambiguar em qual filial a requisição opera; se só tiver uma, o header é opcional (default é a única filial). Não aceito nas rotas `partner.api_key` (locations, geofences) — essas exigem API Key mesmo com um token humano válido."
+      }
+    },
+    "parameters": {
+      "PartnerBranchHeader": {
+        "name": "X-Partner-Branch-Id",
+        "in": "header",
+        "required": false,
+        "description": "Obrigatório **somente** quando autenticado via login humano (`PartnerUserBearer`) E o usuário tem mais de uma filial vinculada — nesse caso, sua ausência retorna 400. Ignorado quando a autenticação é por API Key (o parceiro/hub já é resolvido diretamente pela chave) ou quando o usuário humano só tem uma filial.",
+        "schema": { "type": "string", "format": "uuid" }
+      },
+      "PerPage": {
+        "name": "per_page",
+        "in": "query",
+        "description": "Tamanho de página. Default 25. **Sem validação de limite máximo no código** — o valor é aceito como veio (`$request->integer('per_page', 25)`), sem cap contra abuso.",
+        "schema": { "type": "integer", "default": 25 }
+      }
+    },
+    "responses": {
+      "Unauthorized": {
+        "description": "Sem credencial, credencial inválida/revogada/expirada.",
+        "content": { "application/json": { "schema": { "$ref": "#/components/schemas/UnauthorizedError" } } }
+      },
+      "PartnerInactive": {
+        "description": "Parceiro (ou hub, por cascata) com status `Suspended`/`Inactive`.",
+        "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ForbiddenError" }, "example": { "message": "Parceiro inativo ou suspenso." } } }
+      },
+      "NotFound": {
+        "description": "Recurso não encontrado. Mensagem fixa «Recurso não encontrado.»: vale para inexistente e para de outro parceiro, sem distinguir, e nunca cita classe, tabela ou id.",
+        "content": { "application/json": { "schema": { "$ref": "#/components/schemas/NotFoundError" } } }
+      },
+      "ValidationFailed": {
+        "description": "Campo(s) obrigatório(s) ausente(s) ou inválido(s).",
+        "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ValidationError" } } }
+      },
+      "BadRequestFilterSort": {
+        "description": "Filtro, sort ou include não permitido (Spatie QueryBuilder) — status **400**, não 422. Mensagem literal: `\"Requested filter(s) \\`{x}\\` are not allowed. Allowed filter(s) are \\`{lista}\\`.\"` (mesmo padrão para sort/include).",
+        "content": { "application/json": { "schema": { "$ref": "#/components/schemas/BadRequestError" } } }
+      }
+    },
+    "schemas": {
+      "LoginRequest": {
+        "type": "object",
+        "required": ["email", "password"],
+        "properties": {
+          "email": { "type": "string", "format": "email" },
+          "password": { "type": "string" }
+        }
+      },
+      "LoginResponse": {
+        "type": "object",
+        "description": "Montado manualmente no controller — não usa `PartnerUserResource`, por isso não tem `status`/`created_at`.",
+        "required": ["token", "user"],
+        "properties": {
+          "token": { "type": "string", "description": "Sanctum plain-text personal access token." },
+          "user": {
+            "type": "object",
+            "required": ["id", "partner_id", "name", "email", "role"],
+            "properties": {
+              "id": { "type": "string", "format": "uuid" },
+              "partner_id": { "type": "string", "format": "uuid" },
+              "name": { "type": "string" },
+              "email": { "type": "string", "format": "email" },
+              "role": { "$ref": "#/components/schemas/PartnerUserRole" }
+            }
+          }
+        }
+      },
+      "DeviceOrderStatus": { "type": "string", "enum": ["pending", "approved", "rejected", "fulfilled"] },
+      "AcquisitionModel": { "type": "string", "enum": ["comodato", "purchased"], "description": "Enum `PartnerAcquisitionModel`." },
+      "CreateDeviceOrderRequest": {
+        "type": "object",
+        "required": ["model", "quantity", "acquisition_model"],
+        "properties": {
+          "model": { "type": "string", "maxLength": 150 },
+          "quantity": { "type": "integer", "minimum": 1 },
+          "acquisition_model": { "$ref": "#/components/schemas/AcquisitionModel" },
+          "customer_id": { "type": "string", "format": "uuid", "nullable": true, "description": "Precisa pertencer ao parceiro autenticado e ter endereço completo cadastrado." },
+          "notes": { "type": "string", "maxLength": 2000, "nullable": true }
+        }
+      },
+      "DeviceOrder": {
+        "type": "object",
+        "required": ["id", "recipient_type", "recipient_id", "model", "quantity", "acquisition_model", "status", "requested_by", "notes", "created_at", "updated_at"],
+        "properties": {
+          "id": { "type": "string", "format": "uuid" },
+          "recipient_type": {
+            "type": "string",
+            "description": "**FQCN cru da classe PHP** (ex.: `\"Src\\\\PartnerManagement\\\\Infrastructure\\\\Persistence\\\\Eloquent\\\\PartnerModel\"` ou `\"...\\\\CustomerModel\"`) — não há `Relation::morphMap()` registrado no projeto. Vaza detalhe de implementação interna no contrato de API; não é um enum curto nem um alias."
+          },
+          "recipient_id": { "type": "string", "format": "uuid" },
+          "model": { "type": "string" },
+          "quantity": { "type": "integer" },
+          "acquisition_model": { "$ref": "#/components/schemas/AcquisitionModel" },
+          "status": { "$ref": "#/components/schemas/DeviceOrderStatus" },
+          "requested_by": { "type": "string", "format": "uuid", "description": "Id do PartnerUser que fez o pedido." },
+          "notes": { "type": "string", "nullable": true },
+          "recipient": {
+            "type": "object",
+            "description": "`whenLoaded('recipient')` — nenhum endpoint B2B faz eager-load desta relação, então **nunca aparece** na prática.",
+            "properties": { "id": { "type": "string", "format": "uuid" }, "name": { "type": "string" }, "type": { "type": "string", "enum": ["partner", "customer"] } }
+          },
+          "shipment": {
+            "type": "object",
+            "description": "`whenLoaded('shipment')` — nunca carregado nas rotas B2B, **nunca aparece** na prática."
+          },
+          "created_at": { "type": "string", "format": "date-time" },
+          "updated_at": { "type": "string", "format": "date-time" }
+        }
+      },
+      "DeviceOrderEnvelope": { "type": "object", "required": ["data"], "properties": { "data": { "$ref": "#/components/schemas/DeviceOrder" } } },
+      "DeviceOrderCollection": {
+        "type": "object",
+        "required": ["data", "links", "meta"],
+        "properties": {
+          "data": { "type": "array", "items": { "$ref": "#/components/schemas/DeviceOrder" } },
+          "links": { "$ref": "#/components/schemas/PaginationLinks" },
+          "meta": { "$ref": "#/components/schemas/PaginationMeta" }
+        }
+      },
+      "CustomerStatus": { "type": "string", "enum": ["active", "inactive"], "description": "Enum `CustomerStatus`." },
+      "RegisterCustomerRequest": {
+        "type": "object",
+        "required": ["name"],
+        "properties": {
+          "name": { "type": "string", "maxLength": 150 },
+          "external_id": { "type": "string", "maxLength": 100, "nullable": true },
+          "email": { "type": "string", "format": "email", "maxLength": 150, "nullable": true },
+          "phone": { "type": "string", "maxLength": 20, "nullable": true },
+          "cpf": { "type": "string", "pattern": "^\\d{11}$", "nullable": true, "description": "Exatamente 11 dígitos, sem validação de dígito verificador." }
+        }
+      },
+      "Customer": {
+        "type": "object",
+        "required": ["id", "partner_id", "external_id", "name", "email", "phone", "status", "created_at", "updated_at"],
+        "properties": {
+          "id": { "type": "string", "format": "uuid" },
+          "partner_id": { "type": "string", "format": "uuid" },
+          "external_id": { "type": "string", "nullable": true },
+          "name": { "type": "string" },
+          "email": { "type": "string", "format": "email", "nullable": true },
+          "phone": { "type": "string", "nullable": true },
+          "cpf": { "type": "string", "nullable": true, "description": "**Não confirmado no `CustomerResource` lido para esta spec B2B** — coluna existe no schema (Story de coleta de CPF), mas a serialização deste campo não foi verificada linha a linha para as rotas B2B nesta extração; tratar como possivelmente ausente até confirmação." },
+          "status": { "$ref": "#/components/schemas/CustomerStatus" },
+          "partner": {
+            "type": "object",
+            "description": "`whenLoaded('partner')` — nenhum endpoint B2B carrega ou permite `?include=partner`, **nunca aparece** na prática.",
+            "properties": { "id": { "type": "string", "format": "uuid" }, "name": { "type": "string" } }
+          },
+          "created_at": { "type": "string", "format": "date-time" },
+          "updated_at": { "type": "string", "format": "date-time" }
+        }
+      },
+      "CustomerEnvelope": { "type": "object", "required": ["data"], "properties": { "data": { "$ref": "#/components/schemas/Customer" } } },
+      "CustomerCollection": {
+        "type": "object",
+        "required": ["data", "links", "meta"],
+        "properties": {
+          "data": { "type": "array", "items": { "$ref": "#/components/schemas/Customer" } },
+          "links": { "$ref": "#/components/schemas/PaginationLinks" },
+          "meta": { "$ref": "#/components/schemas/PaginationMeta" }
+        }
+      },
+      "CreateAddressRequest": {
+        "type": "object",
+        "description": "Todos os campos são opcionais e nuláveis — um `POST {}` é aceito pela validação (achado real, provavelmente não intencional para consumo externo).",
+        "properties": {
+          "label": { "type": "string", "maxLength": 150, "nullable": true },
+          "postal_code": { "type": "string", "maxLength": 9, "nullable": true },
+          "street": { "type": "string", "maxLength": 255, "nullable": true },
+          "number": { "type": "string", "maxLength": 20, "nullable": true },
+          "complement": { "type": "string", "maxLength": 255, "nullable": true },
+          "neighborhood": { "type": "string", "maxLength": 255, "nullable": true },
+          "city": { "type": "string", "maxLength": 255, "nullable": true },
+          "state": { "type": "string", "minLength": 2, "maxLength": 2, "nullable": true },
+          "latitude": { "type": "number", "format": "double", "minimum": -90, "maximum": 90, "nullable": true },
+          "longitude": { "type": "number", "format": "double", "minimum": -180, "maximum": 180, "nullable": true }
+        }
+      },
+      "Address": {
+        "type": "object",
+        "required": ["id", "label", "postal_code", "street", "number", "complement", "neighborhood", "city", "state", "latitude", "longitude", "is_primary", "created_at", "updated_at"],
+        "properties": {
+          "id": { "type": "string", "format": "uuid" },
+          "label": { "type": "string", "nullable": true },
+          "postal_code": { "type": "string", "nullable": true },
+          "street": { "type": "string", "nullable": true },
+          "number": { "type": "string", "nullable": true },
+          "complement": { "type": "string", "nullable": true },
+          "neighborhood": { "type": "string", "nullable": true },
+          "city": { "type": "string", "nullable": true },
+          "state": { "type": "string", "nullable": true },
+          "latitude": { "type": "number", "format": "double", "nullable": true },
+          "longitude": { "type": "number", "format": "double", "nullable": true },
+          "is_primary": { "type": "boolean" },
+          "created_at": { "type": "string", "format": "date-time" },
+          "updated_at": { "type": "string", "format": "date-time" }
+        }
+      },
+      "AddressEnvelope": { "type": "object", "required": ["data"], "properties": { "data": { "$ref": "#/components/schemas/Address" } } },
+      "AddressCollection": {
+        "type": "object",
+        "description": "Coleção simples, sem `links`/`meta` — este endpoint não usa Spatie QueryBuilder/paginação.",
+        "required": ["data"],
+        "properties": { "data": { "type": "array", "items": { "$ref": "#/components/schemas/Address" } } }
+      },
+      "BindingStatus": { "type": "string", "enum": ["active", "unbound"], "description": "Enum real castado em `TagBindingModel` (`BindingStatus`). Existe um segundo enum aparentemente morto no mesmo namespace (`TagBindingStatus`, valores `active`/`unassigned`) que não é usado em nenhum cast encontrado." },
+      "BindTagRequest": {
+        "type": "object",
+        "required": ["device_serial", "customer_id"],
+        "properties": {
+          "device_serial": { "type": "string", "maxLength": 50 },
+          "customer_id": { "type": "string", "format": "uuid" },
+          "notes": { "type": "string", "maxLength": 500, "nullable": true }
+        }
+      },
+      "TagBinding": {
+        "type": "object",
+        "description": "Serializado por `TagBindingResource` — compartilhado com Admin e B2C. Promovido em 2026-09-01: `nickname`/`category`/`icon` (customização de Tag pelo cliente, Story 20.2) chegaram a `main` com a Wave 20 e foram mantidos deliberadamente neste Resource compartilhado (decisão do Sergio) — suporte (Admin/B2B) precisa identificar a Tag pelo nome que o cliente escolheu. Mudança aditiva e retrocompatível (campos novos, nulos por padrão, nenhuma chave removida/renomeada).",
+        "required": ["id", "device_id", "customer_id", "status", "bound_at", "unbound_at", "notes", "nickname", "category", "icon", "created_at"],
+        "properties": {
+          "id": { "type": "string", "format": "uuid" },
+          "device_id": { "type": "string", "format": "uuid" },
+          "customer_id": { "type": "string", "format": "uuid" },
+          "status": { "$ref": "#/components/schemas/BindingStatus" },
+          "bound_at": { "type": "string", "format": "date-time", "nullable": true },
+          "unbound_at": { "type": "string", "format": "date-time", "nullable": true },
+          "notes": { "type": "string", "nullable": true },
+          "nickname": { "type": "string", "maxLength": 100, "nullable": true, "description": "Apelido dado pelo cliente final à própria Tag (Story 20.2)." },
+          "category": { "type": "string", "maxLength": 50, "nullable": true, "description": "String livre, sem enum/catálogo fechado no backend." },
+          "icon": { "type": "string", "maxLength": 50, "nullable": true, "description": "Identificador/slug do ícone, não o asset em si." },
+          "device": {
+            "type": "object",
+            "description": "`whenLoaded('device')` — presente quando `?include=device` é usado (endpoint `bindings`), ausente no `store`.",
+            "properties": { "id": { "type": "string", "format": "uuid" }, "serial": { "type": "string" }, "imei": { "type": "string" }, "status": { "$ref": "#/components/schemas/DeviceStatus" } }
+          },
+          "customer": {
+            "type": "object",
+            "description": "`whenLoaded('customer')`.",
+            "properties": { "id": { "type": "string", "format": "uuid" }, "name": { "type": "string" }, "partner_id": { "type": "string", "format": "uuid" } }
+          },
+          "created_at": { "type": "string", "format": "date-time", "nullable": true }
+        }
+      },
+      "TagBindingEnvelope": { "type": "object", "required": ["data"], "properties": { "data": { "$ref": "#/components/schemas/TagBinding" } } },
+      "TagBindingCollection": {
+        "type": "object",
+        "required": ["data", "links", "meta"],
+        "properties": {
+          "data": { "type": "array", "items": { "$ref": "#/components/schemas/TagBinding" } },
+          "links": { "$ref": "#/components/schemas/PaginationLinks" },
+          "meta": { "$ref": "#/components/schemas/PaginationMeta" }
+        }
+      },
+      "CatalogError": {
+        "type": "object",
+        "required": [
+          "message"
+        ],
+        "properties": {
+          "message": {
+            "type": "string"
+          }
+        }
+      },
+      "CustomField": {
+        "type": "object",
+        "required": [
+          "id",
+          "key",
+          "label",
+          "kind",
+          "sort_order",
+          "is_active",
+          "customer_visible",
+          "customer_editable"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "key": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9_]{0,49}$",
+            "description": "Imutável."
+          },
+          "label": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 100
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "custom"
+            ]
+          },
+          "sort_order": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Pode repetir; a leitura ordena por `sort_order`, `key`, `id`."
+          },
+          "is_active": {
+            "type": "boolean"
+          },
+          "customer_visible": {
+            "type": "boolean"
+          },
+          "customer_editable": {
+            "type": "boolean",
+            "description": "Exige `customer_visible`."
+          },
+          "default_value": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 255,
+            "description": "Só na resposta ao HUB. A filial nunca recebe esta chave. Guardado cifrado."
+          }
+        }
+      },
+      "CustomFieldEnvelope": {
+        "type": "object",
+        "required": [
+          "data"
+        ],
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/CustomField"
+          }
+        }
+      },
+      "CustomFieldCollection": {
+        "type": "object",
+        "required": [
+          "data",
+          "meta"
+        ],
+        "properties": {
+          "data": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CustomField"
+            }
+          },
+          "meta": {
+            "type": "object",
+            "required": [
+              "limit",
+              "count",
+              "can_manage"
+            ],
+            "properties": {
+              "limit": {
+                "type": "integer"
+              },
+              "count": {
+                "type": "integer"
+              },
+              "can_manage": {
+                "type": "boolean",
+                "description": "`true` quando quem chama é o hub (cria, edita, ordena, ativa e desativa campos); `false` quando é uma filial (só lê o catálogo herdado). Decidido no servidor; só informativo, a autorização de `POST` e `PATCH` não muda."
+              }
+            }
+          }
+        }
+      },
+      "PartnerCustomerField": {
+        "type": "object",
+        "required": ["key", "label", "sort_order", "active", "value", "written_by", "written_at"],
+        "properties": {
+          "key": { "type": "string", "description": "Chave estável do campo no catálogo do hub." },
+          "label": { "type": "string" },
+          "sort_order": { "type": "integer" },
+          "active": { "type": "boolean", "description": "Campo inativo só aparece quando já tem valor." },
+          "value": { "type": ["string", "null"], "maxLength": 255, "description": "Texto gravado, ou `null` se nada foi gravado. Dado pessoal." },
+          "written_by": { "type": ["string", "null"], "enum": ["customer", "partner", null], "description": "Quem disparou a última gravação. O valor padrão copiado na criação do ativo leva o autor de quem disparou a criação. `null` sem valor." },
+          "written_at": { "type": ["string", "null"], "format": "date-time", "description": "Instante da última gravação, em UTC. `null` sem valor." }
+        }
+      },
+      "PartnerCustomerFieldCollection": {
+        "type": "object",
+        "required": ["data"],
+        "properties": { "data": { "type": "array", "items": { "$ref": "#/components/schemas/PartnerCustomerField" } } }
+      },
+      "WritePartnerCustomFieldsRequest": {
+        "type": "object",
+        "required": ["values"],
+        "properties": {
+          "values": {
+            "type": "object",
+            "minProperties": 1,
+            "maxProperties": 50,
+            "description": "Chave do campo => texto (até 255 caracteres) ou `null` (limpa). Só campos ativos, personalizados e não editáveis pelo cliente.",
+            "additionalProperties": { "type": ["string", "null"], "maxLength": 255 }
+          }
+        }
+      },
+      "CreateCustomFieldRequest": {
+        "type": "object",
+        "required": [
+          "key",
+          "label"
+        ],
+        "properties": {
+          "key": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9_]{0,49}$"
+          },
+          "label": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 100
+          },
+          "default_value": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 255
+          },
+          "is_active": {
+            "type": "boolean",
+            "default": true
+          },
+          "sort_order": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Omitido: vai para o fim."
+          },
+          "customer_visible": {
+            "type": "boolean",
+            "default": false
+          },
+          "customer_editable": {
+            "type": "boolean",
+            "default": false
+          }
+        }
+      },
+      "UpdateCustomFieldRequest": {
+        "type": "object",
+        "minProperties": 1,
+        "properties": {
+          "label": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 100
+          },
+          "default_value": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 255
+          },
+          "is_active": {
+            "type": "boolean"
+          },
+          "sort_order": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "customer_visible": {
+            "type": "boolean"
+          },
+          "customer_editable": {
+            "type": "boolean"
+          }
+        }
+      },
+      "DeviceStatus": { "type": "string", "enum": ["in_stock", "assigned_to_partner", "pending_activation", "active", "damaged", "replaced", "inactive"] },
+      "Device": {
+        "type": "object",
+        "required": ["id", "partner_id", "serial", "imei", "model", "status", "notes", "replaced_by_id", "registered_at", "created_at", "updated_at"],
+        "properties": {
+          "id": { "type": "string", "format": "uuid" },
+          "partner_id": { "type": "string", "format": "uuid", "nullable": true },
+          "serial": { "type": "string" },
+          "imei": { "type": "string" },
+          "model": { "type": "string" },
+          "status": { "$ref": "#/components/schemas/DeviceStatus" },
+          "notes": { "type": "string", "nullable": true },
+          "replaced_by_id": { "type": "string", "format": "uuid", "nullable": true },
+          "active_tag_binding_id": {
+            "type": "string",
+            "format": "uuid",
+            "nullable": true,
+            "description": "Story E15.17. Presente em `GET /api/b2b/v1/devices` e `GET /api/b2b/v1/devices/{id}`. O id do vínculo de Tag **ativo** deste aparelho com um cliente do parceiro, ou `null` quando não há (aparelho em estoque, vínculo encerrado, ou vínculo de cliente de outro parceiro). É o id que as rotas por vínculo recebem, como `api/b2b/v1/tag-bindings/{id}/custom-fields`. Calculado numa consulta por página."
+          },
+          "replaced_by": {
+            "type": "object",
+            "description": "`whenLoaded('replacedBy')` — sem `allowedIncludes('replacedBy')` no B2B, **nunca aparece** na prática.",
+            "properties": { "id": { "type": "string", "format": "uuid" }, "serial": { "type": "string" }, "imei": { "type": "string" } }
+          },
+          "registered_at": { "type": "string", "format": "date-time", "nullable": true },
+          "status_histories": {
+            "type": "array",
+            "description": "`whenLoaded('statusHistories')` — presente com `?include=statusHistories`.",
+            "items": {
+              "type": "object",
+              "properties": {
+                "from_status": { "type": "string", "nullable": true },
+                "to_status": { "type": "string" },
+                "changed_by": { "type": "string" },
+                "reason": { "type": "string", "nullable": true },
+                "changed_at": { "type": "string", "format": "date-time" }
+              }
+            }
+          },
+          "created_at": { "type": "string", "format": "date-time" },
+          "updated_at": { "type": "string", "format": "date-time" }
+        }
+      },
+      "DeviceEnvelope": { "type": "object", "required": ["data"], "properties": { "data": { "$ref": "#/components/schemas/Device" } } },
+      "DeviceCollection": {
+        "type": "object",
+        "required": ["data", "links", "meta"],
+        "properties": {
+          "data": { "type": "array", "items": { "$ref": "#/components/schemas/Device" } },
+          "links": { "$ref": "#/components/schemas/PaginationLinks" },
+          "meta": { "$ref": "#/components/schemas/PaginationMeta" }
+        }
+      },
+      "SubscriptionStatus": { "type": "string", "enum": ["pending", "active", "past_due", "cancelled", "refunded"] },
+      "PaymentMethod": { "type": "string", "enum": ["card", "boleto", "pix_manual", "pix_automatico"], "description": "Enum `PaymentMethod`." },
+      "CreateSubscriptionRequest": {
+        "type": "object",
+        "required": ["tag_binding_ids", "plan_id", "payment_method"],
+        "properties": {
+          "tag_binding_ids": {
+            "type": "array",
+            "minItems": 1,
+            "items": { "type": "string", "format": "uuid" },
+            "description": "Cada id precisa existir em `tag_bindings`, ser único na lista (`distinct`), pertencer a Customer do parceiro autenticado, e todos precisam pertencer ao MESMO Customer."
+          },
+          "plan_id": { "type": "string", "format": "uuid", "description": "Precisa existir em `plans` e pertencer ao parceiro autenticado." },
+          "payment_method": { "$ref": "#/components/schemas/PaymentMethod" }
+        }
+      },
+      "Subscription": {
+        "type": "object",
+        "description": "Ver, por operação, quais campos condicionais (`plan`, `customer`) realmente aparecem — varia entre `index`/`show`/`store` (diferença real de eager-loading, não erro de spec).",
+        "required": ["id", "tag_binding_ids", "plan_id", "price_cents", "commission_rate", "status", "payment_method", "external_reference_id", "next_billing_date", "created_at"],
+        "properties": {
+          "id": { "type": "string", "format": "uuid" },
+          "tag_binding_ids": { "type": "array", "items": { "type": "string", "format": "uuid" }, "description": "`whenLoaded('tagBindings')`." },
+          "plan_id": { "type": "string", "format": "uuid" },
+          "price_cents": { "type": "integer", "description": "Snapshot imutável do preço no momento da criação — pode divergir de `plan.price_cents` (catálogo) se o plano mudar de preço depois." },
+          "commission_rate": { "type": "number", "format": "double", "nullable": true },
+          "status": { "$ref": "#/components/schemas/SubscriptionStatus" },
+          "payment_method": { "$ref": "#/components/schemas/PaymentMethod" },
+          "external_reference_id": { "type": "string", "nullable": true },
+          "next_billing_date": { "type": "string", "format": "date", "nullable": true, "description": "Formato `YYYY-MM-DD` (data, não datetime completo)." },
+          "last_failure_reason": { "type": "string", "description": "Só presente quando o controller chama `scopeWithLastFailureReason()` explicitamente — nenhuma rota B2B faz isso, então **nunca aparece** nas respostas B2B." },
+          "plan": {
+            "type": "object",
+            "description": "`whenLoaded('plan')` — presente no `index` (sempre eager-loaded ali), **ausente** no `store` e no `show` (nenhum dos dois carrega esta relação).",
+            "properties": { "id": { "type": "string", "format": "uuid" }, "name": { "type": "string" }, "price_cents": { "type": "integer" }, "billing_cycle": { "$ref": "#/components/schemas/BillingCycle" } }
+          },
+          "customer": {
+            "type": "object",
+            "nullable": true,
+            "description": "`whenLoaded` via `tagBindings.customer`. Presente no `index` (eager-loaded). No `store`, a chave aparece mas o VALOR é `null` (checagem interna de `relationLoaded` não satisfeita nesta rota). Ausente por completo no `show`.",
+            "properties": { "id": { "type": "string", "format": "uuid" }, "name": { "type": "string" }, "partner_id": { "type": "string", "format": "uuid" } }
+          },
+          "created_at": { "type": "string", "format": "date-time" }
+        }
+      },
+      "SubscriptionEnvelope": { "type": "object", "required": ["data"], "properties": { "data": { "$ref": "#/components/schemas/Subscription" } } },
+      "SubscriptionCollection": {
+        "type": "object",
+        "required": ["data", "links", "meta"],
+        "properties": {
+          "data": { "type": "array", "items": { "$ref": "#/components/schemas/Subscription" } },
+          "links": { "$ref": "#/components/schemas/PaginationLinks" },
+          "meta": { "$ref": "#/components/schemas/PaginationMeta" }
+        }
+      },
+      "BillingCycle": { "type": "string", "enum": ["monthly"], "description": "Enum `BillingCycle` — hoje só tem o caso `Monthly` definido." },
+      "PlanStatus": { "type": "string", "enum": ["active", "archived"], "description": "Enum `PlanStatus`." },
+      "PlanOwnershipModel": { "type": "string", "enum": ["partner_comodato", "customer_owned"], "description": "Cast `PlanOwnershipModel` aplicado à coluna `tag_ownership_model`." },
+      "PlanFeature": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string", "format": "uuid" },
+          "code": { "type": "string" },
+          "label": { "type": "string" },
+          "display_order": { "type": "integer" }
+        }
+      },
+      "Plan": {
+        "type": "object",
+        "required": ["id", "partner_id", "name", "price_cents", "billing_cycle", "status", "tag_quota", "tag_ownership_model", "includes_insurance", "features", "created_at", "updated_at"],
+        "properties": {
+          "id": { "type": "string", "format": "uuid" },
+          "partner_id": { "type": "string", "format": "uuid" },
+          "name": { "type": "string" },
+          "price_cents": { "type": "integer" },
+          "billing_cycle": { "$ref": "#/components/schemas/BillingCycle" },
+          "status": { "$ref": "#/components/schemas/PlanStatus" },
+          "tag_quota": { "type": "integer" },
+          "tag_ownership_model": { "$ref": "#/components/schemas/PlanOwnershipModel" },
+          "includes_insurance": { "type": "boolean" },
+          "features": { "type": "array", "items": { "$ref": "#/components/schemas/PlanFeature" }, "description": "Sempre presente nesta rota B2B (eager-load incondicional)." },
+          "active_subscriptions_count": { "type": "integer", "description": "`whenCounted('activeSubscriptions')` — controller B2B não faz `withCount`, **nunca aparece** na prática." },
+          "partner": { "type": "object", "description": "`whenLoaded('partner')` — nunca carregado aqui, **nunca aparece**.", "properties": { "id": { "type": "string", "format": "uuid" }, "name": { "type": "string" } } },
+          "created_at": { "type": "string", "format": "date-time" },
+          "updated_at": { "type": "string", "format": "date-time" }
+        }
+      },
+      "PlanEnvelope": { "type": "object", "required": ["data"], "properties": { "data": { "$ref": "#/components/schemas/Plan" } } },
+      "PlanCollection": {
+        "type": "object",
+        "required": ["data", "links", "meta"],
+        "properties": {
+          "data": { "type": "array", "items": { "$ref": "#/components/schemas/Plan" } },
+          "links": { "$ref": "#/components/schemas/PaginationLinks" },
+          "meta": { "$ref": "#/components/schemas/PaginationMeta" }
+        }
+      },
+      "GpsLocation": {
+        "type": "object",
+        "description": "Serializado por `GpsLocationResource`. **`id` é integer, não uuid** — único model do projeto sem `HasUuids` (`GpsLocationModel::$incrementing = true`, `$keyType = 'int'`).",
+        "required": ["id", "device_id", "latitude", "longitude", "speed_kmh", "heading", "accuracy_meters", "altitude_meters", "satellites", "recorded_at"],
+        "properties": {
+          "id": { "type": "integer", "description": "Auto-increment — não é uuid, diferente de todo o resto da API." },
+          "device_id": { "type": "string", "format": "uuid" },
+          "latitude": { "type": "number", "format": "double" },
+          "longitude": { "type": "number", "format": "double" },
+          "speed_kmh": { "type": "number", "format": "double" },
+          "heading": { "type": "number", "format": "double" },
+          "accuracy_meters": { "type": "number", "format": "double", "nullable": true },
+          "altitude_meters": { "type": "number", "format": "double", "nullable": true },
+          "satellites": { "type": "integer", "nullable": true },
+          "recorded_at": { "type": "string", "format": "date-time" }
+        }
+      },
+      "GpsLocationEnvelope": { "type": "object", "required": ["data"], "properties": { "data": { "$ref": "#/components/schemas/GpsLocation" } } },
+      "GpsLocationCollection": {
+        "type": "object",
+        "required": ["data", "links", "meta"],
+        "properties": {
+          "data": { "type": "array", "items": { "$ref": "#/components/schemas/GpsLocation" } },
+          "links": { "$ref": "#/components/schemas/PaginationLinks" },
+          "meta": { "$ref": "#/components/schemas/PaginationMeta" }
+        }
+      },
+      "GeofenceTrigger": { "type": "string", "enum": ["exit", "enter", "both"], "description": "Enum `GeofenceTrigger`." },
+      "CreateGeofenceRequest": {
+        "type": "object",
+        "required": ["name", "latitude", "longitude", "radius_meters", "trigger"],
+        "properties": {
+          "name": { "type": "string", "maxLength": 150 },
+          "latitude": { "type": "number", "format": "double", "minimum": -90, "maximum": 90 },
+          "longitude": { "type": "number", "format": "double", "minimum": -180, "maximum": 180 },
+          "radius_meters": { "type": "number", "format": "double", "minimum": 10, "maximum": 50000 },
+          "trigger": { "$ref": "#/components/schemas/GeofenceTrigger" },
+          "metadata": { "type": "object", "nullable": true, "additionalProperties": true }
+        }
+      },
+      "Geofence": {
+        "type": "object",
+        "required": ["id", "partner_id", "name", "latitude", "longitude", "radius_meters", "trigger", "status", "metadata", "created_at", "updated_at"],
+        "properties": {
+          "id": { "type": "string", "format": "uuid" },
+          "partner_id": { "type": "string", "format": "uuid" },
+          "name": { "type": "string" },
+          "latitude": { "type": "number", "format": "double" },
+          "longitude": { "type": "number", "format": "double" },
+          "radius_meters": { "type": "number", "format": "double" },
+          "trigger": { "$ref": "#/components/schemas/GeofenceTrigger" },
+          "status": {
+            "type": "string",
+            "description": "String livre, não castada para enum no model. Valores observados em código: `active` (default na criação) e `inactive` (no DELETE). O enum de domínio `GeofenceStatus` define `active`/`paused` — **não inclui `inactive`**, inconsistência real entre enum e valor efetivamente gravado.",
+            "examples": ["active", "inactive"]
+          },
+          "metadata": { "type": "object", "nullable": true, "additionalProperties": true },
+          "created_at": { "type": "string", "format": "date-time" },
+          "updated_at": { "type": "string", "format": "date-time" }
+        }
+      },
+      "GeofenceEnvelope": { "type": "object", "required": ["data"], "properties": { "data": { "$ref": "#/components/schemas/Geofence" } } },
+      "GeofenceCollection": {
+        "type": "object",
+        "required": ["data", "links", "meta"],
+        "properties": {
+          "data": { "type": "array", "items": { "$ref": "#/components/schemas/Geofence" } },
+          "links": { "$ref": "#/components/schemas/PaginationLinks" },
+          "meta": { "$ref": "#/components/schemas/PaginationMeta" }
+        }
+      },
+      "PartnerUserRole": { "type": "string", "enum": ["owner", "operator"] },
+      "PartnerUserStatus": { "type": "string", "enum": ["active", "inactive"], "description": "Enum `PartnerUserStatus`." },
+      "CreatePartnerUserRequest": {
+        "type": "object",
+        "required": ["name", "email", "password", "role"],
+        "properties": {
+          "name": { "type": "string", "maxLength": 150 },
+          "email": { "type": "string", "format": "email", "maxLength": 255 },
+          "password": { "type": "string", "minLength": 8, "description": "Só tamanho mínimo 8 — sem exigência adicional de letras/números/símbolos." },
+          "role": { "$ref": "#/components/schemas/PartnerUserRole" }
+        }
+      },
+      "SetPartnerUserPasswordRequest": {
+        "type": "object",
+        "required": ["password"],
+        "properties": { "password": { "type": "string", "minLength": 8 } }
+      },
+      "PartnerUser": {
+        "type": "object",
+        "description": "Serializado por `PartnerUserResource` — **sem `updated_at`** (diferente da maioria dos outros Resources desta API).",
+        "required": ["id", "partner_id", "name", "email", "role", "status", "created_at"],
+        "properties": {
+          "id": { "type": "string", "format": "uuid" },
+          "partner_id": { "type": "string", "format": "uuid" },
+          "name": { "type": "string" },
+          "email": { "type": "string", "format": "email" },
+          "role": { "$ref": "#/components/schemas/PartnerUserRole" },
+          "status": { "$ref": "#/components/schemas/PartnerUserStatus" },
+          "created_at": { "type": "string", "format": "date-time" }
+        }
+      },
+      "PartnerUserEnvelope": { "type": "object", "required": ["data"], "properties": { "data": { "$ref": "#/components/schemas/PartnerUser" } } },
+      "Branch": {
+        "type": "object",
+        "required": ["id", "name", "cnpj", "is_hub"],
+        "properties": {
+          "id": { "type": "string", "format": "uuid" },
+          "name": { "type": "string" },
+          "cnpj": { "type": "string", "nullable": true, "description": "Pode ser `null` em filial (a filial não precisa de CNPJ próprio)." },
+          "is_hub": { "type": "boolean", "description": "`true` para o hub (a matriz), `false` para uma filial." }
+        }
+      },
+      "BranchCollection": {
+        "type": "object",
+        "description": "Coleção não paginada — o hub primeiro e depois as filiais, sem `links`/`meta`.",
+        "required": ["data"],
+        "properties": { "data": { "type": "array", "items": { "$ref": "#/components/schemas/Branch" } } }
+      },
+      "PartnerUserCollection": {
+        "type": "object",
+        "description": "Coleção não paginada — todos os registros do parceiro de uma vez, sem `links`/`meta`.",
+        "required": ["data"],
+        "properties": { "data": { "type": "array", "items": { "$ref": "#/components/schemas/PartnerUser" } } }
+      },
+      "PartnerTag": {
+        "type": "object",
+        "description": "Uma Tag do parceiro: o vínculo ativo, o ativo (asset) ligado a ele, o aparelho e a comunicação. Conjunto de chaves fixo.",
+        "required": ["id", "nickname", "category", "icon", "asset", "device", "last_communication_at", "last_position_at", "online"],
+        "properties": {
+          "id": { "type": "string", "format": "uuid", "description": "Id do **vínculo** de Tag (o mesmo de `/tag-bindings/{id}/custom-fields`)." },
+          "nickname": { "type": "string", "nullable": true, "description": "Apelido que o cliente deu à Tag." },
+          "category": { "type": "string", "nullable": true, "description": "Categoria livre do cliente (ex.: Carro, Moto)." },
+          "icon": { "type": "string", "nullable": true, "description": "Identificador do ícone." },
+          "asset": {
+            "type": "object",
+            "description": "O ativo ligado à Tag. O `id` é `null` enquanto o ativo não foi criado. Os valores dos campos do ativo são campos personalizados e saem por `/tag-bindings/{id}/custom-fields`.",
+            "required": ["id"],
+            "properties": {
+              "id": { "type": "string", "format": "uuid", "nullable": true }
+            }
+          },
+          "device": {
+            "type": "object",
+            "required": ["id", "serial", "status"],
+            "properties": {
+              "id": { "type": "string", "format": "uuid" },
+              "serial": { "type": "string" },
+              "status": { "$ref": "#/components/schemas/DeviceStatus" }
+            }
+          },
+          "last_communication_at": { "type": "string", "format": "date-time", "nullable": true, "description": "Instante, pela hora da plataforma, em que chegou o registro de posição mais recente deste aparelho, contado desde o início do vínculo atual. Registro com coordenada inválida conta; pacote que só traz bateria não conta. Vazio se nada chegou." },
+          "last_position_at": { "type": "string", "format": "date-time", "nullable": true, "description": "Hora, pelo relógio do aparelho, da última posição com coordenada plausível desde o início do vínculo atual. Não garante fixação de satélite." },
+          "online": { "type": "boolean", "description": "Verdadeiro se a última comunicação foi nos últimos 60 minutos, contados de `meta.generated_at`. Regra de recência, não tempo real. Não recalcule no cliente." }
+        }
+      },
+      "PartnerTagWithFields": {
+        "description": "A linha de `PartnerTag` com `include=custom_fields`: `asset.custom_fields` é a lista dos campos do ativo, a mesma projeção de `GET /tag-bindings/{id}/custom-fields`. Sem `include`, a chave não existe. Vazia quando o recurso de campos não está ligado ou liberado para o parceiro; campo inativo só aparece com valor salvo; o ativo só é entregue ao parceiro dono dele.",
+        "allOf": [
+          { "$ref": "#/components/schemas/PartnerTag" },
+          {
+            "type": "object",
+            "properties": {
+              "asset": {
+                "type": "object",
+                "properties": {
+                  "custom_fields": { "type": "array", "items": { "$ref": "#/components/schemas/PartnerCustomerField" } }
+                }
+              }
+            }
+          }
+        ]
+      },
+      "PartnerTagCollection": {
+        "type": "object",
+        "required": ["data", "links", "meta"],
+        "properties": {
+          "data": { "type": "array", "items": { "$ref": "#/components/schemas/PartnerTagWithFields" } },
+          "links": { "$ref": "#/components/schemas/PaginationLinks" },
+          "meta": {
+            "allOf": [
+              { "$ref": "#/components/schemas/PaginationMeta" },
+              {
+                "type": "object",
+                "required": ["generated_at", "online_threshold_minutes"],
+                "properties": {
+                  "generated_at": { "type": "string", "format": "date-time", "description": "Instante, pela hora da plataforma, em que a resposta foi montada. Duas respostas não formam um retrato único." },
+                  "online_threshold_minutes": { "type": "integer", "description": "Limite, em minutos, usado em `online`." }
+                }
+              }
+            ]
+          }
+        }
+      },
+      "TagTrackPosition": {
+        "type": "object",
+        "description": "Uma posição do trajeto. Só estes quatro campos.",
+        "required": ["latitude", "longitude", "recorded_at", "device_id"],
+        "properties": {
+          "latitude": { "type": "number", "format": "double" },
+          "longitude": { "type": "number", "format": "double" },
+          "recorded_at": { "type": "string", "format": "date-time", "description": "Hora do aparelho, em UTC (`+00:00`)." },
+          "device_id": { "type": "string", "format": "uuid", "description": "O aparelho que gravou esta posição. Muda quando o ativo trocou de rastreador." }
+        }
+      },
+      "TagDistance": {
+        "type": "object",
+        "required": ["tag", "period", "distance", "meta"],
+        "properties": {
+          "tag": { "$ref": "#/components/schemas/PartnerTag" },
+          "period": {
+            "type": "object",
+            "required": ["from", "to", "timezone"],
+            "properties": {
+              "from": { "type": "string", "format": "date-time" },
+              "to": { "type": "string", "format": "date-time" },
+              "timezone": { "type": "string", "enum": ["UTC"] }
+            }
+          },
+          "distance": {
+            "type": "object",
+            "required": ["meters", "kilometers", "points_count", "first_point_at", "last_point_at", "method"],
+            "properties": {
+              "meters": { "type": "number", "minimum": 0, "description": "Distância estimada em metros, com uma casa. 0 sem posição ou com uma só." },
+              "kilometers": { "type": "number", "minimum": 0, "description": "A mesma distância em quilômetros, com três casas." },
+              "points_count": { "type": "integer", "minimum": 0, "description": "Quantas posições válidas, dentro do período e das posses, entraram na conta." },
+              "first_point_at": { "type": "string", "format": "date-time", "nullable": true, "description": "Hora (do aparelho) da primeira posição que entrou; nula sem posição." },
+              "last_point_at": { "type": "string", "format": "date-time", "nullable": true, "description": "Hora (do aparelho) da última posição que entrou; nula sem posição." },
+              "method": { "type": "string", "enum": ["straight_line_between_consecutive_valid_points"], "description": "Como o número foi calculado: soma, em linha reta, dos trechos entre posições válidas consecutivas de cada posse. Estimativa, não odômetro." }
+            }
+          },
+          "meta": {
+            "type": "object",
+            "required": ["generated_at"],
+            "properties": {
+              "generated_at": { "type": "string", "format": "date-time", "description": "Instante, pela hora da plataforma, em que a resposta foi montada." }
+            }
+          }
+        }
+      },
+      "TagTrack": {
+        "type": "object",
+        "required": ["tag", "period", "positions", "links", "meta"],
+        "properties": {
+          "tag": { "$ref": "#/components/schemas/PartnerTag" },
+          "period": {
+            "type": "object",
+            "required": ["from", "to", "timezone"],
+            "properties": {
+              "from": { "type": "string", "format": "date-time" },
+              "to": { "type": "string", "format": "date-time" },
+              "timezone": { "type": "string", "enum": ["UTC"] }
+            }
+          },
+          "positions": { "type": "array", "items": { "$ref": "#/components/schemas/TagTrackPosition" } },
+          "links": {
+            "type": "object",
+            "required": ["next"],
+            "properties": { "next": { "type": "string", "format": "uri", "nullable": true, "description": "URL da próxima página, ou `null` na última." } }
+          },
+          "meta": {
+            "type": "object",
+            "required": ["per_page", "next_cursor", "generated_at"],
+            "properties": {
+              "per_page": { "type": "integer" },
+              "next_cursor": { "type": "string", "nullable": true, "description": "Envie em `cursor` para a próxima página; `null` na última." },
+              "generated_at": { "type": "string", "format": "date-time", "description": "Instante, pela hora da plataforma, em que a resposta foi montada." }
+            }
+          }
+        }
+      },
+      "PaginationLinks": {
+        "type": "object",
+        "properties": {
+          "first": { "type": "string", "format": "uri", "nullable": true },
+          "last": { "type": "string", "format": "uri", "nullable": true },
+          "prev": { "type": "string", "format": "uri", "nullable": true },
+          "next": { "type": "string", "format": "uri", "nullable": true }
+        }
+      },
+      "PaginationMeta": {
+        "type": "object",
+        "properties": {
+          "current_page": { "type": "integer" },
+          "from": { "type": "integer", "nullable": true },
+          "last_page": { "type": "integer" },
+          "path": { "type": "string" },
+          "per_page": { "type": "integer" },
+          "to": { "type": "integer", "nullable": true },
+          "total": { "type": "integer" }
+        }
+      },
+      "UnauthorizedError": { "type": "object", "required": ["message"], "properties": { "message": { "type": "string" } } },
+      "ForbiddenError": { "type": "object", "required": ["message"], "properties": { "message": { "type": "string" } } },
+      "NotFoundError": { "type": "object", "required": ["message"], "properties": { "message": { "type": "string" } } },
+      "BadRequestError": { "type": "object", "required": ["message"], "properties": { "message": { "type": "string" } } },
+      "ConflictError": {
+        "type": "object",
+        "required": ["message"],
+        "properties": {
+          "message": { "type": "string" },
+          "tag_binding_ids": { "type": "array", "items": { "type": "string", "format": "uuid" } },
+          "plan_id": { "type": "string", "format": "uuid" }
+        }
+      },
+      "BadGatewayError": {
+        "type": "object",
+        "required": ["message"],
+        "properties": { "message": { "type": "string" }, "subscription_id": { "type": "string", "format": "uuid" } }
+      },
+      "RateLimitError": {
+        "type": "object",
+        "required": ["message"],
+        "properties": { "message": { "type": "string" } },
+        "example": { "message": "Limite de requisições atingido. Tente novamente em 42s." }
+      },
+      "ValidationError": {
+        "type": "object",
+        "description": "Formato padrão do Laravel para falha de validação (`FormRequest`), inalterado pelo projeto. Guards de negócio customizados (ex.: quota de plano) usam o mesmo status 422 mas às vezes um corpo próprio (ver exemplos nas operações específicas) em vez deste formato `errors`.",
+        "required": ["message"],
+        "properties": {
+          "message": { "type": "string" },
+          "errors": { "type": "object", "additionalProperties": { "type": "array", "items": { "type": "string" } } }
+        }
+      }
+    }
+  }
+}
