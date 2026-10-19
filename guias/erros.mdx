@@ -48,7 +48,6 @@ Leia o detalhe em `errors`, que lista todos.
 | `422` | A chamada chegou bem, mas um dado não passou na validação ou uma regra de negócio impediu. | Leia `errors` e corrija os dados. |
 | `429` | Você passou do limite de chamadas por minuto. | Espere o tempo de `Retry-After` e repita. |
 | `500` | Falha da nossa parte. | Repita leituras com espera crescente. Em escrita, consulte antes de repetir. |
-| `502` | Um serviço externo de que a operação depende não respondeu direito. | Consulte o recurso antes de repetir; a página da rota diz o que pode ter acontecido. |
 
 ## Mensagens que você vai encontrar
 
@@ -84,7 +83,7 @@ Leia o detalhe em `errors`, que lista todos.
 
 - **`429`**: espere pelo menos o número de segundos do cabeçalho `Retry-After` e repita a mesma chamada.
 - **`500` e falha de rede em leitura**: repita com espera crescente, por exemplo 1, 2 e 4 segundos, no máximo 3 vezes.
-- **`500`, `502` ou falha de rede em escrita**: não repita às cegas. A operação pode ter funcionado. Consulte o recurso
+- **`500` ou falha de rede em escrita**: não repita às cegas. A operação pode ter funcionado. Consulte o recurso
   (pelo `external_id`, quando houver) e só repita se ele não existir.
 - **`400`, `401`, `403`, `404`, `409` e `422`**: repetir igual dá o mesmo erro. Corrija a chamada.
 

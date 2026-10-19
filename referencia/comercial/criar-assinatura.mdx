@@ -1,0 +1,362 @@
+---
+title: "Criar assinatura"
+description: "Liga uma ou mais Tags de um mesmo cliente a um plano. A localização só é liberada depois do pagamento, exceto na cobrança consolidada."
+api: "POST /api/b2b/v1/subscriptions"
+---
+
+Esta chamada cria a assinatura de um cliente seu: ela liga um ou mais vínculos (as Tags do cliente) a um plano. Uma assinatura é sempre de um único cliente e de um único plano, e o número de Tags não pode passar do `tag_quota` do plano. O aparelho de cada Tag só começa a informar posição quando a assinatura fica `active`.
+
+O que acontece depois depende de como o seu parceiro é cobrado. O modelo do seu parceiro aparece em `billing_model` em [Consultar o perfil do parceiro](/referencia/conta-e-equipe/consultar-perfil).
+
+- **Cobrança por assinatura** (o padrão): a assinatura nasce `pending`, sem cobrança. A resposta traz `checkout_url`, o endereço de uma página em que o **cliente** escolhe a forma de pagamento (cartão, boleto, Pix ou Pix Automático) e paga. Quando o pagamento do primeiro ciclo é confirmado, a assinatura passa a `active`, o aparelho passa a `active` e a localização é liberada. Seu parceiro nunca processa o pagamento do cliente.
+- **Cobrança consolidada pós-paga**: a assinatura nasce `active` na mesma chamada, o aparelho é ativado na hora e não há página de pagamento nem cobrança ao cliente. Seu parceiro é faturado pela ClubTrack depois, no fechamento do ciclo, em um dia de corte que a ClubTrack configura. Sem esse dia configurado a chamada falha com 422 e nada é criado.
+
+<Warning>
+  Esta chamada grava de verdade e não existe ambiente de teste. Ela reserva as Tags: enquanto estiverem numa assinatura em vigor, nenhuma outra assinatura pode usá-las (409). Na cobrança por assinatura, a chamada **não cobra nem envia e-mail ao cliente**: quem avisa o cliente é você, com o `checkout_url`, ou a chamada [Reenviar o link de pagamento](/referencia/comercial/reenviar-link-de-pagamento). Na cobrança consolidada, a assinatura já nasce ativa e entra no faturamento do seu parceiro. Esta API não tem chamada para cancelar uma assinatura; se criou errado, fale com a ClubTrack.
+</Warning>
+
+## Quando usar
+
+- Depois de [cadastrar o cliente](/referencia/clientes-e-enderecos/cadastrar-cliente) e de [vincular o dispositivo](/referencia/vinculos-e-campos/vincular-dispositivo), que é o que gera o `id` do vínculo. O passo a passo da venda está no guia de [fluxo de venda](/guias/fluxo-de-venda).
+- Para vender um plano de várias Tags a um mesmo cliente: envie todos os vínculos na mesma chamada, em `tag_binding_ids`.
+
+## Autenticação e permissões
+
+Aceita chave de API ou login humano. Qualquer usuário da equipe do parceiro pode criar. Parceiro suspenso recebe 403. Os vínculos e o plano precisam ser do parceiro em nome do qual você chama: com a chave de uma filial, valem os clientes e os planos dessa filial. O guia de [autenticação](/guias/autenticacao) explica as duas formas de credencial.
+
+## Parâmetros
+
+### Cabeçalhos
+
+<ParamField header="X-Api-Key" type="string" required>
+  Sua chave de API, no formato `ttk_` seguido de 40 caracteres. Você pode enviá-la também como
+  `Authorization: Bearer <chave>`. Se estiver chamando com o token de um usuário da equipe, envie só o `Authorization`.
+</ParamField>
+
+<ParamField header="X-Partner-Branch-Id" type="string (UUID)">
+  Filial em nome da qual o usuário está criando a assinatura. Só tem efeito no login humano, e só é obrigatório quando o
+  usuário pertence a mais de uma filial. Com chave de API, o cabeçalho é ignorado.
+</ParamField>
+
+<ParamField header="Content-Type" type="string" required>
+  Envie `application/json`. O corpo da chamada é um objeto JSON.
+</ParamField>
+
+### Corpo
+
+<ParamField body="tag_binding_ids" type="string[] (UUID)" required>
+  Lista com os `id` dos vínculos (as Tags) que a assinatura vai cobrir: o `data.id` devolvido por
+  [Vincular dispositivo a um cliente](/referencia/vinculos-e-campos/vincular-dispositivo) ou o `id` de cada linha de
+  [Listar Tags](/referencia/rastreamento/listar-tags). Precisa ter pelo menos um item, sem repetição, e no máximo o
+  `tag_quota` do plano. Todos os vínculos precisam ser do mesmo cliente e de clientes do seu parceiro. Um vínculo que já está
+  numa assinatura em vigor, de qualquer plano, faz a chamada inteira falhar com 409.
+  Exemplo: `["019a0f3c-a000-7d36-b6e0-c918528fd00a"]`.
+</ParamField>
+
+<ParamField body="plan_id" type="string (UUID)" required>
+  O plano que o cliente assina: o `id` devolvido por [Listar planos](/referencia/comercial/listar-planos). O plano precisa ser
+  do seu parceiro. O preço do plano é gravado na assinatura neste momento e não muda depois. A chamada não confere a situação
+  do plano, então envie só planos `active`. Exemplo: `019a0f3c-c000-7f57-9da6-e983620124d1`.
+</ParamField>
+
+<Note>
+  Integrações antigas mandavam também `payment_method`. O campo saiu do corpo e, se vier, é ignorado: quem escolhe a forma de
+  pagamento é o cliente, na página de pagamento. A forma escolhida aparece depois em `payment_method` na resposta de
+  [Consultar assinatura](/referencia/comercial/consultar-assinatura).
+</Note>
+
+## Resposta
+
+Status `201`. O corpo traz a assinatura criada em `data`. A resposta de criação não traz o plano nem os dados do cliente:
+`plan` não aparece e `customer` vem `null`. Para ver o plano e o cliente de cada assinatura, use
+[Listar assinaturas](/referencia/comercial/listar-assinaturas).
+
+<ResponseField name="data.id" type="string (UUID)">
+  Identificador da assinatura. É o valor que [Consultar assinatura](/referencia/comercial/consultar-assinatura) e
+  [Reenviar o link de pagamento](/referencia/comercial/reenviar-link-de-pagamento) pedem em `{id}`. Guarde-o junto do
+  `external_id` do cliente.
+</ResponseField>
+
+<ResponseField name="data.tag_binding_ids" type="string[] (UUID)">
+  Os vínculos ligados à assinatura, os mesmos que você enviou. Em consultas posteriores a lista inclui também os vínculos
+  que já foram desligados da assinatura.
+</ResponseField>
+
+<ResponseField name="data.plan_id" type="string (UUID)">
+  O plano da assinatura, o mesmo `plan_id` que você enviou na chamada.
+</ResponseField>
+
+<ResponseField name="data.price_cents" type="integer">
+  O que a assinatura cobra a cada ciclo, em centavos, gravado no momento da criação: `2990` é R$ 29,90. Não muda se o plano
+  for reajustado depois.
+</ResponseField>
+
+<ResponseField name="data.commission_rate" type="number | null">
+  Percentual de comissão do seu parceiro, de 0 a 100, gravado no momento da criação (por exemplo, `12.5`). Pode vir `null` em
+  assinatura antiga sem esse valor gravado.
+</ResponseField>
+
+<ResponseField name="data.status" type="string">
+  Situação da assinatura. `pending`: criada e aguardando o pagamento do primeiro ciclo. `active`: em vigor, com a
+  localização liberada. `past_due`: em atraso, com uma cobrança não paga no vencimento; volta a `active` quando o pagamento é
+  confirmado, e a ClubTrack cancela a assinatura que fica em atraso por tempo demais. `cancelled`: encerrada. `refunded`:
+  estornada. Na criação, o valor é `pending` na cobrança por assinatura e `active` na cobrança consolidada.
+</ResponseField>
+
+<ResponseField name="data.payment_method" type="string | null">
+  Forma de pagamento que o cliente escolheu na página de pagamento: `card` (cartão), `boleto`, `pix_manual` (Pix) ou
+  `pix_automatico` (Pix Automático, em que o cliente autoriza as cobranças). Vem `null` na criação, enquanto o cliente não escolheu, e
+  permanece `null` na cobrança consolidada.
+</ResponseField>
+
+<ResponseField name="data.external_reference_id" type="string | null">
+  Referência da cobrança recorrente no sistema de pagamento. Vem `null` na criação e é preenchida quando a cobrança é registrada.
+  Nenhuma chamada desta API pede esse valor.
+</ResponseField>
+
+<ResponseField name="data.payment_checkout_url" type="string | null">
+  Endereço da página de pagamento da cobrança já gerada, que aparece depois que o cliente escolhe a forma de pagamento
+  (cartão, boleto ou Pix manual). Vem `null` na criação. Use o endereço exatamente como veio; não monte nem fixe o endereço do servidor.
+  Não confunda com `checkout_url`.
+</ResponseField>
+
+<ResponseField name="data.checkout_url" type="string">
+  Endereço da página em que o cliente **escolhe como pagar**. Só aparece na cobrança por assinatura, enquanto o cliente ainda não concluiu
+  a escolha. Entregue ao cliente o endereço exatamente como veio e nunca monte nem fixe esse endereço. Na cobrança consolidada o campo não existe.
+</ResponseField>
+
+<ResponseField name="data.no_charge_kind" type="string | null">
+  Indica assinatura ativa sem cobrança. Hoje o único valor é `courtesy` (cortesia concedida pela ClubTrack). `null` na assinatura comum.
+</ResponseField>
+
+<ResponseField name="data.no_charge_ends_at" type="string (data e hora ISO 8601) | null">
+  Quando a cortesia termina, em UTC. `null` quando não há cortesia ou ela não tem data de fim.
+</ResponseField>
+
+<ResponseField name="data.no_charge_reason" type="string | null">
+  Motivo registrado para a cortesia. `null` quando não há cortesia.
+</ResponseField>
+
+<ResponseField name="data.courtesy_expired" type="boolean">
+  `true` quando a assinatura é uma cortesia com data de fim já vencida. O campo só informa: a assinatura não muda de
+  situação sozinha.
+</ResponseField>
+
+<ResponseField name="data.next_billing_date" type="string (data) | null">
+  Data da próxima cobrança, no formato `AAAA-MM-DD`. Vem `null` na criação e na cobrança consolidada.
+</ResponseField>
+
+<ResponseField name="data.customer" type="object | null">
+  Na resposta de criação, sempre `null`. Os dados do cliente vêm em [Listar assinaturas](/referencia/comercial/listar-assinaturas).
+</ResponseField>
+
+<ResponseField name="data.created_at" type="string (data e hora ISO 8601)">
+  Quando a assinatura foi criada, em UTC.
+</ResponseField>
+
+## Erros
+
+| Status | Quando acontece | O que fazer |
+|---|---|---|
+| 400 | Login humano com usuário que tem mais de uma filial e sem `X-Partner-Branch-Id`. | Envie o cabeçalho com a filial desejada. |
+| 401 | Não há chave, a chave é inválida, foi revogada ou expirou. Com login humano: usuário inativo ou token expirado. | Confira a credencial. Revogação leva até 60 segundos para valer. |
+| 403 | O parceiro está suspenso ou inativo, ou a filial informada não pertence ao usuário. | Fale com a ClubTrack se o parceiro deveria estar ativo. |
+| 404 | `Um ou mais vínculos de tag não foram encontrados.`: algum `id` de `tag_binding_ids` não existe ou é de cliente de outro parceiro; a resposta é a mesma nos dois casos. `Plano não encontrado.`: o plano não existe ou é de outro parceiro. Os vínculos são conferidos primeiro. | Confira os `id` em Listar Tags e o `plan_id` em Listar planos. |
+| 409 | `Uma ou mais Tags já têm assinatura ativa.`: pelo menos um dos vínculos já está numa assinatura em vigor, em qualquer plano. O corpo traz também `tag_binding_ids` e `plan_id`, que repetem o que você enviou: eles **não** apontam qual vínculo colidiu. Nada foi criado. | Procure em Listar assinaturas a assinatura que já usa os vínculos. Se for a que você queria criar, use essa. |
+| 422 | Formato inválido: `tag_binding_ids` ausente, vazio ou com item que não é UUID ou repetido; `plan_id` ausente ou que não é UUID. As mensagens vêm em inglês, com o nome do campo em `errors`. | Corrija o corpo e envie de novo. |
+| 422 | `Todos os vínculos de uma assinatura precisam ser do mesmo cliente.` | Crie uma assinatura para cada cliente. |
+| 422 | `Este plano permite no máximo N tag(s).` O corpo traz também `tag_quota` (o limite do plano) e `tag_binding_ids_count` (quantos você enviou). | Envie até `tag_quota` vínculos ou escolha um plano com mais vagas. |
+| 422 | Cobrança consolidada sem dia de corte configurado: a mensagem começa com `Parceiro` seguido do seu `id` e diz que o dia de corte não foi configurado. Nada é criado. | Fale com a ClubTrack para configurar o dia de corte. |
+| 429 | Passou de 1000 chamadas por minuto com a chave. | Espere o tempo do cabeçalho `Retry-After` e repita. |
+
+Os status 401, 403 e 429 valem para qualquer chamada. O corpo é sempre `{"message": "..."}`, e o 422 de formato acrescenta `errors`;
+o guia de [erros](/guias/erros) traz os textos exatos.
+
+## Exemplos
+
+<RequestExample>
+
+```bash cURL
+curl --request POST "https://core.clubtrack.com.br/api/b2b/v1/subscriptions" \
+  --header "X-Api-Key: $CLUBTRACK_API_KEY" \
+  --header "Accept: application/json" \
+  --header "Content-Type: application/json" \
+  --data '{
+    "tag_binding_ids": ["019a0f3c-a000-7d36-b6e0-c918528fd00a"],
+    "plan_id": "019a0f3c-c000-7f57-9da6-e983620124d1"
+  }'
+```
+
+```javascript JavaScript
+const resposta = await fetch("https://core.clubtrack.com.br/api/b2b/v1/subscriptions", {
+  method: "POST",
+  headers: {
+    "X-Api-Key": process.env.CLUBTRACK_API_KEY,
+    Accept: "application/json",
+    "Content-Type": "application/json",
+  },
+  body: JSON.stringify({
+    tag_binding_ids: ["019a0f3c-a000-7d36-b6e0-c918528fd00a"],
+    plan_id: "019a0f3c-c000-7f57-9da6-e983620124d1",
+  }),
+});
+
+const assinatura = await resposta.json();
+```
+
+```python Python
+import os
+import requests
+
+resposta = requests.post(
+    "https://core.clubtrack.com.br/api/b2b/v1/subscriptions",
+    headers={
+        "X-Api-Key": os.environ["CLUBTRACK_API_KEY"],
+        "Accept": "application/json",
+    },
+    json={
+        "tag_binding_ids": ["019a0f3c-a000-7d36-b6e0-c918528fd00a"],
+        "plan_id": "019a0f3c-c000-7f57-9da6-e983620124d1",
+    },
+    timeout=30,
+)
+
+assinatura = resposta.json()
+```
+
+```php PHP
+use GuzzleHttp\Client;
+
+$http = new Client(['base_uri' => 'https://core.clubtrack.com.br']);
+
+$resposta = $http->post('/api/b2b/v1/subscriptions', [
+    'headers' => [
+        'X-Api-Key' => getenv('CLUBTRACK_API_KEY'),
+        'Accept' => 'application/json',
+    ],
+    'json' => [
+        'tag_binding_ids' => ['019a0f3c-a000-7d36-b6e0-c918528fd00a'],
+        'plan_id' => '019a0f3c-c000-7f57-9da6-e983620124d1',
+    ],
+]);
+
+$assinatura = json_decode((string) $resposta->getBody(), true);
+```
+
+</RequestExample>
+
+<ResponseExample>
+
+```json 201 cobrança por assinatura
+{
+  "data": {
+    "id": "019a0f3c-e000-7182-a6cd-bb7e5dcde111",
+    "tag_binding_ids": [
+      "019a0f3c-a000-7d36-b6e0-c918528fd00a"
+    ],
+    "plan_id": "019a0f3c-c000-7f57-9da6-e983620124d1",
+    "price_cents": 2990,
+    "commission_rate": 12.5,
+    "status": "pending",
+    "payment_method": null,
+    "external_reference_id": null,
+    "payment_checkout_url": null,
+    "no_charge_kind": null,
+    "no_charge_ends_at": null,
+    "no_charge_reason": null,
+    "courtesy_expired": false,
+    "next_billing_date": null,
+    "checkout_url": "https://exemplo.clubtrack.example/checkout/?token=7c1e5b0a-4d2f-4f6a-9b3e-2a8d5c1f9e60",
+    "customer": null,
+    "created_at": "2026-10-19T17:35:42+00:00"
+  }
+}
+```
+
+```json 201 cobrança consolidada
+{
+  "data": {
+    "id": "019a0f3c-e000-7182-a6cd-bb7e5dcde111",
+    "tag_binding_ids": [
+      "019a0f3c-a000-7d36-b6e0-c918528fd00a"
+    ],
+    "plan_id": "019a0f3c-c000-7f57-9da6-e983620124d1",
+    "price_cents": 2990,
+    "commission_rate": 12.5,
+    "status": "active",
+    "payment_method": null,
+    "external_reference_id": null,
+    "payment_checkout_url": null,
+    "no_charge_kind": null,
+    "no_charge_ends_at": null,
+    "no_charge_reason": null,
+    "courtesy_expired": false,
+    "next_billing_date": null,
+    "customer": null,
+    "created_at": "2026-10-19T17:35:42+00:00"
+  }
+}
+```
+
+```json 401
+{
+  "message": "API key inválida ou revogada."
+}
+```
+
+```json 403
+{
+  "message": "Parceiro inativo ou suspenso."
+}
+```
+
+```json 404
+{
+  "message": "Plano não encontrado."
+}
+```
+
+```json 409
+{
+  "message": "Uma ou mais Tags já têm assinatura ativa.",
+  "tag_binding_ids": [
+    "019a0f3c-a000-7d36-b6e0-c918528fd00a"
+  ],
+  "plan_id": "019a0f3c-c000-7f57-9da6-e983620124d1"
+}
+```
+
+```json 422 formato
+{
+  "message": "The plan id field is required.",
+  "errors": {
+    "plan_id": [
+      "The plan id field is required."
+    ]
+  }
+}
+```
+
+```json 422 quota do plano
+{
+  "message": "Este plano permite no máximo 1 tag(s).",
+  "tag_quota": 1,
+  "tag_binding_ids_count": 2
+}
+```
+
+```json 422 dia de corte não configurado
+{
+  "message": "Parceiro 019a0f3c-0000-7a36-8f98-0b409e8a22c8 está no modelo consolidated_postpaid mas billing_cutoff_day não foi configurado -- não é possível ativar a Tag sem cobrança sem uma data de corte para a fatura consolidada."
+}
+```
+
+</ResponseExample>
+
+## Detalhes que ajudam
+
+- **Repetir a chamada não cria uma segunda assinatura.** Se a conexão cair antes de você receber a resposta, repita a chamada: se a primeira tinha chegado, a segunda responde `409` e nada é duplicado. Em seguida, localize a assinatura em [Listar assinaturas](/referencia/comercial/listar-assinaturas); a lista não tem filtro por vínculo, então confira `tag_binding_ids` nas linhas.
+- **Esta chamada não fala com o sistema de pagamento.** Por isso ela não tem erro de cobrança (502) nem risco de cobrar duas vezes: a cobrança só nasce quando o cliente conclui o pagamento na página de pagamento.
+- **Como saber que o cliente pagou.** A API não envia aviso de pagamento. Consulte a assinatura com [Consultar assinatura](/referencia/comercial/consultar-assinatura) e acompanhe o `status`: quando vira `active`, o aparelho está ativado e a localização, liberada.
+- **Assinatura `pending` continua ocupando as Tags.** Se o cliente desistiu do pagamento, fale com a ClubTrack: esta API não cancela assinatura.
+- **O modelo de cobrança é lido a cada chamada.** A regra é do parceiro inteiro: se ela mudar, a assinatura criada logo depois já segue o modelo novo.

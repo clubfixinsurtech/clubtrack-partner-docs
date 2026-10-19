@@ -102,6 +102,13 @@
             "icon": "code",
             "groups": [
               {
+                "group": "Visão geral",
+                "icon": "list",
+                "pages": [
+                  "referencia/index"
+                ]
+              },
+              {
                 "group": "Conta e equipe",
                 "icon": "users",
                 "pages": [

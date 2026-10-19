@@ -14,8 +14,8 @@ pergunta de quem está chamando: um sistema, sozinho, ou uma pessoa da equipe do
 | **Age em nome de** | O parceiro dono da chave | A filial escolhida pelo usuário |
 | **Limite de chamadas** | 1000 por minuto, por parceiro | Não passa pela contagem de 1000 por minuto |
 
-Quase todas as operações aceitam as duas. As poucas exceções estão dentro da página de cada operação, na seção
-"Autenticação e permissões".
+Quase todas as operações aceitam as duas. As exceções são poucas e estão listadas no fim deste guia, em "Quando a credencial
+não basta"; cada página de operação também as repete na seção "Autenticação e permissões".
 
 ## Chave de API
 
@@ -83,6 +83,18 @@ Com chave de API, o cabeçalho `X-Partner-Branch-Id` é ignorado.
 Se o parceiro estiver suspenso ou inativo, a API recusa as chamadas dele com `403` e `Parceiro inativo ou suspenso.`, mesmo com a
 credencial válida. Suspender o parceiro principal derruba também as suas filiais. Suspender uma filial não afeta o principal nem as
 outras filiais.
+
+## Quando a credencial não basta
+
+Algumas operações pedem mais do que uma credencial válida:
+
+| Operação | O que exige |
+|---|---|
+| [Criar pedido de dispositivo](/referencia/comercial/criar-pedido-de-dispositivo) | **Login de usuário.** O pedido registra quem o fez, e a chave de API não tem usuário: com chave, a resposta é `403`. |
+| [Criar campo no catálogo](/referencia/vinculos-e-campos/criar-campo-do-catalogo) e [editar campo](/referencia/vinculos-e-campos/editar-campo-do-catalogo) | Credencial do **parceiro principal** (o hub). Uma filial recebe `403`. |
+| [Convidar usuário](/referencia/conta-e-equipe/convidar-usuario) | Com login, só o papel `owner`. Com chave de API, vale a chave. |
+| [Entrar](/referencia/conta-e-equipe/entrar) e [Recuperar acesso](/referencia/conta-e-equipe/recuperar-senha) | Nenhuma credencial: são o jeito de obter uma. |
+| [Definir senha pelo convite](/referencia/conta-e-equipe/definir-senha-do-usuario) | Nenhuma credencial: a URL assinada que o usuário recebe por e-mail é a autorização. |
 
 ## O que a API responde quando a credencial não serve
 

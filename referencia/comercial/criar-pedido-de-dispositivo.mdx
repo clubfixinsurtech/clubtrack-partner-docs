@@ -1,0 +1,335 @@
+---
+title: "Criar pedido de dispositivo"
+description: "Registra um pedido de aparelhos à ClubTrack, para o seu parceiro ou para envio direto a um cliente. Exige login de usuário."
+api: "POST /api/b2b/v1/device-orders"
+---
+
+Esta chamada registra um pedido de aparelhos (as Tags) à ClubTrack. O pedido nasce com `status` igual a `pending`: a ClubTrack analisa, define o preço e o frete quando houver, e aprova ou recusa. Quando o pedido é atendido, os aparelhos entram no estoque do seu parceiro, prontos para [vincular a um cliente](/referencia/vinculos-e-campos/vincular-dispositivo). Você informa o modelo, a quantidade e como o seu parceiro recebe os aparelhos; os números de série e o preço não são escolha sua.
+
+O pedido pode ter dois destinatários, que a resposta mostra em `recipient_type`:
+
+- **`partner`**: sem `customer_id`. O pedido é do seu parceiro, para repor ou ampliar o estoque.
+- **`customer`**: com `customer_id`. O pedido é feito em nome de um cliente seu, para envio direto ao endereço dele. O cliente precisa ter um endereço principal completo (CEP, rua, número, bairro, cidade e estado).
+
+<Warning>
+  Esta chamada grava de verdade e não existe ambiente de teste. Ela cria um pedido real, que a ClubTrack vai analisar. Se o pedido for aprovado com valor a pagar, ele fica aguardando o pagamento em um endereço de pagamento (`checkout_url`). Esta API não tem chamada para alterar, cancelar ou consultar um pedido isolado; se criou errado, fale com a ClubTrack.
+</Warning>
+
+## Quando usar
+
+- Repor o estoque de aparelhos do seu parceiro quando os dispositivos livres estão acabando. Confira o estoque em [Listar dispositivos](/referencia/rastreamento/listar-dispositivos).
+- Pedir aparelhos para entrega direta a um cliente, informando `customer_id`.
+- Registrar em `notes` uma observação que acompanha o pedido, por exemplo a filial de destino.
+
+## Autenticação e permissões
+
+**Exige login humano.** Chave de API não basta nesta chamada: o pedido registra qual usuário o fez, e a chave não tem usuário. Chamada com chave e corpo válido responde 403. Use o token de [Entrar](/referencia/conta-e-equipe/entrar). Qualquer usuário da equipe do parceiro pode criar. Parceiro suspenso ou inativo recebe 403. Com login em mais de uma filial, o pedido é da filial indicada em `X-Partner-Branch-Id`. O guia de [autenticação](/guias/autenticacao) explica a escolha da filial.
+
+## Parâmetros
+
+### Cabeçalhos
+
+<ParamField header="Authorization" type="string" required>
+  O token do login humano, no formato `Bearer <token>`, obtido em [Entrar](/referencia/conta-e-equipe/entrar). Nesta chamada
+  a chave de API (`X-Api-Key`) não é aceita.
+</ParamField>
+
+<ParamField header="X-Partner-Branch-Id" type="string (UUID)">
+  Filial em nome da qual o usuário está fazendo o pedido. Só é obrigatório quando o usuário pertence a mais de uma filial.
+  O pedido fica registrado nessa filial.
+</ParamField>
+
+<ParamField header="Content-Type" type="string" required>
+  Envie `application/json`. O corpo da chamada é um objeto JSON.
+</ParamField>
+
+### Corpo
+
+<ParamField body="model" type="string" required>
+  Modelo do aparelho que você quer pedir, até 150 caracteres. É texto livre: a chamada não confere o nome contra um catálogo,
+  e a ClubTrack decide na análise. Exemplo: `ClubTrack Tag v3`.
+</ParamField>
+
+<ParamField body="quantity" type="integer" required>
+  Quantos aparelhos, um inteiro de 1 em diante. A chamada não impõe teto; quantidades grandes passam pela análise da ClubTrack.
+  Exemplo: `5`.
+</ParamField>
+
+<ParamField body="acquisition_model" type="string" required>
+  Como o seu parceiro recebe os aparelhos. `comodato`: os aparelhos continuam sendo da ClubTrack, que os empresta ao seu
+  parceiro, e voltam a ela se o contrato do seu parceiro for encerrado. `purchased`: o seu parceiro compra os aparelhos, e a
+  ClubTrack define o preço de cada unidade na aprovação. Outro valor é recusado com 422. Exemplo: `comodato`.
+</ParamField>
+
+<ParamField body="customer_id" type="string (UUID) | null">
+  Cliente que vai receber os aparelhos diretamente. Opcional: sem ele, o destinatário é o seu parceiro. É o `id` de
+  [Listar clientes](/referencia/clientes-e-enderecos/listar-clientes) ou de
+  [Cadastrar cliente](/referencia/clientes-e-enderecos/cadastrar-cliente). O cliente precisa ser do seu parceiro e ter
+  endereço principal completo; se não tiver, cadastre ou defina o endereço antes, em
+  [Cadastrar endereço](/referencia/clientes-e-enderecos/cadastrar-endereco) e
+  [Definir endereço principal](/referencia/clientes-e-enderecos/definir-endereco-principal). Cliente inexistente e cliente de
+  outro parceiro recebem a mesma resposta 422. Exemplo: `019a0f3c-4000-7f9e-9687-b620b4389874`.
+</ParamField>
+
+<ParamField body="notes" type="string | null">
+  Observação livre sobre o pedido, até 2000 caracteres. Texto vazio equivale a não enviar. Volta na resposta, em `notes`, e
+  fica `null` quando não é informada. Exemplo: `Reposição de estoque da filial Sul`.
+</ParamField>
+
+## Resposta
+
+Status `201`. O corpo traz o pedido criado em `data`. A resposta não traz os dados do destinatário nem a remessa. Os campos de
+valor e de pagamento só são preenchidos pela ClubTrack na aprovação, então vêm `null` aqui.
+
+<ResponseField name="data.id" type="string (UUID)">
+  Identificador do pedido. Guarde-o: pedido feito com `customer_id` não aparece em [Listar pedidos de dispositivo](/referencia/comercial/listar-pedidos-de-dispositivo),
+  e este `id` é o que você cita se precisar falar com a ClubTrack sobre ele.
+</ResponseField>
+
+<ResponseField name="data.recipient_type" type="string">
+  Quem recebe os aparelhos: `partner` (o seu parceiro, quando o pedido não leva `customer_id`) ou `customer` (um cliente
+  seu, quando leva).
+</ResponseField>
+
+<ResponseField name="data.recipient_id" type="string (UUID)">
+  Identificador do destinatário: o `id` do seu parceiro (ou da filial ativa, no login humano) quando `recipient_type` é
+  `partner`, e o `customer_id` enviado quando é `customer`.
+</ResponseField>
+
+<ResponseField name="data.model" type="string">
+  O modelo pedido, como você enviou.
+</ResponseField>
+
+<ResponseField name="data.quantity" type="integer">
+  A quantidade de aparelhos pedida, um inteiro de 1 em diante.
+</ResponseField>
+
+<ResponseField name="data.acquisition_model" type="string">
+  `comodato` ou `purchased`, como você enviou.
+</ResponseField>
+
+<ResponseField name="data.status" type="string">
+  Situação do pedido. `pending`: aguardando a análise da ClubTrack; é o valor na criação. `approved`: aprovado; só se vê
+  este valor quando há valor a pagar, e o pedido fica nele até o pagamento ser confirmado. `fulfilled`: atendido, com os
+  aparelhos já no estoque; pedido aprovado sem nada a pagar (por exemplo, em comodato sem frete) passa direto de `pending`
+  a `fulfilled`. `rejected`: recusado pela ClubTrack. `fulfilled` e `rejected` são finais.
+</ResponseField>
+
+<ResponseField name="data.requested_by" type="string (UUID)">
+  O usuário da equipe do parceiro que fez o pedido: o `id` do usuário do login usado na chamada.
+</ResponseField>
+
+<ResponseField name="data.notes" type="string | null">
+  A observação enviada em `notes`, ou `null`. A ClubTrack pode acrescentar uma linha com o resultado da alocação quando atende o pedido.
+</ResponseField>
+
+<ResponseField name="data.identifier_from" type="string | null">
+  Primeiro identificador do intervalo de aparelhos reservado para o pedido. `null` até a aprovação.
+</ResponseField>
+
+<ResponseField name="data.identifier_to" type="string | null">
+  Último identificador do intervalo reservado. `null` até a aprovação.
+</ResponseField>
+
+<ResponseField name="data.unit_price_cents" type="integer | null">
+  Preço de cada aparelho, em centavos, definido na aprovação e só em `purchased`. `null` em `comodato` e antes da aprovação.
+</ResponseField>
+
+<ResponseField name="data.shipping_cents" type="integer | null">
+  Frete em centavos, definido na aprovação. Antes disso vale `0` nas consultas; na resposta de criação vem `null`.
+</ResponseField>
+
+<ResponseField name="data.total_cents" type="integer | null">
+  Valor a pagar, em centavos: preço da unidade vezes a quantidade, mais o frete. `0` quando não há nada a pagar. `null`
+  antes da aprovação.
+</ResponseField>
+
+<ResponseField name="data.allowed_payment_methods" type="string[] | null">
+  Formas de pagamento liberadas para o pedido, entre `card`, `boleto`, `pix_manual` e `pix_automatico`. `null` até a
+  aprovação e quando não há valor a pagar.
+</ResponseField>
+
+<ResponseField name="data.payment_method" type="string | null">
+  Forma de pagamento usada no pagamento do pedido. `null` até o pagamento ser feito.
+</ResponseField>
+
+<ResponseField name="data.created_at" type="string (data e hora ISO 8601)">
+  Quando o pedido foi criado, em UTC.
+</ResponseField>
+
+<ResponseField name="data.updated_at" type="string (data e hora ISO 8601)">
+  Última alteração do pedido, em UTC.
+</ResponseField>
+
+## Erros
+
+| Status | Quando acontece | O que fazer |
+|---|---|---|
+| 400 | Login humano com usuário que tem mais de uma filial e sem `X-Partner-Branch-Id`. | Envie o cabeçalho com a filial desejada. |
+| 401 | Não há token, o token é inválido ou expirou, ou o usuário está inativo. | Faça login de novo em Entrar. |
+| 403 | O parceiro está suspenso ou inativo (`Parceiro inativo ou suspenso.`), ou a filial informada não pertence ao usuário. | Fale com a ClubTrack se o parceiro deveria estar ativo. |
+| 403 | `Pedido de Dispositivos exige login de usuário do parceiro -- não é permitido via API key.`: a chamada foi feita com chave de API. | Chame com o token de login humano. |
+| 422 | Formato inválido: `model`, `quantity` ou `acquisition_model` ausentes; `quantity` que não é inteiro ou é menor que 1; `acquisition_model` fora de `comodato` e `purchased`; `model` com mais de 150 caracteres; `notes` com mais de 2000. As mensagens vêm em inglês, com o nome do campo em `errors`. | Corrija o corpo e envie de novo. |
+| 422 | `customer_id` que não é UUID, que não existe ou é de outro parceiro (`The selected customer id is invalid.`). | Use o `id` de um cliente do seu parceiro. |
+| 422 | O cliente de `customer_id` não tem endereço principal completo. A mensagem, em português, diz que o endereço é obrigatório para envio direto. | Complete o endereço do cliente e defina o principal, depois repita. |
+| 429 | Passou de 1000 chamadas por minuto. | Espere o tempo do cabeçalho `Retry-After` e repita. |
+
+Os status 401, 403 e 429 valem para qualquer chamada. O corpo é sempre `{"message": "..."}`, e o 422 de formato acrescenta `errors`;
+o guia de [erros](/guias/erros) traz os textos exatos.
+
+## Exemplos
+
+<RequestExample>
+
+```bash cURL
+curl --request POST "https://core.clubtrack.com.br/api/b2b/v1/device-orders" \
+  --header "Authorization: Bearer $CLUBTRACK_TOKEN" \
+  --header "Accept: application/json" \
+  --header "Content-Type: application/json" \
+  --data '{
+    "model": "ClubTrack Tag v3",
+    "quantity": 5,
+    "acquisition_model": "comodato",
+    "notes": "Reposição de estoque da filial Sul"
+  }'
+```
+
+```javascript JavaScript
+const resposta = await fetch("https://core.clubtrack.com.br/api/b2b/v1/device-orders", {
+  method: "POST",
+  headers: {
+    Authorization: `Bearer ${process.env.CLUBTRACK_TOKEN}`,
+    Accept: "application/json",
+    "Content-Type": "application/json",
+  },
+  body: JSON.stringify({
+    model: "ClubTrack Tag v3",
+    quantity: 5,
+    acquisition_model: "comodato",
+    notes: "Reposição de estoque da filial Sul",
+  }),
+});
+
+const pedido = await resposta.json();
+```
+
+```python Python
+import os
+import requests
+
+resposta = requests.post(
+    "https://core.clubtrack.com.br/api/b2b/v1/device-orders",
+    headers={
+        "Authorization": f"Bearer {os.environ['CLUBTRACK_TOKEN']}",
+        "Accept": "application/json",
+    },
+    json={
+        "model": "ClubTrack Tag v3",
+        "quantity": 5,
+        "acquisition_model": "comodato",
+        "notes": "Reposição de estoque da filial Sul",
+    },
+    timeout=30,
+)
+
+pedido = resposta.json()
+```
+
+```php PHP
+use GuzzleHttp\Client;
+
+$http = new Client(['base_uri' => 'https://core.clubtrack.com.br']);
+
+$resposta = $http->post('/api/b2b/v1/device-orders', [
+    'headers' => [
+        'Authorization' => 'Bearer ' . getenv('CLUBTRACK_TOKEN'),
+        'Accept' => 'application/json',
+    ],
+    'json' => [
+        'model' => 'ClubTrack Tag v3',
+        'quantity' => 5,
+        'acquisition_model' => 'comodato',
+        'notes' => 'Reposição de estoque da filial Sul',
+    ],
+]);
+
+$pedido = json_decode((string) $resposta->getBody(), true);
+```
+
+</RequestExample>
+
+<ResponseExample>
+
+```json 201
+{
+  "data": {
+    "id": "019a0f3c-f000-7530-bf2b-3c92a45c2d1d",
+    "recipient_type": "partner",
+    "recipient_id": "019a0f3c-0000-7a36-8f98-0b409e8a22c8",
+    "model": "ClubTrack Tag v3",
+    "quantity": 5,
+    "acquisition_model": "comodato",
+    "status": "pending",
+    "requested_by": "019a0f3c-2000-7ff2-876c-1b9717c83a0c",
+    "notes": "Reposição de estoque da filial Sul",
+    "identifier_from": null,
+    "identifier_to": null,
+    "unit_price_cents": null,
+    "shipping_cents": null,
+    "total_cents": null,
+    "allowed_payment_methods": null,
+    "payment_method": null,
+    "created_at": "2026-10-19T17:41:03+00:00",
+    "updated_at": "2026-10-19T17:41:03+00:00"
+  }
+}
+```
+
+```json 401
+{
+  "message": "Usuário inativo."
+}
+```
+
+```json 403 chave de API
+{
+  "message": "Pedido de Dispositivos exige login de usuário do parceiro -- não é permitido via API key."
+}
+```
+
+```json 422 formato
+{
+  "message": "The model field is required. (and 2 more errors)",
+  "errors": {
+    "model": [
+      "The model field is required."
+    ],
+    "quantity": [
+      "The quantity field is required."
+    ],
+    "acquisition_model": [
+      "The acquisition model field is required."
+    ]
+  }
+}
+```
+
+```json 422 endereço incompleto
+{
+  "message": "O Customer selecionado não tem endereço completo cadastrado — obrigatório para envio direto de Dispositivos.",
+  "errors": {
+    "customer_id": [
+      "O Customer selecionado não tem endereço completo cadastrado — obrigatório para envio direto de Dispositivos."
+    ]
+  }
+}
+```
+
+</ResponseExample>
+
+## Detalhes que ajudam
+
+- **Chave de API e corpo inválido.** A validação do corpo acontece antes da checagem de login: uma chamada com chave de API e corpo inválido recebe 422, e só com corpo válido chega ao 403. Não use o 422 como sinal de que a chave serve.
+- **Repetir a chamada cria outro pedido.** Esta chamada não é idempotente. Se a conexão cair antes da resposta, confira em [Listar pedidos de dispositivo](/referencia/comercial/listar-pedidos-de-dispositivo) antes de repetir. Pedidos feitos com `customer_id` não aparecem nessa lista: neste caso, confirme com a ClubTrack.
+- **A API não avisa a aprovação.** Acompanhe o `status` na lista. Quando o pedido tem valor a pagar, `checkout_url` aparece na lista a partir da aprovação, e `allowed_payment_methods` diz quais formas de pagamento estão liberadas. Use o endereço exatamente como veio.
+- **`acquisition_model` e `tag_ownership_model` são coisas diferentes.** O primeiro descreve como o seu parceiro recebe os aparelhos da ClubTrack. O segundo, do plano, descreve de quem é o aparelho entre o seu parceiro e o cliente. Veja [Listar planos](/referencia/comercial/listar-planos).

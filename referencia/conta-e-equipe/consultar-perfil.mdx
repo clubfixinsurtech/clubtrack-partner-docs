@@ -1,0 +1,170 @@
+---
+title: "Consultar o perfil do parceiro"
+description: "Devolve o nome, o logo, o tipo (principal ou filial) e o modelo de cobrança do parceiro em nome do qual você está chamando."
+api: "GET /api/b2b/v1/partner"
+---
+
+Esta chamada devolve o perfil resumido do parceiro da sua credencial: nome, logo, se é o parceiro principal ou uma filial e como ele é cobrado. Você a usa para montar o cabeçalho de uma tela com a marca do parceiro e, principalmente, para ler `billing_model`, que muda o que acontece depois de [criar uma assinatura](/referencia/comercial/criar-assinatura).
+
+Ela mostra só o parceiro em nome do qual a chamada é feita. Com chave de API, é o dono da chave. Com login de usuário, é a filial ativa na chamada. Para ver o parceiro principal e todas as filiais, use [Listar o hub e as filiais](/referencia/conta-e-equipe/listar-filiais).
+
+## Quando usar
+
+- Antes de montar o fluxo de venda, para saber se o parceiro é cobrado por assinatura (`per_subscription`) ou de forma consolidada (`consolidated_postpaid`), e então mostrar ou esconder a etapa de pagamento do cliente.
+- Para exibir o nome e o logo do parceiro na tela da sua aplicação.
+- Para saber se a credencial atual é do parceiro principal (`is_hub`) e, com isso, se [enviar o logo](/referencia/conta-e-equipe/enviar-logo) é possível.
+
+## Autenticação e permissões
+
+Aceita chave de API ou login humano. Qualquer usuário da equipe pode consultar, `owner` ou `operator`. Parceiro suspenso recebe 403. O guia de [autenticação](/guias/autenticacao) explica as duas formas e como escolher a filial quando o usuário tem mais de uma.
+
+## Parâmetros
+
+### Cabeçalhos
+
+<ParamField header="X-Api-Key" type="string" required>
+  Sua chave de API, no formato `ttk_` seguido de 40 caracteres. Você pode enviá-la também como
+  `Authorization: Bearer <chave>`. Se estiver chamando com o token de um usuário da equipe, envie só o `Authorization`.
+</ParamField>
+
+<ParamField header="X-Partner-Branch-Id" type="string (UUID)">
+  Filial em nome da qual o usuário está consultando. Só tem efeito no login humano, e só é obrigatório quando o usuário
+  pertence a mais de uma filial. A resposta descreve a filial informada. Com chave de API, o cabeçalho é ignorado.
+</ParamField>
+
+Esta chamada não tem parâmetros de caminho, de consulta nem corpo.
+
+## Resposta
+
+Status `200`. O corpo traz um único objeto em `data`. O perfil é enxuto de propósito e não traz dados de cobrança, comissão nem de integração.
+
+<ResponseField name="data.id" type="string (UUID)">
+  Identificador do parceiro da chamada: o do parceiro principal ou o da filial. É o mesmo `id` que [Listar o hub e as filiais](/referencia/conta-e-equipe/listar-filiais) devolve e que vale em `X-Partner-Branch-Id`.
+</ResponseField>
+
+<ResponseField name="data.name" type="string">
+  Nome do parceiro ou da filial, como está cadastrado.
+</ResponseField>
+
+<ResponseField name="data.logo_url" type="string | null">
+  Endereço público completo da imagem do logo, que o seu sistema pode usar direto numa tag de imagem. `null` quando nem o parceiro nem o principal têm logo. Uma filial sem logo própria devolve o logo do parceiro principal.
+</ResponseField>
+
+<ResponseField name="data.is_hub" type="boolean">
+  `true` quando o parceiro da chamada é o principal (o hub); `false` quando é uma filial. Só o principal pode ter logo próprio, então use este campo para decidir se a sua tela oferece o envio de logo.
+</ResponseField>
+
+<ResponseField name="data.billing_model" type="string">
+  Como o parceiro é cobrado pela ClubTrack. Dois valores:
+
+  - `per_subscription`: o modelo padrão. Cada assinatura nasce `pending`, e o **cliente** paga pela página de pagamento (`checkout_url`) antes de a Tag liberar a posição.
+  - `consolidated_postpaid`: cobrança consolidada pós-paga. A assinatura nasce `active` na mesma chamada, o aparelho é ativado na hora e não há cobrança ao cliente. A ClubTrack fatura o parceiro depois, no fechamento do ciclo.
+
+  O modelo é do parceiro e não muda com a chamada. Quem altera o modelo é a equipe da ClubTrack, e a API não tem chamada para isso.
+</ResponseField>
+
+## Erros
+
+| Status | Quando acontece | O que fazer |
+|---|---|---|
+| 400 | Login humano com usuário que tem mais de uma filial e sem `X-Partner-Branch-Id`. | Envie o cabeçalho com a filial desejada. |
+| 401 | Não há chave, a chave é inválida, foi revogada ou expirou. Com login humano: usuário inativo ou token expirado. | Confira a credencial. Revogação leva até 60 segundos para valer. |
+| 403 | O parceiro está suspenso ou inativo, ou a filial informada não pertence ao usuário. | Fale com a ClubTrack se o parceiro deveria estar ativo. |
+| 429 | Passou de 1000 chamadas por minuto com a chave. | Espere o tempo do cabeçalho `Retry-After` e repita. |
+
+Os status 401, 403 e 429 valem para qualquer chamada. O corpo é sempre `{"message": "..."}`; o guia de [erros](/guias/erros)
+traz os textos exatos.
+
+## Exemplos
+
+<RequestExample>
+
+```bash cURL
+curl "https://core.clubtrack.com.br/api/b2b/v1/partner" \
+  --header "X-Api-Key: $CLUBTRACK_API_KEY" \
+  --header "Accept: application/json"
+```
+
+```javascript JavaScript
+const resposta = await fetch("https://core.clubtrack.com.br/api/b2b/v1/partner", {
+  headers: {
+    "X-Api-Key": process.env.CLUBTRACK_API_KEY,
+    Accept: "application/json",
+  },
+});
+
+const { data: parceiro } = await resposta.json();
+```
+
+```python Python
+import os
+import requests
+
+resposta = requests.get(
+    "https://core.clubtrack.com.br/api/b2b/v1/partner",
+    headers={
+        "X-Api-Key": os.environ["CLUBTRACK_API_KEY"],
+        "Accept": "application/json",
+    },
+    timeout=30,
+)
+
+parceiro = resposta.json()["data"]
+```
+
+```php PHP
+use GuzzleHttp\Client;
+
+$http = new Client(['base_uri' => 'https://core.clubtrack.com.br']);
+
+$resposta = $http->get('/api/b2b/v1/partner', [
+    'headers' => [
+        'X-Api-Key' => getenv('CLUBTRACK_API_KEY'),
+        'Accept' => 'application/json',
+    ],
+]);
+
+$parceiro = json_decode((string) $resposta->getBody(), true)['data'];
+```
+
+</RequestExample>
+
+<ResponseExample>
+
+```json 200
+{
+  "data": {
+    "id": "019a0f3c-0000-7a36-8f98-0b409e8a22c8",
+    "name": "Exemplo Mobilidade Ltda",
+    "logo_url": "https://core.clubtrack.com.br/storage/partner-logos/q8W3nKd7Zt1LxYb4RcPv0HsJe9GmUaF2oTiNh5Vb.png",
+    "is_hub": true,
+    "billing_model": "per_subscription"
+  }
+}
+```
+
+```json 400
+{
+  "message": "Usuário tem mais de uma filial — informe qual via header X-Partner-Branch-Id."
+}
+```
+
+```json 401
+{
+  "message": "API key inválida ou revogada."
+}
+```
+
+```json 403
+{
+  "message": "Parceiro inativo ou suspenso."
+}
+```
+
+</ResponseExample>
+
+## Detalhes que ajudam
+
+- Uma filial devolve o `name` e o `id` dela, o `billing_model` dela e o `logo_url` do parceiro principal quando não tem logo próprio.
+- O endereço de `logo_url` muda quando o logo é trocado. Não guarde o endereço por tempo indeterminado: leia de novo ao montar a tela.
+- Para saber como o parceiro é cobrado, leia `billing_model` uma vez ao iniciar a sessão e guarde. Ele só muda por ação da equipe da ClubTrack.

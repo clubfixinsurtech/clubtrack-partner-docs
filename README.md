@@ -8,8 +8,13 @@ independente do site da ClubFix.
 ```bash
 mint dev            # prévia local em http://localhost:3000
 mint broken-links   # links internos quebrados
-python3 scripts/verificar-contrato.py --final   # contrato x páginas, guias, menu, termos proibidos
+python3 scripts/verificar-contrato.py --final   # contrato x páginas, guias, menu, termos proibidos, texto automático
+python3 scripts/gerar-indice-referencia.py       # refaz referencia/index.mdx a partir das páginas
+python3 scripts/alinhar-series.py                # alinha a série dos dispositivos de exemplo aos dados fictícios
 ```
+
+Tudo que o verificador aponta como `ERRO` impede publicar. `AVISO` pede decisão: ou se corrige a página, ou se registra a
+divergência em `.contrato/divergencias/` citando o nome do parâmetro ou do status.
 
 ## Estrutura
 

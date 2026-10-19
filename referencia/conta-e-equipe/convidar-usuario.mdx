@@ -1,0 +1,234 @@
+---
+title: "Convidar usuário"
+description: "Cria um usuário da equipe do parceiro, já ativo e com a senha que você informar. Não envia e-mail de convite."
+api: "POST /api/b2b/v1/partner-users"
+---
+
+Esta chamada cria um usuário da equipe do parceiro. Apesar do nome da operação, ela não manda convite: o usuário nasce ativo, com a senha que você enviou no corpo, e já pode entrar com [e-mail e senha](/referencia/conta-e-equipe/entrar) na hora. A ClubTrack não envia nenhum e-mail a essa pessoa.
+
+Você a usa quando o seu sistema cadastra a equipe do parceiro e entrega o acesso por conta própria. Se quiser que a pessoa escolha a própria senha, crie o usuário com uma senha provisória e peça a ela que use [Recuperar acesso por e-mail](/referencia/conta-e-equipe/recuperar-senha). Esta chamada não dispara o e-mail com o link para definir senha; ele sai quando a pessoa o pede nessa outra rota.
+
+<Warning>
+  A chamada cria um usuário de verdade, com acesso à operação do parceiro. Não existe ambiente de teste e a API não tem chamada para apagar usuário. Se criou por engano, fale com a ClubTrack. A senha viaja no corpo da requisição: envie sempre por HTTPS e não a registre em log.
+</Warning>
+
+## Quando usar
+
+- Para cadastrar o primeiro `operator` de uma filial, sem passar pela equipe da ClubTrack.
+- Em uma tela de gestão de equipe do seu painel, usada por um `owner`.
+- Para criar um segundo `owner` e evitar que o parceiro dependa de uma pessoa só.
+
+## Autenticação e permissões
+
+Aceita chave de API ou login humano, com regras diferentes por forma de entrada.
+
+- **Chave de API:** pode criar usuário de qualquer papel, `owner` ou `operator`. A chave representa o parceiro inteiro e não carrega papel.
+- **Login de usuário:** só o `owner` cria usuários. Um `operator` recebe 403 com `Papel 'operator' não pode gerenciar outros usuários do parceiro.`
+
+Parceiro suspenso recebe 403. O usuário criado fica ligado ao parceiro da chamada: o dono da chave, ou a filial ativa no login. Ele ganha acesso a essa filial e a nenhuma outra. O guia de [autenticação](/guias/autenticacao) explica as duas formas e os papéis.
+
+## Parâmetros
+
+### Cabeçalhos
+
+<ParamField header="X-Api-Key" type="string" required>
+  Sua chave de API, no formato `ttk_` seguido de 40 caracteres. Você pode enviá-la também como
+  `Authorization: Bearer <chave>`. Se estiver chamando com o token de um usuário `owner`, envie só o `Authorization`.
+</ParamField>
+
+<ParamField header="X-Partner-Branch-Id" type="string (UUID)">
+  Filial em nome da qual o `owner` está criando o usuário. Só tem efeito no login humano, e só é obrigatório quando o usuário
+  pertence a mais de uma filial. O novo usuário nasce ligado a essa filial. Com chave de API, o cabeçalho é ignorado.
+</ParamField>
+
+### Corpo
+
+Envie JSON, com `Content-Type: application/json`.
+
+<ParamField body="name" type="string" required>
+  Nome da pessoa, com até 150 caracteres. É o nome que aparece nas listas e no e-mail de recuperação de senha.
+</ParamField>
+
+<ParamField body="email" type="string" required>
+  E-mail da pessoa, com formato válido e até 255 caracteres. É o que ela digita para entrar. O e-mail é único em toda a ClubTrack, e não só no seu parceiro: se já existe um usuário com esse endereço, em qualquer parceiro, a resposta é 422 e nada é criado. A comparação é exata e diferencia maiúscula de minúscula.
+</ParamField>
+
+<ParamField body="password" type="string" required>
+  Senha inicial, com no mínimo 8 caracteres. A API não exige letras, números nem símbolos. A senha não é devolvida em nenhuma resposta.
+</ParamField>
+
+<ParamField body="role" type="string" required>
+  Papel do usuário. Valores aceitos: `owner` (opera e gerencia usuários) e `operator` (opera o dia a dia e não gerencia usuários). Qualquer outro valor responde 422.
+</ParamField>
+
+## Resposta
+
+Status `201`. O corpo traz o usuário criado em `data`, no mesmo formato de [Listar usuários da equipe](/referencia/conta-e-equipe/listar-usuarios).
+
+<ResponseField name="data.id" type="string (UUID)">
+  Identificador do novo usuário. Guarde-o para ligar a pessoa ao registro dela no seu sistema.
+</ResponseField>
+
+<ResponseField name="data.partner_id" type="string (UUID)">
+  Parceiro ao qual o usuário foi ligado: o da chave de API, ou a filial ativa no login.
+</ResponseField>
+
+<ResponseField name="data.name" type="string">
+  Nome da pessoa, exatamente como você enviou no corpo da chamada.
+</ResponseField>
+
+<ResponseField name="data.email" type="string">
+  E-mail da pessoa, exatamente como você enviou. É o que ela digita para entrar.
+</ResponseField>
+
+<ResponseField name="data.role" type="string">
+  Papel do usuário: `owner` ou `operator`.
+</ResponseField>
+
+<ResponseField name="data.status" type="string">
+  Situação do usuário. Todo usuário criado por esta chamada nasce `active`.
+</ResponseField>
+
+<ResponseField name="data.created_at" type="string (data e hora ISO 8601)">
+  Quando o usuário foi criado, em UTC.
+</ResponseField>
+
+## Erros
+
+| Status | Quando acontece | O que fazer |
+|---|---|---|
+| 400 | Login humano com usuário que tem mais de uma filial e sem `X-Partner-Branch-Id`. | Envie o cabeçalho com a filial desejada. |
+| 401 | Não há chave, a chave é inválida, foi revogada ou expirou. Com login humano: usuário inativo ou token expirado. | Confira a credencial. Revogação leva até 60 segundos para valer. |
+| 403 | Login de usuário `operator`: `Papel 'operator' não pode gerenciar outros usuários do parceiro.` Ou o parceiro está suspenso ou inativo, ou a filial informada não pertence ao usuário. | Use um `owner` ou uma chave de API. Se o parceiro deveria estar ativo, fale com a ClubTrack. |
+| 422 | Campo ausente ou inválido: `name` acima de 150 caracteres, `email` sem formato válido, `password` com menos de 8 caracteres, `role` fora de `owner` e `operator`. A mensagem vem em inglês. | Corrija o campo citado em `errors`. |
+| 422 | O e-mail já pertence a um usuário: `E-mail 'rafael@parceiro.example' já está em uso.` Esta resposta não traz `errors`. | Use outro e-mail. Para saber quem é o dono no seu parceiro, consulte [Listar usuários da equipe](/referencia/conta-e-equipe/listar-usuarios). |
+| 429 | Passou de 1000 chamadas por minuto com a chave. | Espere o tempo do cabeçalho `Retry-After` e repita. |
+
+Os status 401, 403 e 429 valem para qualquer chamada. O corpo é sempre `{"message": "..."}`; o guia de [erros](/guias/erros)
+traz os textos exatos.
+
+## Exemplos
+
+<RequestExample>
+
+```bash cURL
+curl --request POST "https://core.clubtrack.com.br/api/b2b/v1/partner-users" \
+  --header "X-Api-Key: $CLUBTRACK_API_KEY" \
+  --header "Content-Type: application/json" \
+  --header "Accept: application/json" \
+  --data '{
+    "name": "Rafael Tavares Exemplo",
+    "email": "rafael@parceiro.example",
+    "password": "troque-esta-senha",
+    "role": "operator"
+  }'
+```
+
+```javascript JavaScript
+const resposta = await fetch("https://core.clubtrack.com.br/api/b2b/v1/partner-users", {
+  method: "POST",
+  headers: {
+    "X-Api-Key": process.env.CLUBTRACK_API_KEY,
+    "Content-Type": "application/json",
+    Accept: "application/json",
+  },
+  body: JSON.stringify({
+    name: "Rafael Tavares Exemplo",
+    email: "rafael@parceiro.example",
+    password: "troque-esta-senha",
+    role: "operator",
+  }),
+});
+
+const { data: usuario } = await resposta.json();
+```
+
+```python Python
+import os
+import requests
+
+resposta = requests.post(
+    "https://core.clubtrack.com.br/api/b2b/v1/partner-users",
+    headers={
+        "X-Api-Key": os.environ["CLUBTRACK_API_KEY"],
+        "Accept": "application/json",
+    },
+    json={
+        "name": "Rafael Tavares Exemplo",
+        "email": "rafael@parceiro.example",
+        "password": "troque-esta-senha",
+        "role": "operator",
+    },
+    timeout=30,
+)
+
+usuario = resposta.json()["data"]
+```
+
+```php PHP
+use GuzzleHttp\Client;
+
+$http = new Client(['base_uri' => 'https://core.clubtrack.com.br']);
+
+$resposta = $http->post('/api/b2b/v1/partner-users', [
+    'headers' => [
+        'X-Api-Key' => getenv('CLUBTRACK_API_KEY'),
+        'Accept' => 'application/json',
+    ],
+    'json' => [
+        'name' => 'Rafael Tavares Exemplo',
+        'email' => 'rafael@parceiro.example',
+        'password' => 'troque-esta-senha',
+        'role' => 'operator',
+    ],
+]);
+
+$usuario = json_decode((string) $resposta->getBody(), true)['data'];
+```
+
+</RequestExample>
+
+<ResponseExample>
+
+```json 201
+{
+  "data": {
+    "id": "019a0f3c-3000-796a-bf3a-59a68c81a1ae",
+    "partner_id": "019a0f3c-0000-7a36-8f98-0b409e8a22c8",
+    "name": "Rafael Tavares Exemplo",
+    "email": "rafael@parceiro.example",
+    "role": "operator",
+    "status": "active",
+    "created_at": "2026-10-19T17:32:10+00:00"
+  }
+}
+```
+
+```json 403
+{
+  "message": "Papel 'operator' não pode gerenciar outros usuários do parceiro."
+}
+```
+
+```json 422
+{
+  "message": "The password field must be at least 8 characters.",
+  "errors": {
+    "password": ["The password field must be at least 8 characters."]
+  }
+}
+```
+
+```json 422
+{
+  "message": "E-mail 'rafael@parceiro.example' já está em uso."
+}
+```
+
+</ResponseExample>
+
+## Detalhes que ajudam
+
+- Repetir a chamada com o mesmo e-mail não cria um segundo usuário: a segunda resposta é 422. Se a primeira resposta se perdeu na rede, confira em [Listar usuários da equipe](/referencia/conta-e-equipe/listar-usuarios) antes de tentar de novo.
+- O usuário nasce com acesso só ao parceiro em que foi criado. A API não tem chamada para dar acesso a outras filiais.
+- Quando há mais de um erro de campo, o `message` do topo termina com `(and N more errors)`, e `errors` traz um item por campo.

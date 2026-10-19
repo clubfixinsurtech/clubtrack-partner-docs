@@ -259,3 +259,4 @@ html.dark .ct-hero-selo {
 button:has(img[src*="country-flag-icons"]) {
   display: none !important;
 }
+

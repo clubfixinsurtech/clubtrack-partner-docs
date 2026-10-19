@@ -1,0 +1,190 @@
+---
+title: "Listar usuários da equipe"
+description: "Devolve todos os usuários cadastrados no parceiro, ativos e inativos, em ordem alfabética de nome, sem paginação."
+api: "GET /api/b2b/v1/partner-users"
+---
+
+Esta chamada devolve a equipe do parceiro: as pessoas que podem entrar com e-mail e senha. Os usuários vêm em ordem alfabética de nome, todos de uma vez. Você a usa para montar uma tela de gestão de equipe, para conferir se alguém já tem acesso antes de [criar um usuário](/referencia/conta-e-equipe/convidar-usuario) e para ver quem está ativo.
+
+A lista é do parceiro em nome do qual você chama. Com chave de API, é o dono da chave. Com login, é a filial ativa na chamada. Usuário de outro parceiro nunca aparece. A chamada é só de leitura e não devolve senha nem token.
+
+## Quando usar
+
+- Em uma tela de equipe, para mostrar nome, e-mail, papel e situação de cada pessoa.
+- Antes de criar um usuário, para evitar o erro de e-mail repetido. A conferência vale só para o seu parceiro: o e-mail é único em toda a ClubTrack.
+- Para achar o `id` de um usuário e reconhecer quem é `owner`.
+
+## Autenticação e permissões
+
+Aceita chave de API ou login humano. Qualquer usuário da equipe pode consultar, `owner` ou `operator`; só criar usuário exige `owner`. Parceiro suspenso recebe 403. O guia de [autenticação](/guias/autenticacao) explica as duas formas e como escolher a filial quando o usuário tem mais de uma.
+
+## Parâmetros
+
+### Cabeçalhos
+
+<ParamField header="X-Api-Key" type="string" required>
+  Sua chave de API, no formato `ttk_` seguido de 40 caracteres. Você pode enviá-la também como
+  `Authorization: Bearer <chave>`. Se estiver chamando com o token de um usuário da equipe, envie só o `Authorization`.
+</ParamField>
+
+<ParamField header="X-Partner-Branch-Id" type="string (UUID)">
+  Filial em nome da qual o usuário está consultando. Só tem efeito no login humano, e só é obrigatório quando o usuário
+  pertence a mais de uma filial. A lista devolvida é a dessa filial. Com chave de API, o cabeçalho é ignorado.
+</ParamField>
+
+Esta chamada não tem parâmetros de consulta. Não há filtro, ordenação nem paginação: a lista inteira vem de uma vez, sempre por nome.
+
+## Resposta
+
+Status `200`. O corpo traz a lista em `data`. Não há `links` nem `meta`.
+
+<ResponseField name="data" type="object[]">
+  Os usuários do parceiro, por ordem alfabética de nome. Vem vazia (`[]`) se o parceiro não tem nenhum usuário.
+</ResponseField>
+
+<ResponseField name="data[].id" type="string (UUID)">
+  Identificador do usuário na ClubTrack. É o mesmo `user.id` que a chamada de login devolve.
+</ResponseField>
+
+<ResponseField name="data[].partner_id" type="string (UUID)">
+  Parceiro de origem do usuário, o principal ou uma filial. É o parceiro da sua credencial.
+</ResponseField>
+
+<ResponseField name="data[].name" type="string">
+  Nome do usuário, com até 150 caracteres.
+</ResponseField>
+
+<ResponseField name="data[].email" type="string">
+  E-mail do usuário, como foi cadastrado. É o que a pessoa digita para entrar.
+</ResponseField>
+
+<ResponseField name="data[].role" type="string">
+  Papel do usuário. `owner` opera e também gerencia usuários. `operator` opera o dia a dia e não gerencia usuários.
+</ResponseField>
+
+<ResponseField name="data[].status" type="string">
+  Situação do usuário: `active` (pode entrar) ou `inactive` (desativado; o login e as chamadas com o token dele respondem 401 com `Usuário inativo.`).
+</ResponseField>
+
+<ResponseField name="data[].created_at" type="string (data e hora ISO 8601)">
+  Quando o usuário foi cadastrado, em UTC.
+</ResponseField>
+
+## Erros
+
+| Status | Quando acontece | O que fazer |
+|---|---|---|
+| 400 | Login humano com usuário que tem mais de uma filial e sem `X-Partner-Branch-Id`. | Envie o cabeçalho com a filial desejada. |
+| 401 | Não há chave, a chave é inválida, foi revogada ou expirou. Com login humano: usuário inativo ou token expirado. | Confira a credencial. Revogação leva até 60 segundos para valer. |
+| 403 | O parceiro está suspenso ou inativo, ou a filial informada não pertence ao usuário. | Fale com a ClubTrack se o parceiro deveria estar ativo. |
+| 429 | Passou de 1000 chamadas por minuto com a chave. | Espere o tempo do cabeçalho `Retry-After` e repita. |
+
+Os status 401, 403 e 429 valem para qualquer chamada. O corpo é sempre `{"message": "..."}`; o guia de [erros](/guias/erros)
+traz os textos exatos.
+
+## Exemplos
+
+<RequestExample>
+
+```bash cURL
+curl "https://core.clubtrack.com.br/api/b2b/v1/partner-users" \
+  --header "X-Api-Key: $CLUBTRACK_API_KEY" \
+  --header "Accept: application/json"
+```
+
+```javascript JavaScript
+const resposta = await fetch("https://core.clubtrack.com.br/api/b2b/v1/partner-users", {
+  headers: {
+    "X-Api-Key": process.env.CLUBTRACK_API_KEY,
+    Accept: "application/json",
+  },
+});
+
+const { data: usuarios } = await resposta.json();
+```
+
+```python Python
+import os
+import requests
+
+resposta = requests.get(
+    "https://core.clubtrack.com.br/api/b2b/v1/partner-users",
+    headers={
+        "X-Api-Key": os.environ["CLUBTRACK_API_KEY"],
+        "Accept": "application/json",
+    },
+    timeout=30,
+)
+
+usuarios = resposta.json()["data"]
+```
+
+```php PHP
+use GuzzleHttp\Client;
+
+$http = new Client(['base_uri' => 'https://core.clubtrack.com.br']);
+
+$resposta = $http->get('/api/b2b/v1/partner-users', [
+    'headers' => [
+        'X-Api-Key' => getenv('CLUBTRACK_API_KEY'),
+        'Accept' => 'application/json',
+    ],
+]);
+
+$usuarios = json_decode((string) $resposta->getBody(), true)['data'];
+```
+
+</RequestExample>
+
+<ResponseExample>
+
+```json 200
+{
+  "data": [
+    {
+      "id": "019a0f3c-2000-7ff2-876c-1b9717c83a0c",
+      "partner_id": "019a0f3c-0000-7a36-8f98-0b409e8a22c8",
+      "name": "Carla Menezes Exemplo",
+      "email": "carla@parceiro.example",
+      "role": "owner",
+      "status": "active",
+      "created_at": "2026-09-14T12:00:00+00:00"
+    },
+    {
+      "id": "019a0f3c-3000-796a-bf3a-59a68c81a1ae",
+      "partner_id": "019a0f3c-0000-7a36-8f98-0b409e8a22c8",
+      "name": "Rafael Tavares Exemplo",
+      "email": "rafael@parceiro.example",
+      "role": "operator",
+      "status": "active",
+      "created_at": "2026-10-19T17:32:10+00:00"
+    }
+  ]
+}
+```
+
+```json 400
+{
+  "message": "Usuário tem mais de uma filial — informe qual via header X-Partner-Branch-Id."
+}
+```
+
+```json 401
+{
+  "message": "API key inválida ou revogada."
+}
+```
+
+```json 403
+{
+  "message": "Parceiro inativo ou suspenso."
+}
+```
+
+</ResponseExample>
+
+## Detalhes que ajudam
+
+- A lista traz os usuários cujo parceiro de origem é o parceiro da chamada. Um usuário criado em nome do principal aparece quando você consulta em nome do principal, e não na consulta de uma filial.
+- Usuários desativados continuam na lista, com `status` igual a `inactive`. Filtre no seu sistema se quiser mostrar só os ativos.
+- Esta chamada não altera usuários. A API não tem chamada para desativar um usuário nem para trocar o papel dele.

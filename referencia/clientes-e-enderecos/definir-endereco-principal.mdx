@@ -1,0 +1,268 @@
+---
+title: "Definir endereço principal"
+description: "Marca um dos endereços de um cliente seu como o principal. O principal anterior deixa de ser. A chamada não leva corpo."
+api: "PATCH /api/b2b/v1/customers/{customerId}/addresses/{addressId}/set-primary"
+---
+
+Esta chamada escolhe qual dos endereços de um cliente do seu parceiro é o **principal**. Um cliente tem no máximo um endereço
+principal por vez: ao promover um, o que era principal passa a `is_primary` igual a `false`, na mesma operação. Você usa quando
+o cliente muda de endereço ou quando cadastra um endereço novo e quer que ele passe na frente.
+
+A chamada não leva corpo: o cliente e o endereço vêm do caminho. O endereço precisa ser do cliente informado. Para descobrir o
+`id` de cada endereço, use [Listar endereços do cliente](/referencia/clientes-e-enderecos/listar-enderecos).
+
+<Warning>
+  Esta chamada grava de verdade e não existe ambiente de teste. O endereço escolhido vira o principal do cliente e o anterior deixa
+  de ser. O endereço principal é o que a ClubTrack confere quando você pede o envio de dispositivos direto ao cliente. Para
+  voltar ao estado anterior, chame de novo com o `id` do endereço que era principal.
+</Warning>
+
+## Quando usar
+
+- Depois de [cadastrar um endereço](/referencia/clientes-e-enderecos/cadastrar-endereco) novo que deve ser o principal, porque
+  só o primeiro endereço de um cliente nasce principal.
+- Quando o cliente passa a usar outro dos endereços que já tem.
+- Para corrigir qual endereço o seu sistema e a ClubTrack tratam como principal.
+
+## Autenticação e permissões
+
+Aceita chave de API ou login humano. Qualquer usuário da equipe do parceiro pode alterar. Parceiro suspenso recebe 403.
+O guia de [autenticação](/guias/autenticacao) explica as duas formas e como escolher a filial quando o usuário tem mais de uma.
+
+## Parâmetros
+
+### Cabeçalhos
+
+<ParamField header="X-Api-Key" type="string" required>
+  Sua chave de API, no formato `ttk_` seguido de 40 caracteres. Você pode enviá-la também como
+  `Authorization: Bearer <chave>`. Se estiver chamando com o token de um usuário da equipe, envie só o `Authorization`.
+</ParamField>
+
+<ParamField header="X-Partner-Branch-Id" type="string (UUID)">
+  Filial em nome da qual o usuário está alterando. Só tem efeito no login humano, e só é obrigatório quando o usuário
+  pertence a mais de uma filial. Com chave de API, o cabeçalho é ignorado.
+</ParamField>
+
+### Caminho
+
+<ParamField path="customerId" type="string (UUID)" required>
+  Identificador do cliente dono dos endereços, o `id` devolvido por
+  [Cadastrar cliente](/referencia/clientes-e-enderecos/cadastrar-cliente) ou por
+  [Listar clientes](/referencia/clientes-e-enderecos/listar-clientes). O cliente precisa ser do seu parceiro. Cliente que não
+  existe e cliente de outro parceiro dão a mesma resposta, `404`. Exemplo: `019a0f3c-4000-7f9e-9687-b620b4389874`.
+</ParamField>
+
+<ParamField path="addressId" type="string (UUID)" required>
+  Identificador do endereço que passa a ser o principal: o `data.id` devolvido por
+  [Cadastrar endereço](/referencia/clientes-e-enderecos/cadastrar-endereco) ou o `id` de cada item de
+  [Listar endereços do cliente](/referencia/clientes-e-enderecos/listar-enderecos). O endereço precisa ser do cliente do
+  `customerId`: o de outro cliente, mesmo que seu, responde `404`. Exemplo: `019a0f3c-7000-7a74-8771-cf329113e5e9`.
+</ParamField>
+
+## Resposta
+
+Status `200`. O corpo traz o endereço que acabou de virar principal em `data`, no mesmo formato de
+[Listar endereços do cliente](/referencia/clientes-e-enderecos/listar-enderecos). A resposta mostra só esse endereço: o
+anterior, que deixou de ser principal, não vem junto. Para ver os dois, liste os endereços do cliente.
+
+<ResponseField name="data.id" type="string (UUID)">
+  Identificador do endereço promovido: o mesmo `addressId` da chamada.
+</ResponseField>
+
+<ResponseField name="data.label" type="string | null">
+  Nome que identifica o endereço, com até 150 caracteres. `null` quando não foi informado no cadastro.
+</ResponseField>
+
+<ResponseField name="data.postal_code" type="string | null">
+  CEP, como foi cadastrado, com até 9 caracteres. `null` quando não foi informado.
+</ResponseField>
+
+<ResponseField name="data.street" type="string | null">
+  Logradouro, com até 255 caracteres. `null` quando não foi informado.
+</ResponseField>
+
+<ResponseField name="data.number" type="string | null">
+  Número do imóvel, como texto, com até 20 caracteres. `null` quando não foi informado.
+</ResponseField>
+
+<ResponseField name="data.complement" type="string | null">
+  Complemento, com até 255 caracteres. `null` quando não foi informado.
+</ResponseField>
+
+<ResponseField name="data.neighborhood" type="string | null">
+  Bairro, com até 255 caracteres. `null` quando não foi informado.
+</ResponseField>
+
+<ResponseField name="data.city" type="string | null">
+  Cidade, com até 255 caracteres. `null` quando não foi informada.
+</ResponseField>
+
+<ResponseField name="data.state" type="string | null">
+  Sigla do estado, com 2 caracteres. `null` quando não foi informada.
+</ResponseField>
+
+<ResponseField name="data.latitude" type="number | null">
+  Latitude do endereço, em graus decimais, com até 7 casas decimais. `null` quando não foi informada.
+</ResponseField>
+
+<ResponseField name="data.longitude" type="number | null">
+  Longitude do endereço, em graus decimais, com até 7 casas decimais. `null` quando não foi informada.
+</ResponseField>
+
+<ResponseField name="data.is_primary" type="boolean">
+  Sempre `true` nesta resposta: o endereço é o principal do cliente.
+</ResponseField>
+
+<ResponseField name="data.created_at" type="string (data e hora ISO 8601)">
+  Quando o endereço foi cadastrado, em UTC.
+</ResponseField>
+
+<ResponseField name="data.updated_at" type="string (data e hora ISO 8601)">
+  Quando o endereço foi alterado pela última vez, em UTC. Nesta chamada, é o momento em que ele virou principal.
+</ResponseField>
+
+## Erros
+
+| Status | Quando acontece | O que fazer |
+|---|---|---|
+| 400 | Login humano com usuário que tem mais de uma filial e sem `X-Partner-Branch-Id`. | Envie o cabeçalho com a filial desejada. |
+| 401 | Não há chave, a chave é inválida, foi revogada ou expirou. Com login humano: usuário inativo ou token expirado. | Confira a credencial. Revogação leva até 60 segundos para valer. |
+| 403 | O parceiro está suspenso ou inativo, ou a filial informada não pertence ao usuário. | Fale com a ClubTrack se o parceiro deveria estar ativo. |
+| 404 | `Recurso não encontrado.`: o cliente não existe ou é de outro parceiro. A resposta é a mesma nos dois casos. | Confira o `customerId` na lista de clientes do seu parceiro. |
+| 404 | `Endereço não encontrado para este cliente.`: o cliente é seu, mas o `addressId` não é de um endereço dele. Vale também para endereço de outro cliente. | Liste os endereços do cliente e use um `id` da lista. |
+| 429 | Passou de 1000 chamadas por minuto com a chave. | Espere o tempo do cabeçalho `Retry-After` e repita. |
+
+Os status 401, 403 e 429 valem para qualquer chamada. O corpo é sempre `{"message": "..."}`; o guia de [erros](/guias/erros)
+traz os textos exatos.
+
+## Exemplos
+
+<RequestExample>
+
+```bash cURL
+curl --request PATCH "https://core.clubtrack.com.br/api/b2b/v1/customers/019a0f3c-4000-7f9e-9687-b620b4389874/addresses/019a0f3c-7000-7a74-8771-cf329113e5e9/set-primary" \
+  --header "X-Api-Key: $CLUBTRACK_API_KEY" \
+  --header "Accept: application/json"
+```
+
+```javascript JavaScript
+const clienteId = "019a0f3c-4000-7f9e-9687-b620b4389874";
+const enderecoId = "019a0f3c-7000-7a74-8771-cf329113e5e9";
+
+const resposta = await fetch(
+  `https://core.clubtrack.com.br/api/b2b/v1/customers/${clienteId}/addresses/${enderecoId}/set-primary`,
+  {
+    method: "PATCH",
+    headers: {
+      "X-Api-Key": process.env.CLUBTRACK_API_KEY,
+      Accept: "application/json",
+    },
+  },
+);
+
+const endereco = await resposta.json();
+```
+
+```python Python
+import os
+import requests
+
+cliente_id = "019a0f3c-4000-7f9e-9687-b620b4389874"
+endereco_id = "019a0f3c-7000-7a74-8771-cf329113e5e9"
+
+resposta = requests.patch(
+    f"https://core.clubtrack.com.br/api/b2b/v1/customers/{cliente_id}/addresses/{endereco_id}/set-primary",
+    headers={
+        "X-Api-Key": os.environ["CLUBTRACK_API_KEY"],
+        "Accept": "application/json",
+    },
+    timeout=30,
+)
+
+endereco = resposta.json()
+```
+
+```php PHP
+use GuzzleHttp\Client;
+
+$http = new Client(['base_uri' => 'https://core.clubtrack.com.br']);
+
+$clienteId = '019a0f3c-4000-7f9e-9687-b620b4389874';
+$enderecoId = '019a0f3c-7000-7a74-8771-cf329113e5e9';
+
+$resposta = $http->patch("/api/b2b/v1/customers/{$clienteId}/addresses/{$enderecoId}/set-primary", [
+    'headers' => [
+        'X-Api-Key' => getenv('CLUBTRACK_API_KEY'),
+        'Accept' => 'application/json',
+    ],
+]);
+
+$endereco = json_decode((string) $resposta->getBody(), true);
+```
+
+</RequestExample>
+
+<ResponseExample>
+
+```json 200
+{
+  "data": {
+    "id": "019a0f3c-7000-7a74-8771-cf329113e5e9",
+    "label": "Comercial",
+    "postal_code": "01304-001",
+    "street": "Rua Augusta",
+    "number": "1500",
+    "complement": "Sala 42",
+    "neighborhood": "Consolação",
+    "city": "São Paulo",
+    "state": "SP",
+    "latitude": null,
+    "longitude": null,
+    "is_primary": true,
+    "created_at": "2026-10-12T15:20:44+00:00",
+    "updated_at": "2026-10-19T17:41:55+00:00"
+  }
+}
+```
+
+```json 400
+{
+  "message": "Usuário tem mais de uma filial — informe qual via header X-Partner-Branch-Id."
+}
+```
+
+```json 401
+{
+  "message": "API key inválida ou revogada."
+}
+```
+
+```json 403
+{
+  "message": "Parceiro inativo ou suspenso."
+}
+```
+
+```json 404 cliente
+{
+  "message": "Recurso não encontrado."
+}
+```
+
+```json 404 endereço
+{
+  "message": "Endereço não encontrado para este cliente."
+}
+```
+
+</ResponseExample>
+
+## Detalhes que ajudam
+
+- Repetir a chamada é seguro. Se o endereço já é o principal, a resposta é `200` com os mesmos dados e nada muda no cliente.
+- A troca é uma só operação: não existe momento em que o cliente fique com dois endereços principais ou com nenhum. Se duas
+  chamadas para o mesmo cliente chegam juntas, o servidor as executa uma depois da outra e vale a última.
+- O endereço que deixou de ser principal continua na lista do cliente, com `is_primary` igual a `false`. Esta API não remove
+  endereços.
+- Depois de trocar, confira o resultado com [Listar endereços do cliente](/referencia/clientes-e-enderecos/listar-enderecos): o
+  novo principal vem na primeira posição.

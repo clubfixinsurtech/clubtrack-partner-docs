@@ -119,6 +119,46 @@ def checar_texto_publico(rel, txt, erros, avisos):
             erros.append(f'{rel}: JSON inválido em exemplo ({e})')
 
 
+def caminhos_json(x, base=''):
+    saida = []
+    if isinstance(x, dict):
+        for k, v in x.items():
+            c = f'{base}.{k}' if base else k
+            saida.append(c)
+            saida += caminhos_json(v, c)
+    elif isinstance(x, list) and x:
+        saida += caminhos_json(x[0], base + '[]')
+    return saida
+
+
+def checar_exemplo_x_campos(o, txt, avisos):
+    """Todo campo do exemplo de sucesso precisa estar descrito num ResponseField, ou ter um ancestral descrito."""
+    sec = re.search(r'<ResponseExample>(.*?)</ResponseExample>', txt, flags=re.S)
+    if not sec:
+        return
+    blocos = re.findall(r'```json\s+2\d\d[^\n]*\n(.*?)```', sec.group(1), flags=re.S)
+    if not blocos:
+        return
+    try:
+        ex = json.loads(blocos[0])
+    except Exception:
+        return
+    doc = set(re.findall(r'<ResponseField\s+name="([^"]+)"', txt))
+    doc |= {d.replace('[]', '') for d in doc}
+    for c in caminhos_json(ex):
+        if c == 'data' and any(d.startswith('data') for d in doc):
+            continue  # o envelope só embrulha os campos descritos abaixo dele
+        partes = re.split(r'(?<=[\]\w])\.', c)
+        ok = False
+        for i in range(len(partes), 0, -1):
+            cand = '.'.join(partes[:i])
+            if cand in doc or cand.replace('[]', '') in doc or ('data.' + cand) in doc or ('data[].' + cand) in doc:
+                ok = True
+                break
+        if not ok:
+            avisos.append(f"{o['page']}: campo do exemplo sem explicação em ResponseField: {c}")
+
+
 def checar_operacao(o, erros, avisos, infos):
     rel = o['page']
     arq = RAIZ / rel
@@ -194,6 +234,7 @@ def checar_operacao(o, erros, avisos, infos):
     if '<RequestExample>' not in sec_ex or '<ResponseExample>' not in sec_ex:
         erros.append(f'{rel}: faltam <RequestExample> e/ou <ResponseExample> na seção Exemplos')
 
+    checar_exemplo_x_campos(o, txt, avisos)
     checar_texto_publico(rel, txt, erros, avisos)
 
 
@@ -218,7 +259,7 @@ def checar_navegacao(erros):
         if isinstance(n, str):
             paginas.append(n)
         elif isinstance(n, dict):
-            for k in ('pages', 'groups', 'tabs'):
+            for k in ('pages', 'groups', 'tabs', 'languages'):
                 for x in n.get(k, []):
                     varrer(x)
         elif isinstance(n, list):

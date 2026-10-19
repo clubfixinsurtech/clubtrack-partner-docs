@@ -37,7 +37,7 @@ quantas chamadas ainda restam, então conte no seu lado se precisar chegar perto
 |---|---|
 | `429` | Espere o tempo de `Retry-After` e repita a mesma chamada. |
 | Leitura (`GET`) com `500` ou falha de rede | Repita com espera crescente: 1, 2 e 4 segundos, no máximo 3 vezes. |
-| Escrita (`POST`, `PATCH`, `DELETE`) com `500`, `502` ou tempo esgotado | Consulte antes. A primeira tentativa pode ter funcionado. Só repita se o registro não existir. |
+| Escrita (`POST`, `PATCH`, `DELETE`) com `500` ou tempo esgotado | Consulte antes. A primeira tentativa pode ter funcionado. Só repita se o registro não existir. |
 | Qualquer `4xx` além de `429` | Não repita. O mesmo pedido dá o mesmo erro; corrija os dados. |
 
 Para a consulta de antes de repetir, ajuda ter dado seu no registro. Mande o `external_id` ao cadastrar clientes: depois

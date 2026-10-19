@@ -1,0 +1,68 @@
+---
+title: "Referência da API"
+description: "Todas as operações da API B2B da ClubTrack, por assunto, com o que cada uma faz."
+---
+
+Cada operação tem a sua página, com parâmetros, filtros, respostas, erros e exemplos em quatro linguagens. Esta página é o mapa.
+
+Todas as chamadas começam em `https://core.clubtrack.com.br` e usam o caminho `/api/b2b/v1`. Se você ainda não se autenticou, comece por [Autenticação](/guias/autenticacao).
+
+## Conta e equipe
+
+| Chamada | O que faz |
+|---|---|
+| `POST` `/auth/login` | [Entrar com e-mail e senha](/referencia/conta-e-equipe/entrar). Troca o e-mail e a senha de um usuário da equipe do parceiro por um token, que serve de credencial nas demais chamadas. |
+| `POST` `/auth/forgot-password` | [Recuperar acesso por e-mail](/referencia/conta-e-equipe/recuperar-senha). Pede o envio de um link para definir uma senha nova. A resposta é a mesma exista ou não uma conta ativa para o e-mail. |
+| `GET` `/partner` | [Consultar o perfil do parceiro](/referencia/conta-e-equipe/consultar-perfil). Devolve o nome, o logo, o tipo (principal ou filial) e o modelo de cobrança do parceiro em nome do qual você está chamando. |
+| `POST` `/partner/logo` | [Enviar o logo do parceiro](/referencia/conta-e-equipe/enviar-logo). Troca o logo do parceiro principal por uma imagem de até 2 MB. As filiais passam a mostrar o mesmo logo. |
+| `GET` `/branches` | [Listar o hub e as filiais](/referencia/conta-e-equipe/listar-filiais). Devolve o parceiro principal e todas as suas filiais, com identificador, nome e CNPJ, sem paginação. |
+| `GET` `/partner-users` | [Listar usuários da equipe](/referencia/conta-e-equipe/listar-usuarios). Devolve todos os usuários cadastrados no parceiro, ativos e inativos, em ordem alfabética de nome, sem paginação. |
+| `POST` `/partner-users` | [Convidar usuário](/referencia/conta-e-equipe/convidar-usuario). Cria um usuário da equipe do parceiro, já ativo e com a senha que você informar. Não envia e-mail de convite. |
+| `POST` `/partner-users/{id}/password` | [Definir senha pelo convite](/referencia/conta-e-equipe/definir-senha-do-usuario). Define a senha de um usuário a partir do link assinado recebido por e-mail. Quem chama é a página do link, e não o seu sistema. |
+
+## Clientes e endereços
+
+| Chamada | O que faz |
+|---|---|
+| `POST` `/customers` | [Cadastrar cliente](/referencia/clientes-e-enderecos/cadastrar-cliente). Cria um cliente no seu parceiro. Com e-mail, a ClubTrack envia a ele o convite para definir a senha. Valida CPF e CNPJ. |
+| `GET` `/customers` | [Listar clientes](/referencia/clientes-e-enderecos/listar-clientes). Devolve, em páginas, os clientes do seu parceiro, com filtros por nome, e-mail, situação e vínculo com Tag. |
+| `GET` `/customers/{id}` | [Consultar cliente](/referencia/clientes-e-enderecos/consultar-cliente). Devolve os dados cadastrais de um cliente do seu parceiro, a partir do id que a ClubTrack deu a ele no cadastro. |
+| `GET` `/customers/{customerId}/bindings` | [Listar as Tags de um cliente](/referencia/clientes-e-enderecos/listar-tags-do-cliente). Devolve, em páginas, os vínculos (Tags) de um cliente seu, com filtro por situação e aparelho e a opção de trazer os dados do aparelho. |
+| `POST` `/customers/{customerId}/addresses` | [Cadastrar endereço](/referencia/clientes-e-enderecos/cadastrar-endereco). Acrescenta um endereço a um cliente seu. O primeiro endereço do cliente vira o principal automaticamente. |
+| `GET` `/customers/{customerId}/addresses` | [Listar endereços do cliente](/referencia/clientes-e-enderecos/listar-enderecos). Devolve todos os endereços de um cliente seu, com o principal primeiro. A lista não é paginada e não tem filtros. |
+| `PATCH` `/customers/{customerId}/addresses/{addressId}/set-primary` | [Definir endereço principal](/referencia/clientes-e-enderecos/definir-endereco-principal). Marca um dos endereços de um cliente seu como o principal. O principal anterior deixa de ser. A chamada não leva corpo. |
+
+## Vínculos e campos personalizados
+
+| Chamada | O que faz |
+|---|---|
+| `POST` `/tag-bindings` | [Vincular dispositivo a um cliente](/referencia/vinculos-e-campos/vincular-dispositivo). Liga um dispositivo do seu estoque a um cliente seu e cria o vínculo (a Tag). A localização só é liberada depois do pagamento. |
+| `GET` `/custom-fields` | [Listar o catálogo de campos](/referencia/vinculos-e-campos/listar-campos-do-catalogo). Devolve os campos personalizados do catálogo da sua rede, com ordem, visibilidade para o cliente, o teto de campos e se você pode administrá-lo. |
+| `POST` `/custom-fields` | [Criar campo no catálogo](/referencia/vinculos-e-campos/criar-campo-do-catalogo). Cria um campo personalizado no catálogo do hub, com chave, rótulo, valor padrão, ordem e regras de visibilidade e edição pelo cliente. |
+| `PATCH` `/custom-fields/{id}` | [Editar campo do catálogo](/referencia/vinculos-e-campos/editar-campo-do-catalogo). Altera rótulo, valor padrão, ordem, situação e regras de visibilidade e edição de um campo do catálogo. Só as propriedades enviadas mudam. |
+| `GET` `/tag-bindings/{id}/custom-fields` | [Ler os campos de um vínculo](/referencia/vinculos-e-campos/ler-campos-do-vinculo). Devolve os campos personalizados de uma Tag com o valor de cada um, quem o gravou (cliente ou parceiro) e quando. |
+| `PATCH` `/tag-bindings/{id}/custom-fields` | [Gravar os campos de um vínculo](/referencia/vinculos-e-campos/gravar-campos-do-vinculo). Grava ou limpa o valor dos campos personalizados de uma Tag que o cliente não edita. A gravação é parcial e vale tudo ou nada. |
+
+## Tags, dispositivos e posições
+
+| Chamada | O que faz |
+|---|---|
+| `GET` `/tags` | [Listar Tags](/referencia/rastreamento/listar-tags). Devolve, em páginas, as Tags dos clientes do seu parceiro, com apelido, categoria, aparelho e situação de comunicação. |
+| `GET` `/tags/{id}/track` | [Consultar trajeto](/referencia/rastreamento/consultar-trajeto). Devolve as posições de uma Tag em um período de até 90 dias, da mais antiga para a mais recente, com paginação por cursor. |
+| `GET` `/tags/{id}/distance` | [Consultar distância](/referencia/rastreamento/consultar-distancia). Devolve a distância estimada que uma Tag percorreu em um período de até 90 dias, em metros e em quilômetros. |
+| `GET` `/devices` | [Listar dispositivos](/referencia/rastreamento/listar-dispositivos). Devolve, em páginas, os dispositivos do seu parceiro: os que estão no seu estoque e os já vinculados a clientes. |
+| `GET` `/devices/{id}` | [Consultar dispositivo](/referencia/rastreamento/consultar-dispositivo). Devolve os dados de um dispositivo do seu parceiro, com o histórico de situação se você pedir. |
+| `GET` `/devices/{deviceId}/locations` | [Listar posições de um dispositivo](/referencia/rastreamento/listar-posicoes). Devolve, em páginas, os registros de posição de um aparelho dentro do período em que ele esteve vinculado a clientes do seu parceiro. |
+| `GET` `/devices/{deviceId}/locations/latest` | [Última posição de um dispositivo](/referencia/rastreamento/ultima-posicao). Devolve o registro de posição mais recente de um aparelho dentro do período em que ele esteve vinculado a clientes do seu parceiro. |
+
+## Pedidos, assinaturas e planos
+
+| Chamada | O que faz |
+|---|---|
+| `GET` `/plans` | [Listar planos](/referencia/comercial/listar-planos). Devolve, em páginas, os planos do seu parceiro, com preço, ciclo, quantidade de Tags e a lista do que cada plano inclui. |
+| `POST` `/subscriptions` | [Criar assinatura](/referencia/comercial/criar-assinatura). Liga uma ou mais Tags de um mesmo cliente a um plano. A localização só é liberada depois do pagamento, exceto na cobrança consolidada. |
+| `GET` `/subscriptions` | [Listar assinaturas](/referencia/comercial/listar-assinaturas). Devolve, em páginas, as assinaturas do seu parceiro, cada uma com o plano e o cliente, e filtros por situação. |
+| `GET` `/subscriptions/{id}` | [Consultar assinatura](/referencia/comercial/consultar-assinatura). Devolve uma assinatura do seu parceiro pelo id, com a situação, a forma de pagamento escolhida e a data da próxima cobrança. |
+| `POST` `/subscriptions/{id}/resend-payment-link` | [Reenviar o link de pagamento](/referencia/comercial/reenviar-link-de-pagamento). Envia de novo ao cliente, por e-mail, o link para ele escolher a forma de pagamento ou concluir o pagamento da assinatura. |
+| `POST` `/device-orders` | [Criar pedido de dispositivo](/referencia/comercial/criar-pedido-de-dispositivo). Registra um pedido de aparelhos à ClubTrack, para o seu parceiro ou para envio direto a um cliente. Exige login de usuário. |
+| `GET` `/device-orders` | [Listar pedidos de dispositivo](/referencia/comercial/listar-pedidos-de-dispositivo). Devolve, em páginas, os pedidos de aparelhos do seu parceiro à ClubTrack, com a situação, o valor e o endereço de pagamento. |

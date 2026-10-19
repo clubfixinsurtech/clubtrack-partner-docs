@@ -1,0 +1,373 @@
+---
+title: "Listar assinaturas"
+description: "Devolve, em páginas, as assinaturas do seu parceiro, cada uma com o plano e o cliente, e filtros por situação."
+api: "GET /api/b2b/v1/subscriptions"
+---
+
+Esta chamada devolve as assinaturas dos clientes do seu parceiro, da mais nova para a mais antiga. Cada linha já traz um resumo do plano (`plan`) e o cliente (`customer`), sem precisar de outra chamada. Você usa para montar a tela de cobrança, achar quem está pendente de pagamento ou em atraso e sincronizar a situação das assinaturas com o seu sistema.
+
+Ela mostra só as assinaturas de clientes do parceiro dono da credencial. Para ver uma assinatura isolada, use [Consultar assinatura](/referencia/comercial/consultar-assinatura). A lista não tem filtro por cliente nem por vínculo: para achar a assinatura de uma Tag, percorra as páginas e confira `tag_binding_ids`.
+
+## Quando usar
+
+- Mostrar as assinaturas `pending` com o `checkout_url` ao lado, para você reenviar o endereço de pagamento ao cliente.
+- Listar as assinaturas em atraso (`filter[pastDue]=1`) para a sua cobrança.
+- Uma rotina que lê todas as assinaturas, página por página, até `links.next` vir `null`.
+- Descobrir qual assinatura já usa uma Tag depois de um `409` em [Criar assinatura](/referencia/comercial/criar-assinatura).
+
+## Autenticação e permissões
+
+Aceita chave de API ou login humano. Qualquer usuário da equipe do parceiro pode consultar. Parceiro suspenso ou inativo recebe 403. Com chave de API, a lista é a do parceiro dono da chave; com login humano, a da filial ativa. O guia de [autenticação](/guias/autenticacao) explica as duas formas e como escolher a filial quando o usuário tem mais de uma.
+
+## Parâmetros
+
+### Cabeçalhos
+
+<ParamField header="X-Api-Key" type="string" required>
+  Sua chave de API, no formato `ttk_` seguido de 40 caracteres. Você pode enviá-la também como
+  `Authorization: Bearer <chave>`. Se estiver chamando com o token de um usuário da equipe, envie só o `Authorization`.
+</ParamField>
+
+<ParamField header="X-Partner-Branch-Id" type="string (UUID)">
+  Filial em nome da qual o usuário está consultando. Só tem efeito no login humano, e só é obrigatório quando o usuário
+  pertence a mais de uma filial. Com chave de API, o cabeçalho é ignorado.
+</ParamField>
+
+### Consulta
+
+Os filtros se combinam: cada filtro a mais restringe o resultado. Dentro de um mesmo filtro, separe valores por vírgula para
+aceitar qualquer um deles. Mais detalhes em [Paginação, filtros e ordenação](/guias/paginacao-filtros-ordenacao). A chamada não
+oferece `include`: `plan` e `customer` já vêm em todas as linhas.
+
+<ParamField query="filter[status]" type="string">
+  Situação da assinatura, comparação exata. Valores: `pending` (aguardando o pagamento), `active` (em vigor),
+  `past_due` (em atraso), `cancelled` (encerrada) e `refunded` (estornada). Aceita vários separados por vírgula:
+  `filter[status]=pending,past_due`. Um valor que não existe não dá erro: a lista volta vazia.
+</ParamField>
+
+<ParamField query="filter[active]" type="string">
+  Atalho para as assinaturas com `status` igual a `active`. O valor que você envia é ignorado (`filter[active]=1` basta), e
+  não existe forma de usar o atalho ao contrário.
+</ParamField>
+
+<ParamField query="filter[pastDue]" type="string">
+  Atalho para as assinaturas em atraso, com `status` igual a `past_due`. O valor é ignorado (`filter[pastDue]=1`). Note o
+  nome em camelCase.
+</ParamField>
+
+<ParamField query="sort" type="string" default="-created_at">
+  Campo de ordenação. Aceita `created_at` e `next_billing_date`. Prefixe com `-` para ordem decrescente: `sort=next_billing_date`
+  traz primeiro as cobranças mais próximas. Assinatura sem data de próxima cobrança (ainda não paga) vai para o fim na ordem
+  crescente e para o começo na decrescente. Aceita mais de um campo separado por vírgula.
+</ParamField>
+
+<ParamField query="per_page" type="integer" default="25">
+  Quantas assinaturas vêm por página. Envie um inteiro positivo. Não há teto no servidor, mas páginas grandes ficam lentas:
+  prefira até 100 e vá paginando.
+</ParamField>
+
+<ParamField query="page" type="integer" default="1">
+  Número da página, começando em 1. Para percorrer tudo, siga `links.next` em vez de montar o número à mão.
+</ParamField>
+
+## Resposta
+
+Status `200`. O corpo traz a lista em `data`, os endereços de navegação em `links` e os totais em `meta`. Os campos de cada
+assinatura são os mesmos de [Criar assinatura](/referencia/comercial/criar-assinatura), onde está o significado completo de cada
+um; aqui valem os desta lista e o que muda.
+
+<ResponseField name="data" type="object[]">
+  As assinaturas da página. Vem vazio (`[]`) quando nenhuma assinatura atende aos filtros.
+</ResponseField>
+
+<ResponseField name="data[].id" type="string (UUID)">
+  Identificador da assinatura, o `{id}` de [Consultar assinatura](/referencia/comercial/consultar-assinatura).
+</ResponseField>
+
+<ResponseField name="data[].tag_binding_ids" type="string[] (UUID)">
+  Os vínculos (Tags) ligados à assinatura, inclusive os que já foram desligados dela.
+</ResponseField>
+
+<ResponseField name="data[].plan_id" type="string (UUID)">
+  O plano da assinatura. O resumo do plano está em `plan`.
+</ResponseField>
+
+<ResponseField name="data[].price_cents" type="integer">
+  O que a assinatura cobra a cada ciclo, em centavos, gravado quando ela foi criada. Pode ser diferente de `plan.price_cents`
+  se o plano foi reajustado depois: vale o desta linha.
+</ResponseField>
+
+<ResponseField name="data[].commission_rate" type="number | null">
+  Percentual de comissão do seu parceiro, de 0 a 100, gravado na criação. `null` quando não há valor gravado.
+</ResponseField>
+
+<ResponseField name="data[].status" type="string">
+  `pending`, `active`, `past_due`, `cancelled` ou `refunded`, com o significado descrito em Criar assinatura.
+</ResponseField>
+
+<ResponseField name="data[].payment_method" type="string | null">
+  Forma que o cliente escolheu: `card`, `boleto`, `pix_manual` ou `pix_automatico`. `null` enquanto ele não escolheu e na cobrança consolidada.
+</ResponseField>
+
+<ResponseField name="data[].external_reference_id" type="string | null">
+  Referência da cobrança recorrente no sistema de pagamento. `null` até a cobrança ser registrada.
+</ResponseField>
+
+<ResponseField name="data[].payment_checkout_url" type="string | null">
+  Endereço da página de pagamento da cobrança já gerada (cartão, boleto ou Pix manual). `null` quando não há. Use como veio.
+</ResponseField>
+
+<ResponseField name="data[].checkout_url" type="string">
+  Endereço em que o cliente escolhe como pagar. Só existe na assinatura que ainda aguarda essa escolha; nas demais o campo não vem. Use como veio.
+</ResponseField>
+
+<ResponseField name="data[].no_charge_kind" type="string | null">
+  `courtesy` quando a assinatura é uma cortesia ativa sem cobrança; `null` na assinatura comum.
+</ResponseField>
+
+<ResponseField name="data[].no_charge_ends_at" type="string (data e hora ISO 8601) | null">
+  Quando a cortesia termina, em UTC. `null` sem cortesia ou sem data de fim.
+</ResponseField>
+
+<ResponseField name="data[].no_charge_reason" type="string | null">
+  Motivo registrado da cortesia. `null` sem cortesia.
+</ResponseField>
+
+<ResponseField name="data[].courtesy_expired" type="boolean">
+  `true` quando é uma cortesia com a data de fim já vencida. A assinatura não muda de situação sozinha.
+</ResponseField>
+
+<ResponseField name="data[].next_billing_date" type="string (data) | null">
+  Data da próxima cobrança, no formato `AAAA-MM-DD`. `null` enquanto a assinatura não foi paga e na cobrança consolidada.
+</ResponseField>
+
+<ResponseField name="data[].plan" type="object">
+  Resumo do plano no dia da consulta: `id`, `name`, `price_cents` (preço atual do catálogo, em centavos) e `billing_cycle`
+  (hoje só `monthly`).
+</ResponseField>
+
+<ResponseField name="data[].customer" type="object | null">
+  O cliente da assinatura: `id`, `name` e `partner_id`. Vem do primeiro vínculo da assinatura, e uma assinatura é sempre de
+  um único cliente. Para os demais dados do cliente, use [Consultar cliente](/referencia/clientes-e-enderecos/consultar-cliente).
+</ResponseField>
+
+<ResponseField name="data[].created_at" type="string (data e hora ISO 8601)">
+  Quando a assinatura foi criada, em UTC.
+</ResponseField>
+
+<ResponseField name="links" type="object">
+  Endereços prontos para navegar: `first`, `last`, `prev` e `next`. Já trazem os filtros e a ordenação da chamada atual.
+  `prev` é `null` na primeira página e `next` é `null` na última.
+</ResponseField>
+
+<ResponseField name="meta" type="object">
+  `current_page`, `last_page`, `per_page`, `from`, `to` e `total` (quantas assinaturas existem com esses filtros, somando todas
+  as páginas). `from` e `to` vêm `null` quando a lista está vazia. `meta.links` repete a navegação em formato de botões para
+  interfaces; quem integra por código usa o objeto `links`.
+</ResponseField>
+
+## Erros
+
+| Status | Quando acontece | O que fazer |
+|---|---|---|
+| 400 | Você enviou um filtro ou uma ordenação que a rota não aceita. A mensagem lista os nomes aceitos, em inglês. | Corrija o nome do parâmetro. Os nomes diferenciam maiúscula de minúscula, e o filtro de atraso usa camelCase (`pastDue`). |
+| 400 | Login humano com usuário que tem mais de uma filial e sem `X-Partner-Branch-Id`. | Envie o cabeçalho com a filial desejada. |
+| 401 | Não há chave, a chave é inválida, foi revogada ou expirou. Com login humano: usuário inativo ou token expirado. | Confira a credencial. Revogação leva até 60 segundos para valer. |
+| 403 | O parceiro está suspenso ou inativo, ou a filial informada não pertence ao usuário. | Fale com a ClubTrack se o parceiro deveria estar ativo. |
+| 429 | Passou de 1000 chamadas por minuto com a chave. | Espere o tempo do cabeçalho `Retry-After` e repita. |
+
+Os status 401, 403 e 429 valem para qualquer chamada. O corpo é sempre `{"message": "..."}`; o guia de [erros](/guias/erros)
+traz os textos exatos.
+
+## Exemplos
+
+<RequestExample>
+
+```bash cURL
+curl --get "https://core.clubtrack.com.br/api/b2b/v1/subscriptions" \
+  --header "X-Api-Key: $CLUBTRACK_API_KEY" \
+  --header "Accept: application/json" \
+  --data-urlencode "filter[status]=pending,active" \
+  --data-urlencode "sort=-created_at" \
+  --data-urlencode "per_page=2"
+```
+
+```javascript JavaScript
+const params = new URLSearchParams({
+  "filter[status]": "pending,active",
+  sort: "-created_at",
+  per_page: "2",
+});
+
+const resposta = await fetch(
+  `https://core.clubtrack.com.br/api/b2b/v1/subscriptions?${params}`,
+  {
+    headers: {
+      "X-Api-Key": process.env.CLUBTRACK_API_KEY,
+      Accept: "application/json",
+    },
+  },
+);
+
+const assinaturas = await resposta.json();
+```
+
+```python Python
+import os
+import requests
+
+resposta = requests.get(
+    "https://core.clubtrack.com.br/api/b2b/v1/subscriptions",
+    headers={
+        "X-Api-Key": os.environ["CLUBTRACK_API_KEY"],
+        "Accept": "application/json",
+    },
+    params={
+        "filter[status]": "pending,active",
+        "sort": "-created_at",
+        "per_page": 2,
+    },
+    timeout=30,
+)
+
+assinaturas = resposta.json()
+```
+
+```php PHP
+use GuzzleHttp\Client;
+
+$http = new Client(['base_uri' => 'https://core.clubtrack.com.br']);
+
+$resposta = $http->get('/api/b2b/v1/subscriptions', [
+    'headers' => [
+        'X-Api-Key' => getenv('CLUBTRACK_API_KEY'),
+        'Accept' => 'application/json',
+    ],
+    'query' => [
+        'filter' => ['status' => 'pending,active'],
+        'sort' => '-created_at',
+        'per_page' => 2,
+    ],
+]);
+
+$assinaturas = json_decode((string) $resposta->getBody(), true);
+```
+
+</RequestExample>
+
+<ResponseExample>
+
+```json 200
+{
+  "data": [
+    {
+      "id": "019a0f3c-e000-7182-a6cd-bb7e5dcde111",
+      "tag_binding_ids": [
+        "019a0f3c-a000-7d36-b6e0-c918528fd00a"
+      ],
+      "plan_id": "019a0f3c-c000-7f57-9da6-e983620124d1",
+      "price_cents": 2990,
+      "commission_rate": 12.5,
+      "status": "pending",
+      "payment_method": null,
+      "external_reference_id": null,
+      "payment_checkout_url": null,
+      "no_charge_kind": null,
+      "no_charge_ends_at": null,
+      "no_charge_reason": null,
+      "courtesy_expired": false,
+      "next_billing_date": null,
+      "checkout_url": "https://exemplo.clubtrack.example/checkout/?token=7c1e5b0a-4d2f-4f6a-9b3e-2a8d5c1f9e60",
+      "plan": {
+        "id": "019a0f3c-c000-7f57-9da6-e983620124d1",
+        "name": "Plano Individual",
+        "price_cents": 2990,
+        "billing_cycle": "monthly"
+      },
+      "customer": {
+        "id": "019a0f3c-4000-7f9e-9687-b620b4389874",
+        "name": "Marina Souza Exemplo",
+        "partner_id": "019a0f3c-0000-7a36-8f98-0b409e8a22c8"
+      },
+      "created_at": "2026-10-19T17:35:42+00:00"
+    },
+    {
+      "id": "019a0f3c-e100-7182-a6cd-bb7e5dcde112",
+      "tag_binding_ids": [
+        "019a0f3c-b000-7306-ac8b-4c308157ddd2"
+      ],
+      "plan_id": "019a0f3c-c000-7f57-9da6-e983620124d1",
+      "price_cents": 2990,
+      "commission_rate": 12.5,
+      "status": "active",
+      "payment_method": "card",
+      "external_reference_id": "sub_8f3k2m9x1q",
+      "payment_checkout_url": null,
+      "no_charge_kind": null,
+      "no_charge_ends_at": null,
+      "no_charge_reason": null,
+      "courtesy_expired": false,
+      "next_billing_date": "2026-11-12",
+      "plan": {
+        "id": "019a0f3c-c000-7f57-9da6-e983620124d1",
+        "name": "Plano Individual",
+        "price_cents": 2990,
+        "billing_cycle": "monthly"
+      },
+      "customer": {
+        "id": "019a0f3c-5000-765e-80f3-5b910b23203d",
+        "name": "Locadora Horizonte Exemplo Ltda",
+        "partner_id": "019a0f3c-0000-7a36-8f98-0b409e8a22c8"
+      },
+      "created_at": "2026-10-12T13:20:05+00:00"
+    }
+  ],
+  "links": {
+    "first": "https://core.clubtrack.com.br/api/b2b/v1/subscriptions?filter%5Bstatus%5D=pending%2Cactive&sort=-created_at&per_page=2&page=1",
+    "last": "https://core.clubtrack.com.br/api/b2b/v1/subscriptions?filter%5Bstatus%5D=pending%2Cactive&sort=-created_at&per_page=2&page=1",
+    "prev": null,
+    "next": null
+  },
+  "meta": {
+    "current_page": 1,
+    "from": 1,
+    "last_page": 1,
+    "links": [
+      { "url": null, "label": "&laquo; Previous", "active": false },
+      { "url": "https://core.clubtrack.com.br/api/b2b/v1/subscriptions?filter%5Bstatus%5D=pending%2Cactive&sort=-created_at&per_page=2&page=1", "label": "1", "active": true },
+      { "url": null, "label": "Next &raquo;", "active": false }
+    ],
+    "path": "https://core.clubtrack.com.br/api/b2b/v1/subscriptions",
+    "per_page": 2,
+    "to": 2,
+    "total": 2
+  }
+}
+```
+
+```json 400
+{
+  "message": "Requested filter(s) `past_due` are not allowed. Allowed filter(s) are `status, active, pastDue`."
+}
+```
+
+```json 401
+{
+  "message": "API key inválida ou revogada."
+}
+```
+
+```json 403
+{
+  "message": "Parceiro inativo ou suspenso."
+}
+```
+
+</ResponseExample>
+
+## Detalhes que ajudam
+
+- `checkout_url` aparece nas linhas que aguardam o cliente. Entregue o endereço como veio; se o cliente perdeu o e-mail ou a mensagem, [reenvie o link de pagamento](/referencia/comercial/reenviar-link-de-pagamento).
+- `price_cents` da linha e `plan.price_cents` são coisas diferentes: o primeiro é o que a assinatura cobra, o segundo é o preço atual do plano.
+- Uma lista vazia não é erro: volta `200` com `data` vazio.
+- Para sincronizar tudo, percorra as páginas seguindo `links.next`. Se você mudar a ordenação no meio do percurso, comece de novo.

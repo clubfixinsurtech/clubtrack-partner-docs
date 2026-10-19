@@ -1,0 +1,130 @@
+---
+title: "Recuperar acesso por e-mail"
+description: "Pede o envio de um link para definir uma senha nova. A resposta é a mesma exista ou não uma conta ativa para o e-mail."
+api: "POST /api/b2b/v1/auth/forgot-password"
+---
+
+Esta chamada pede à ClubTrack que mande um e-mail com um link para a pessoa definir uma senha nova. Você a usa na tela de acesso do seu painel, no botão "Esqueci minha senha". A API responde `200` sempre, com o mesmo texto, e só envia o e-mail quando existe um usuário ativo com o endereço informado.
+
+A resposta é igual nos dois casos para que ninguém use esta rota para descobrir quais e-mails têm conta na ClubTrack. Por isso a sua tela deve dizer algo como "se esse e-mail tiver uma conta ativa, enviamos um link", e não "e-mail enviado" nem "e-mail não encontrado".
+
+<Warning>
+  Quando existe um usuário ativo com o e-mail informado, cada chamada envia um e-mail de verdade a essa pessoa. Não use esta rota para testar. Não existe ambiente de teste nem forma de simular o envio.
+</Warning>
+
+## Quando usar
+
+- Na tela de acesso do seu painel, quando o usuário esqueceu a senha de [Entrar com e-mail e senha](/referencia/conta-e-equipe/entrar).
+- Para dar à pessoa a chance de escolher a própria senha depois de [criar o usuário](/referencia/conta-e-equipe/convidar-usuario) com uma senha provisória.
+
+## Autenticação e permissões
+
+Rota pública: não envie chave de API nem token. Qualquer pessoa pode chamá-la, e por isso ela nunca confirma se o e-mail existe. Esta rota não entra na contagem de 1000 chamadas por minuto da chave de API.
+
+## Parâmetros
+
+### Corpo
+
+Envie JSON, com `Content-Type: application/json`.
+
+<ParamField body="email" type="string" required>
+  E-mail do usuário que perdeu o acesso. Precisa ter formato de e-mail válido; senão a resposta é 422. A busca é exata e diferencia maiúscula de minúscula: envie o e-mail como foi cadastrado. Usuário desativado não recebe o link, e a resposta continua igual.
+</ParamField>
+
+## Resposta
+
+Status `200`, com a mesma mensagem para qualquer e-mail de formato válido.
+
+<ResponseField name="message" type="string">
+  Texto fixo: `Se o e-mail informado tiver uma conta ativa, enviamos um link de recuperação.` Ele não confirma que o e-mail foi enviado nem que a conta existe.
+</ResponseField>
+
+O e-mail sai em segundo plano, com o assunto "Nova senha do portal de" seguido do nome do parceiro, e traz um botão "Definir nova senha". O link vale por **24 horas**. Ele abre uma página do Portal do Parceiro, que pede a senha nova e a envia com [Definir senha pelo convite](/referencia/conta-e-equipe/definir-senha-do-usuario). Depois de definir, a pessoa entra com a senha nova.
+
+## Erros
+
+| Status | Quando acontece | O que fazer |
+|---|---|---|
+| 422 | `email` ausente ou sem formato de e-mail. A mensagem vem em inglês. | Corrija o campo citado em `errors`. |
+
+Não existe erro para "e-mail não encontrado": essa situação responde `200`, como qualquer outra. O corpo de erro é sempre `{"message": "..."}`; o guia de [erros](/guias/erros) traz os textos exatos.
+
+## Exemplos
+
+<RequestExample>
+
+```bash cURL
+curl --request POST "https://core.clubtrack.com.br/api/b2b/v1/auth/forgot-password" \
+  --header "Content-Type: application/json" \
+  --header "Accept: application/json" \
+  --data '{"email": "carla@parceiro.example"}'
+```
+
+```javascript JavaScript
+const resposta = await fetch(
+  "https://core.clubtrack.com.br/api/b2b/v1/auth/forgot-password",
+  {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Accept: "application/json",
+    },
+    body: JSON.stringify({ email: "carla@parceiro.example" }),
+  },
+);
+
+const resultado = await resposta.json();
+```
+
+```python Python
+import requests
+
+resposta = requests.post(
+    "https://core.clubtrack.com.br/api/b2b/v1/auth/forgot-password",
+    headers={"Accept": "application/json"},
+    json={"email": "carla@parceiro.example"},
+    timeout=30,
+)
+
+resultado = resposta.json()
+```
+
+```php PHP
+use GuzzleHttp\Client;
+
+$http = new Client(['base_uri' => 'https://core.clubtrack.com.br']);
+
+$resposta = $http->post('/api/b2b/v1/auth/forgot-password', [
+    'headers' => ['Accept' => 'application/json'],
+    'json' => ['email' => 'carla@parceiro.example'],
+]);
+
+$resultado = json_decode((string) $resposta->getBody(), true);
+```
+
+</RequestExample>
+
+<ResponseExample>
+
+```json 200
+{
+  "message": "Se o e-mail informado tiver uma conta ativa, enviamos um link de recuperação."
+}
+```
+
+```json 422
+{
+  "message": "The email field must be a valid email address.",
+  "errors": {
+    "email": ["The email field must be a valid email address."]
+  }
+}
+```
+
+</ResponseExample>
+
+## Detalhes que ajudam
+
+- A resposta não prova a entrega. O e-mail depende de caixa de entrada, filtro de spam e do endereço estar correto. Se a pessoa não recebeu, peça que confira o spam e só então repita a chamada.
+- Cada chamada gera um link novo. Os links anteriores continuam valendo até vencer.
+- O link do e-mail é de uso da pessoa. O seu sistema não precisa lê-lo nem chamá-lo.
