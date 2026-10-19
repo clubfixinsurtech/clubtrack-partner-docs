@@ -31,7 +31,6 @@ Toda chamada leva a sua chave de API no cabeçalho `X-Api-Key`, que o campo de t
 
 <ParamField path="id" type="string" placeholder="019a0f3c-4000-7f9e-9687-b620b4389874" required>
   Identificador do dispositivo, o campo `id` que [Listar dispositivos](/referencia/rastreamento/listar-dispositivos) devolve.
-  Um valor que não tenha o formato de UUID responde 404.
 </ParamField>
 
 ### Consulta
@@ -112,7 +111,7 @@ Status `200`. O dispositivo vem dentro de `data`.
 |---|---|---|
 | 401 | Credencial ausente, inválida, revogada ou expirada. | Confira a chave. |
 | 403 | Parceiro suspenso ou inativo. | Fale com a ClubTrack se o parceiro deveria estar ativo. |
-| 404 | O aparelho não existe, não é do seu parceiro ou o `id` não tem formato de UUID. As três situações dão a mesma resposta. | Confira o identificador, preferindo o que veio de [Listar dispositivos](/referencia/rastreamento/listar-dispositivos). |
+| 404 | O aparelho não existe ou não é do seu parceiro. As duas situações dão a mesma resposta. | Confira o identificador, preferindo o que veio de [Listar dispositivos](/referencia/rastreamento/listar-dispositivos). |
 | 429 | Mais de 1000 chamadas por minuto com a chave. | Espere o tempo de `Retry-After`. |
 
 Os status 401, 403 e 429 valem para qualquer chamada. Veja [Erros e códigos](/guias/erros).

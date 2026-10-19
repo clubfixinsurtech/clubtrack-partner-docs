@@ -64,7 +64,7 @@ e de `cpf`: o documento vai em `cpf_cnpj`.
 <ParamField body="email" type="string">
   E-mail do cliente, com formato válido e até 150 caracteres. Omitido ou vazio fica `null`. Duas coisas dependem dele.
   Primeiro, o convite para definir a senha só é enviado se houver e-mail. Segundo, o e-mail é único em toda a ClubTrack:
-  um e-mail que já pertence a um cliente, seu ou de outro parceiro, é recusado com `422`. A comparação é feita com o texto
+  um e-mail que já pertence a um cliente, seu ou de outro parceiro, é recusado e nada é criado. A comparação é feita com o texto
   exatamente como você enviou e diferencia maiúscula de minúscula, então padronize no seu sistema (por exemplo, sempre em
   minúsculas). Exemplo: `marina@cliente.example`.
 </ParamField>
@@ -149,9 +149,8 @@ ou `{id}` de cliente.
 | 401 | Não há chave, a chave é inválida, foi revogada ou expirou. | Confira a credencial. Revogação leva até 60 segundos para valer. |
 | 403 | O parceiro está suspenso ou inativo. | Fale com a ClubTrack se o parceiro deveria estar ativo. |
 | 422 | Dado inválido. Falta `name`; `name`, `email`, `phone` ou `external_id` passam do tamanho; `email` fora do formato; `document_type` com valor que não existe; `cpf_cnpj` com mais de 14 caracteres ou com dígito verificador errado (`CPF inválido -- confira os dígitos verificadores.` ou `CNPJ inválido -- confira os dígitos verificadores.`). As mensagens de formato vêm em inglês, com o nome do campo em `errors`. | Corrija o campo indicado em `errors` e envie de novo. |
-| 422 | `Já existe um cliente cadastrado com este e-mail.`: o e-mail já pertence a um cliente da ClubTrack. A mensagem é a mesma para cliente seu e para cliente de outro parceiro. | Procure o e-mail em [Listar clientes](/referencia/clientes-e-enderecos/listar-clientes) com `filter[email]`. Se o cliente for seu, use o `id` dele. Se não for, cadastre sem e-mail ou com outro e-mail. |
 | 429 | Passou de 1000 chamadas por minuto com a chave. | Espere o tempo do cabeçalho `Retry-After` e repita. |
-| 429 | `Limite de tentativas de cadastro atingido. Tente novamente mais tarde.`: o parceiro fez 20 tentativas de cadastro com e-mail repetido em 10 minutos. Enquanto o bloqueio dura, todo cadastro do parceiro recebe esta resposta, inclusive o que usa e-mail novo. | Espere o tempo do cabeçalho `Retry-After`. Para evitar o bloqueio, procure o cliente antes de cadastrar. |
+| 500 | Falha ao cadastrar. Uma causa conhecida é um e-mail que já pertence a um cliente da ClubTrack: nada é criado e nenhum e-mail é enviado. | Procure o e-mail em [Listar clientes](/referencia/clientes-e-enderecos/listar-clientes) com `filter[email]` antes de tentar de novo. Se ele não existir, fale com a ClubTrack. |
 
 Os status 401, 403 e 429 valem para qualquer chamada. O corpo é sempre `{"message": "..."}`, e o 422 acrescenta `errors`;
 o guia de [erros](/guias/erros) traz os textos exatos. Quando há mais de um campo inválido, o `message` do topo mostra o
@@ -289,26 +288,15 @@ $cliente = json_decode((string) $resposta->getBody(), true);
 }
 ```
 
-```json 422 e-mail repetido
-{
-  "message": "Já existe um cliente cadastrado com este e-mail.",
-  "errors": {
-    "email": [
-      "Já existe um cliente cadastrado com este e-mail."
-    ]
-  }
-}
-```
-
 ```json 429 limite da chave
 {
   "message": "Limite de requisições atingido. Tente novamente em 12s."
 }
 ```
 
-```json 429 tentativas repetidas
+```json 500
 {
-  "message": "Limite de tentativas de cadastro atingido. Tente novamente mais tarde."
+  "message": "Server Error"
 }
 ```
 
@@ -317,7 +305,7 @@ $cliente = json_decode((string) $resposta->getBody(), true);
 ## Detalhes que ajudam
 
 - A API não tem chave de idempotência. Repetir a chamada com os mesmos dados não devolve o cliente que já foi criado: com
-  e-mail, a segunda chamada responde `422` por e-mail repetido; sem e-mail, ela cria um segundo cliente com os mesmos dados.
+  e-mail, a segunda chamada falha por e-mail repetido e não cria nada; sem e-mail, ela cria um segundo cliente com os mesmos dados.
   O `external_id` não impede isso, porque a ClubTrack não exige que ele seja único.
 
 Para não duplicar, faça este caminho antes de cadastrar e depois de qualquer falha sem resposta, como tempo esgotado ou
@@ -337,8 +325,6 @@ queda de conexão:
 
 - Duas chamadas simultâneas para o mesmo cliente podem passar pela busca ao mesmo tempo. Se o seu sistema pode disparar o
   mesmo cadastro em paralelo, serialize essas chamadas do seu lado.
-- Procurar antes também evita o bloqueio por tentativas repetidas. Só contam para o limite de 20 tentativas as que chegam
-  com e-mail que já existe. Cadastro bem-sucedido e os outros erros de validação não contam.
 - Depois do cadastro, o caminho de venda segue em [Cadastrar endereço](/referencia/clientes-e-enderecos/cadastrar-endereco),
   [Vincular dispositivo](/referencia/vinculos-e-campos/vincular-dispositivo) e [Criar assinatura](/referencia/comercial/criar-assinatura).
   O guia de [fluxo de venda](/guias/fluxo-de-venda) mostra a ordem completa.
