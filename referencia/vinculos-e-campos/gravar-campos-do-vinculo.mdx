@@ -26,32 +26,24 @@ completo está no guia de [campos personalizados](/guias/campos-personalizados).
 
 ## Autenticação e permissões
 
-Aceita chave de API ou login humano. Qualquer usuário da equipe do parceiro pode gravar. Parceiro suspenso recebe 403. Você grava
+Use a chave de API. Parceiro suspenso recebe 403. Você grava
 apenas nas Tags do parceiro em nome do qual chama: o hub não grava em Tag de filial, e a filial grava nas Tags dela com o
 catálogo do hub. Se a funcionalidade de campos personalizados não estiver ligada para o seu parceiro, a resposta é 404. O guia de
-[autenticação](/guias/autenticacao) explica as duas formas de credencial e como escolher a filial.
+[autenticação](/guias/autenticacao) explica a chave de API e como escolher a filial.
 
 ## Parâmetros
 
 ### Cabeçalhos
 
-<ParamField header="X-Api-Key" type="string" required>
-  Sua chave de API, no formato `ttk_` seguido de 40 caracteres. Você pode enviá-la também como
-  `Authorization: Bearer <chave>`. Se estiver chamando com o token de um usuário da equipe, envie só o `Authorization`.
-</ParamField>
+Toda chamada leva a sua chave de API no cabeçalho `X-Api-Key`, que o campo de testes (Try it) pede no campo de autorização. Também vale enviá-la como `Authorization: Bearer <chave>`. Veja [Autenticação](/guias/autenticacao).
 
-<ParamField header="X-Partner-Branch-Id" type="string (UUID)">
-  Filial em nome da qual o usuário está gravando. Só tem efeito no login humano, e só é obrigatório quando o usuário
-  pertence a mais de uma filial. Com chave de API, o cabeçalho é ignorado.
-</ParamField>
-
-<ParamField header="Content-Type" type="string" required>
+<ParamField header="Content-Type" type="string" default="application/json">
   Envie `application/json`. Com outro tipo, a chamada é recusada com 422, mesmo que o corpo seja um JSON válido.
 </ParamField>
 
 ### Caminho
 
-<ParamField path="id" type="string (UUID)" required>
+<ParamField path="id" type="string" placeholder="019a0f3c-4000-7f9e-9687-b620b4389874" required>
   Identificador do vínculo (a Tag): o `data.id` devolvido por
   [Vincular dispositivo a um cliente](/referencia/vinculos-e-campos/vincular-dispositivo) ou o `id` de cada vínculo em
   [Listar as Tags de um cliente](/referencia/clientes-e-enderecos/listar-tags-do-cliente). Vínculo que não existe, é de outro
@@ -102,11 +94,11 @@ igual a `partner`.
   `true` quando o campo aceita valores novos; `false` quando foi desativado.
 </ResponseField>
 
-<ResponseField name="data[].value" type="string | null">
+<ResponseField name="data[].value" type="string">
   O texto que a Tag tem agora no campo, com até 255 caracteres, ou `null` quando está sem valor.
 </ResponseField>
 
-<ResponseField name="data[].written_by" type="string | null">
+<ResponseField name="data[].written_by" type="string">
   Quem disparou a última gravação do campo: `customer` ou `partner`. `null` quando `value` é `null`. Os valores que você acabou
   de gravar vêm `partner`.
 </ResponseField>
@@ -119,9 +111,8 @@ igual a `partner`.
 
 | Status | Quando acontece | O que fazer |
 |---|---|---|
-| 400 | Login humano com usuário que tem mais de uma filial e sem `X-Partner-Branch-Id`. | Envie o cabeçalho com a filial desejada. |
-| 401 | Não há chave, a chave é inválida, foi revogada ou expirou. Com login humano: usuário inativo ou token expirado. | Confira a credencial. Revogação leva até 60 segundos para valer. |
-| 403 | O parceiro está suspenso ou inativo, ou a filial informada não pertence ao usuário. | Fale com a ClubTrack se o parceiro deveria estar ativo. |
+| 401 | Não há chave, a chave é inválida, foi revogada ou expirou. | Confira a credencial. Revogação leva até 60 segundos para valer. |
+| 403 | O parceiro está suspenso ou inativo. | Fale com a ClubTrack se o parceiro deveria estar ativo. |
 | 404 | `Vínculo não encontrado.`: o vínculo não existe, é de outro parceiro, já foi desfeito, ou a Tag foi transferida para outro parceiro da rede. Se o `id` do caminho nem tem formato de UUID, a própria rota responde 404; não dependa do texto. | Confira o `id` e o parceiro em nome do qual você chama. |
 | 404 | `Recurso indisponível.`: a funcionalidade de campos personalizados ainda não está ligada para o seu parceiro. | Peça à ClubTrack para ligar a funcionalidade no parceiro principal. |
 | 422 | Corpo fora do formato. Mensagens, sempre em `errors.values`: `Informe os campos em "values".` (ausente ou vazio), `Os campos devem vir em um objeto.`, `Campos demais em uma só requisição.` (mais de 50 chaves), `Cada valor deve ser texto ou nulo.`, `Para limpar o campo, envie null.` (texto vazio ou só espaços), `Cada valor aceita até 255 caracteres.` e `Envie o corpo como JSON (Content-Type: application/json).` Nenhuma delas cita chave ou valor. | Corrija o corpo e envie de novo. Nada foi gravado. |

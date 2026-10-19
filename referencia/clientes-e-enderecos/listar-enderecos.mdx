@@ -20,26 +20,18 @@ e não aceita filtro, ordenação ou `include`. Um cliente sem endereço recebe 
 
 ## Autenticação e permissões
 
-Aceita chave de API ou login humano. Qualquer usuário da equipe do parceiro pode consultar. Parceiro suspenso recebe 403.
-O guia de [autenticação](/guias/autenticacao) explica as duas formas e como escolher a filial quando o usuário tem mais de uma.
+Use a chave de API. Parceiro suspenso recebe 403.
+O guia de [autenticação](/guias/autenticacao) explica a chave de API.
 
 ## Parâmetros
 
 ### Cabeçalhos
 
-<ParamField header="X-Api-Key" type="string" required>
-  Sua chave de API, no formato `ttk_` seguido de 40 caracteres. Você pode enviá-la também como
-  `Authorization: Bearer <chave>`. Se estiver chamando com o token de um usuário da equipe, envie só o `Authorization`.
-</ParamField>
-
-<ParamField header="X-Partner-Branch-Id" type="string (UUID)">
-  Filial em nome da qual o usuário está consultando. Só tem efeito no login humano, e só é obrigatório quando o usuário
-  pertence a mais de uma filial. Com chave de API, o cabeçalho é ignorado.
-</ParamField>
+Toda chamada leva a sua chave de API no cabeçalho `X-Api-Key`, que o campo de testes (Try it) pede no campo de autorização. Também vale enviá-la como `Authorization: Bearer <chave>`. Veja [Autenticação](/guias/autenticacao).
 
 ### Caminho
 
-<ParamField path="customerId" type="string (UUID)" required>
+<ParamField path="customerId" type="string" placeholder="019a0f3c-4000-7f9e-9687-b620b4389874" required>
   Identificador do cliente, o `id` devolvido por [Cadastrar cliente](/referencia/clientes-e-enderecos/cadastrar-cliente) ou por
   [Listar clientes](/referencia/clientes-e-enderecos/listar-clientes). O cliente precisa ser do seu parceiro. Cliente que não
   existe e cliente de outro parceiro dão a mesma resposta, `404`. Exemplo: `019a0f3c-4000-7f9e-9687-b620b4389874`.
@@ -59,43 +51,43 @@ Status `200`. O corpo traz a lista em `data`. Não há `links` nem `meta`.
   [Definir endereço principal](/referencia/clientes-e-enderecos/definir-endereco-principal) pede em `addressId`.
 </ResponseField>
 
-<ResponseField name="data[].label" type="string | null">
+<ResponseField name="data[].label" type="string">
   Nome que identifica o endereço, como "Residência" ou "Comercial", com até 150 caracteres. `null` quando não foi informado.
 </ResponseField>
 
-<ResponseField name="data[].postal_code" type="string | null">
+<ResponseField name="data[].postal_code" type="string">
   CEP, como foi cadastrado, com até 9 caracteres (`01310-100` ou `01310100`). `null` quando não foi informado.
 </ResponseField>
 
-<ResponseField name="data[].street" type="string | null">
+<ResponseField name="data[].street" type="string">
   Logradouro (rua, avenida), com até 255 caracteres. `null` quando não foi informado.
 </ResponseField>
 
-<ResponseField name="data[].number" type="string | null">
+<ResponseField name="data[].number" type="string">
   Número do imóvel, como texto, com até 20 caracteres. Pode ser `S/N`. `null` quando não foi informado.
 </ResponseField>
 
-<ResponseField name="data[].complement" type="string | null">
+<ResponseField name="data[].complement" type="string">
   Complemento (sala, bloco, apartamento), com até 255 caracteres. `null` quando não foi informado.
 </ResponseField>
 
-<ResponseField name="data[].neighborhood" type="string | null">
+<ResponseField name="data[].neighborhood" type="string">
   Bairro, com até 255 caracteres. `null` quando não foi informado.
 </ResponseField>
 
-<ResponseField name="data[].city" type="string | null">
+<ResponseField name="data[].city" type="string">
   Cidade, com até 255 caracteres. `null` quando não foi informada.
 </ResponseField>
 
-<ResponseField name="data[].state" type="string | null">
+<ResponseField name="data[].state" type="string">
   Sigla do estado, com 2 caracteres, como foi cadastrada (`SP`). `null` quando não foi informada.
 </ResponseField>
 
-<ResponseField name="data[].latitude" type="number | null">
+<ResponseField name="data[].latitude" type="number">
   Latitude do endereço, em graus decimais, de -90 a 90, com até 7 casas decimais. `null` quando não foi informada.
 </ResponseField>
 
-<ResponseField name="data[].longitude" type="number | null">
+<ResponseField name="data[].longitude" type="number">
   Longitude do endereço, em graus decimais, de -180 a 180, com até 7 casas decimais. `null` quando não foi informada.
 </ResponseField>
 
@@ -115,9 +107,8 @@ Status `200`. O corpo traz a lista em `data`. Não há `links` nem `meta`.
 
 | Status | Quando acontece | O que fazer |
 |---|---|---|
-| 400 | Login humano com usuário que tem mais de uma filial e sem `X-Partner-Branch-Id`. | Envie o cabeçalho com a filial desejada. |
-| 401 | Não há chave, a chave é inválida, foi revogada ou expirou. Com login humano: usuário inativo ou token expirado. | Confira a credencial. Revogação leva até 60 segundos para valer. |
-| 403 | O parceiro está suspenso ou inativo, ou a filial informada não pertence ao usuário. | Fale com a ClubTrack se o parceiro deveria estar ativo. |
+| 401 | Não há chave, a chave é inválida, foi revogada ou expirou. | Confira a credencial. Revogação leva até 60 segundos para valer. |
+| 403 | O parceiro está suspenso ou inativo. | Fale com a ClubTrack se o parceiro deveria estar ativo. |
 | 404 | `Recurso não encontrado.`: o cliente não existe ou é de outro parceiro. A resposta é a mesma nos dois casos. | Confira o `customerId` na lista de clientes do seu parceiro. |
 | 429 | Passou de 1000 chamadas por minuto com a chave. | Espere o tempo do cabeçalho `Retry-After` e repita. |
 
@@ -225,12 +216,6 @@ $enderecos = json_decode((string) $resposta->getBody(), true);
       "updated_at": "2026-10-12T15:20:44+00:00"
     }
   ]
-}
-```
-
-```json 400
-{
-  "message": "Usuário tem mais de uma filial — informe qual via header X-Partner-Branch-Id."
 }
 ```
 

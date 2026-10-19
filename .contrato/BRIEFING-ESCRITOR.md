@@ -42,7 +42,7 @@ O leitor é quem integra o sistema de um parceiro. As páginas têm de ser exata
 - Defeito do core que você achar (id mal formado dando 500, mensagem enganosa, campo sem validação): registre em
   divergências como "defeito conhecido", não descreva como comportamento e não dê instrução para explorar.
 - Efeito real: toda operação que grava, cobra ou envia mensagem leva `<Warning>` com o efeito, porque não há ambiente de
-  teste e o playground está desligado.
+  teste e o campo de testes do site (Try it) chama a produção.
 
 ## Relatório final (até 200 palavras)
 

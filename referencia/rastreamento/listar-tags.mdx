@@ -19,7 +19,7 @@ Quais Tags aparecem depende de como o seu parceiro é cobrado:
 
 A regra é lida a cada chamada. Se o modelo de cobrança do parceiro mudar, a lista muda na chamada seguinte. A Tag que a lista esconde também não pode ser consultada em trajeto nem em distância: essas chamadas respondem 404 para ela.
 
-Com chave de API, a lista é a do parceiro dono da chave. Com login humano, é a da filial ativa. A matriz e as filiais não se misturam: cada uma vê só os vínculos dos clientes que são dela.
+A lista é a do parceiro dono da chave. A matriz e as filiais não se misturam: cada uma vê só os vínculos dos clientes que são dela.
 
 ## Quando usar
 
@@ -30,21 +30,13 @@ Com chave de API, a lista é a do parceiro dono da chave. Com login humano, é a
 
 ## Autenticação e permissões
 
-Aceita chave de API ou login humano. Qualquer usuário da equipe do parceiro pode consultar. Parceiro suspenso ou inativo recebe 403, e a suspensão da matriz alcança as filiais. O guia de [autenticação](/guias/autenticacao) explica as duas formas e como escolher a filial quando o usuário tem mais de uma.
+Use a chave de API. Parceiro suspenso ou inativo recebe 403, e a suspensão da matriz alcança as filiais. O guia de [autenticação](/guias/autenticacao) explica a chave de API.
 
 ## Parâmetros
 
 ### Cabeçalhos
 
-<ParamField header="X-Api-Key" type="string" required>
-  Sua chave de API, no formato `ttk_` seguido de 40 caracteres. Você pode enviá-la também como
-  `Authorization: Bearer <chave>`. Se estiver chamando com o token de um usuário da equipe, envie só o `Authorization`.
-</ParamField>
-
-<ParamField header="X-Partner-Branch-Id" type="string (UUID)">
-  Filial em nome da qual o usuário está consultando. Só tem efeito no login humano, e só é obrigatório quando o usuário
-  pertence a mais de uma filial. Com chave de API, o cabeçalho é ignorado.
-</ParamField>
+Toda chamada leva a sua chave de API no cabeçalho `X-Api-Key`, que o campo de testes (Try it) pede no campo de autorização. Também vale enviá-la como `Authorization: Bearer <chave>`. Veja [Autenticação](/guias/autenticacao).
 
 ### Consulta
 
@@ -109,15 +101,15 @@ Status `200`. O corpo traz a lista em `data`, os endereços de navegação em `l
   e [Consultar distância](/referencia/rastreamento/consultar-distancia) pedem em `{id}`.
 </ResponseField>
 
-<ResponseField name="data[].nickname" type="string | null">
+<ResponseField name="data[].nickname" type="string">
   Apelido dado à Tag, com até 100 caracteres. `null` quando ninguém definiu.
 </ResponseField>
 
-<ResponseField name="data[].category" type="string | null">
+<ResponseField name="data[].category" type="string">
   Categoria da Tag, texto livre de até 50 caracteres (por exemplo, "Carro" ou "Moto"). `null` quando ninguém definiu.
 </ResponseField>
 
-<ResponseField name="data[].icon" type="string | null">
+<ResponseField name="data[].icon" type="string">
   Identificador do ícone escolhido para a Tag, com até 50 caracteres. `null` quando ninguém escolheu.
 </ResponseField>
 
@@ -150,11 +142,11 @@ Status `200`. O corpo traz a lista em `data`, os endereços de navegação em `l
   `true` se o campo está ativo no catálogo. Um campo desativado só aparece quando já tem valor.
 </ResponseField>
 
-<ResponseField name="data[].asset.custom_fields[].value" type="string | null">
+<ResponseField name="data[].asset.custom_fields[].value" type="string">
   O valor gravado para este bem. `null` quando ninguém preencheu.
 </ResponseField>
 
-<ResponseField name="data[].asset.custom_fields[].written_by" type="string | null">
+<ResponseField name="data[].asset.custom_fields[].written_by" type="string">
   Quem gravou o valor: `customer` (o cliente) ou `partner` (o parceiro). `null` quando não há valor.
 </ResponseField>
 
@@ -223,9 +215,8 @@ Status `200`. O corpo traz a lista em `data`, os endereços de navegação em `l
 | Status | Quando acontece | O que fazer |
 |---|---|---|
 | 400 | Você enviou um filtro, uma ordenação ou uma inclusão que a rota não aceita. A mensagem lista os nomes aceitos, em inglês. Também responde 400 um filtro com formato impossível (lista onde se espera texto), `filter[custom_fields]` sem chave de campo, chave de campo que o seu parceiro não tem e valor vazio em `filter[custom_fields][chave]`. | Corrija o parâmetro. A mensagem nunca repete o valor que você enviou. A rota não aceita `sort`: a ordem é fixa. |
-| 400 | Login humano com usuário que tem mais de uma filial e sem `X-Partner-Branch-Id`. | Envie o cabeçalho com a filial desejada. |
-| 401 | Não há chave, a chave é inválida, foi revogada ou expirou. Com login humano: usuário inativo ou token expirado. | Confira a credencial. Revogação leva até 60 segundos para valer. |
-| 403 | O parceiro está suspenso ou inativo, ou a filial informada não pertence ao usuário. | Fale com a ClubTrack se o parceiro deveria estar ativo. |
+| 401 | Não há chave, a chave é inválida, foi revogada ou expirou. | Confira a credencial. Revogação leva até 60 segundos para valer. |
+| 403 | O parceiro está suspenso ou inativo. | Fale com a ClubTrack se o parceiro deveria estar ativo. |
 | 422 | `per_page` fora do intervalo de 1 a 100, ou que não é inteiro. | Envie um inteiro de 1 a 100 e pagine pelos `links`. |
 | 429 | Passou de 1000 chamadas por minuto com a chave. | Espere o tempo do cabeçalho `Retry-After` e repita. |
 | 500 | Só com `include=custom_fields`: a ClubTrack não conseguiu ler os campos personalizados da página. A página inteira falha, sem resposta parcial. | Repita a chamada. Se persistir, tente sem o `include` e avise a ClubTrack. |

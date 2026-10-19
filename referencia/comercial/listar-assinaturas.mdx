@@ -17,21 +17,13 @@ Ela mostra só as assinaturas de clientes do parceiro dono da credencial. Para v
 
 ## Autenticação e permissões
 
-Aceita chave de API ou login humano. Qualquer usuário da equipe do parceiro pode consultar. Parceiro suspenso ou inativo recebe 403. Com chave de API, a lista é a do parceiro dono da chave; com login humano, a da filial ativa. O guia de [autenticação](/guias/autenticacao) explica as duas formas e como escolher a filial quando o usuário tem mais de uma.
+Use a chave de API. Parceiro suspenso ou inativo recebe 403. A lista é a do parceiro dono da chave. O guia de [autenticação](/guias/autenticacao) explica a chave de API.
 
 ## Parâmetros
 
 ### Cabeçalhos
 
-<ParamField header="X-Api-Key" type="string" required>
-  Sua chave de API, no formato `ttk_` seguido de 40 caracteres. Você pode enviá-la também como
-  `Authorization: Bearer <chave>`. Se estiver chamando com o token de um usuário da equipe, envie só o `Authorization`.
-</ParamField>
-
-<ParamField header="X-Partner-Branch-Id" type="string (UUID)">
-  Filial em nome da qual o usuário está consultando. Só tem efeito no login humano, e só é obrigatório quando o usuário
-  pertence a mais de uma filial. Com chave de API, o cabeçalho é ignorado.
-</ParamField>
+Toda chamada leva a sua chave de API no cabeçalho `X-Api-Key`, que o campo de testes (Try it) pede no campo de autorização. Também vale enviá-la como `Authorization: Bearer <chave>`. Veja [Autenticação](/guias/autenticacao).
 
 ### Consulta
 
@@ -97,7 +89,7 @@ um; aqui valem os desta lista e o que muda.
   se o plano foi reajustado depois: vale o desta linha.
 </ResponseField>
 
-<ResponseField name="data[].commission_rate" type="number | null">
+<ResponseField name="data[].commission_rate" type="number">
   Percentual de comissão do seu parceiro, de 0 a 100, gravado na criação. `null` quando não há valor gravado.
 </ResponseField>
 
@@ -105,15 +97,15 @@ um; aqui valem os desta lista e o que muda.
   `pending`, `active`, `past_due`, `cancelled` ou `refunded`, com o significado descrito em Criar assinatura.
 </ResponseField>
 
-<ResponseField name="data[].payment_method" type="string | null">
+<ResponseField name="data[].payment_method" type="string">
   Forma que o cliente escolheu: `card`, `boleto`, `pix_manual` ou `pix_automatico`. `null` enquanto ele não escolheu e na cobrança consolidada.
 </ResponseField>
 
-<ResponseField name="data[].external_reference_id" type="string | null">
+<ResponseField name="data[].external_reference_id" type="string">
   Referência da cobrança recorrente no sistema de pagamento. `null` até a cobrança ser registrada.
 </ResponseField>
 
-<ResponseField name="data[].payment_checkout_url" type="string | null">
+<ResponseField name="data[].payment_checkout_url" type="string">
   Endereço da página de pagamento da cobrança já gerada (cartão, boleto ou Pix manual). `null` quando não há. Use como veio.
 </ResponseField>
 
@@ -121,7 +113,7 @@ um; aqui valem os desta lista e o que muda.
   Endereço em que o cliente escolhe como pagar. Só existe na assinatura que ainda aguarda essa escolha; nas demais o campo não vem. Use como veio.
 </ResponseField>
 
-<ResponseField name="data[].no_charge_kind" type="string | null">
+<ResponseField name="data[].no_charge_kind" type="string">
   `courtesy` quando a assinatura é uma cortesia ativa sem cobrança; `null` na assinatura comum.
 </ResponseField>
 
@@ -129,7 +121,7 @@ um; aqui valem os desta lista e o que muda.
   Quando a cortesia termina, em UTC. `null` sem cortesia ou sem data de fim.
 </ResponseField>
 
-<ResponseField name="data[].no_charge_reason" type="string | null">
+<ResponseField name="data[].no_charge_reason" type="string">
   Motivo registrado da cortesia. `null` sem cortesia.
 </ResponseField>
 
@@ -171,9 +163,8 @@ um; aqui valem os desta lista e o que muda.
 | Status | Quando acontece | O que fazer |
 |---|---|---|
 | 400 | Você enviou um filtro ou uma ordenação que a rota não aceita. A mensagem lista os nomes aceitos, em inglês. | Corrija o nome do parâmetro. Os nomes diferenciam maiúscula de minúscula, e o filtro de atraso usa camelCase (`pastDue`). |
-| 400 | Login humano com usuário que tem mais de uma filial e sem `X-Partner-Branch-Id`. | Envie o cabeçalho com a filial desejada. |
-| 401 | Não há chave, a chave é inválida, foi revogada ou expirou. Com login humano: usuário inativo ou token expirado. | Confira a credencial. Revogação leva até 60 segundos para valer. |
-| 403 | O parceiro está suspenso ou inativo, ou a filial informada não pertence ao usuário. | Fale com a ClubTrack se o parceiro deveria estar ativo. |
+| 401 | Não há chave, a chave é inválida, foi revogada ou expirou. | Confira a credencial. Revogação leva até 60 segundos para valer. |
+| 403 | O parceiro está suspenso ou inativo. | Fale com a ClubTrack se o parceiro deveria estar ativo. |
 | 429 | Passou de 1000 chamadas por minuto com a chave. | Espere o tempo do cabeçalho `Retry-After` e repita. |
 
 Os status 401, 403 e 429 valem para qualquer chamada. O corpo é sempre `{"message": "..."}`; o guia de [erros](/guias/erros)

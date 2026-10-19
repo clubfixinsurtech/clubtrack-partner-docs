@@ -6,31 +6,23 @@ api: "GET /api/b2b/v1/partner"
 
 Esta chamada devolve o perfil resumido do parceiro da sua credencial: nome, logo, se é o parceiro principal ou uma filial e como ele é cobrado. Você a usa para montar o cabeçalho de uma tela com a marca do parceiro e, principalmente, para ler `billing_model`, que muda o que acontece depois de [criar uma assinatura](/referencia/comercial/criar-assinatura).
 
-Ela mostra só o parceiro em nome do qual a chamada é feita. Com chave de API, é o dono da chave. Com login de usuário, é a filial ativa na chamada. Para ver o parceiro principal e todas as filiais, use [Listar o hub e as filiais](/referencia/conta-e-equipe/listar-filiais).
+Ela mostra só o parceiro dono da chave. Para ver o parceiro principal e todas as filiais, use [Listar o hub e as filiais](/referencia/conta-e-equipe/listar-filiais).
 
 ## Quando usar
 
 - Antes de montar o fluxo de venda, para saber se o parceiro é cobrado por assinatura (`per_subscription`) ou de forma consolidada (`consolidated_postpaid`), e então mostrar ou esconder a etapa de pagamento do cliente.
 - Para exibir o nome e o logo do parceiro na tela da sua aplicação.
-- Para saber se a credencial atual é do parceiro principal (`is_hub`) e, com isso, se [enviar o logo](/referencia/conta-e-equipe/enviar-logo) é possível.
+- Para saber se a credencial atual é do parceiro principal (`is_hub`) ou de uma filial.
 
 ## Autenticação e permissões
 
-Aceita chave de API ou login humano. Qualquer usuário da equipe pode consultar, `owner` ou `operator`. Parceiro suspenso recebe 403. O guia de [autenticação](/guias/autenticacao) explica as duas formas e como escolher a filial quando o usuário tem mais de uma.
+Use a chave de API. Parceiro suspenso recebe 403. O guia de [autenticação](/guias/autenticacao) explica a chave de API.
 
 ## Parâmetros
 
 ### Cabeçalhos
 
-<ParamField header="X-Api-Key" type="string" required>
-  Sua chave de API, no formato `ttk_` seguido de 40 caracteres. Você pode enviá-la também como
-  `Authorization: Bearer <chave>`. Se estiver chamando com o token de um usuário da equipe, envie só o `Authorization`.
-</ParamField>
-
-<ParamField header="X-Partner-Branch-Id" type="string (UUID)">
-  Filial em nome da qual o usuário está consultando. Só tem efeito no login humano, e só é obrigatório quando o usuário
-  pertence a mais de uma filial. A resposta descreve a filial informada. Com chave de API, o cabeçalho é ignorado.
-</ParamField>
+Toda chamada leva a sua chave de API no cabeçalho `X-Api-Key`, que o campo de testes (Try it) pede no campo de autorização. Também vale enviá-la como `Authorization: Bearer <chave>`. Veja [Autenticação](/guias/autenticacao).
 
 Esta chamada não tem parâmetros de caminho, de consulta nem corpo.
 
@@ -39,14 +31,14 @@ Esta chamada não tem parâmetros de caminho, de consulta nem corpo.
 Status `200`. O corpo traz um único objeto em `data`. O perfil é enxuto de propósito e não traz dados de cobrança, comissão nem de integração.
 
 <ResponseField name="data.id" type="string (UUID)">
-  Identificador do parceiro da chamada: o do parceiro principal ou o da filial. É o mesmo `id` que [Listar o hub e as filiais](/referencia/conta-e-equipe/listar-filiais) devolve e que vale em `X-Partner-Branch-Id`.
+  Identificador do parceiro da chamada: o do parceiro principal ou o da filial. É o mesmo `id` que [Listar o hub e as filiais](/referencia/conta-e-equipe/listar-filiais) devolve.
 </ResponseField>
 
 <ResponseField name="data.name" type="string">
   Nome do parceiro ou da filial, como está cadastrado.
 </ResponseField>
 
-<ResponseField name="data.logo_url" type="string | null">
+<ResponseField name="data.logo_url" type="string">
   Endereço público completo da imagem do logo, que o seu sistema pode usar direto numa tag de imagem. `null` quando nem o parceiro nem o principal têm logo. Uma filial sem logo própria devolve o logo do parceiro principal.
 </ResponseField>
 
@@ -67,9 +59,8 @@ Status `200`. O corpo traz um único objeto em `data`. O perfil é enxuto de pro
 
 | Status | Quando acontece | O que fazer |
 |---|---|---|
-| 400 | Login humano com usuário que tem mais de uma filial e sem `X-Partner-Branch-Id`. | Envie o cabeçalho com a filial desejada. |
-| 401 | Não há chave, a chave é inválida, foi revogada ou expirou. Com login humano: usuário inativo ou token expirado. | Confira a credencial. Revogação leva até 60 segundos para valer. |
-| 403 | O parceiro está suspenso ou inativo, ou a filial informada não pertence ao usuário. | Fale com a ClubTrack se o parceiro deveria estar ativo. |
+| 401 | Não há chave, a chave é inválida, foi revogada ou expirou. | Confira a credencial. Revogação leva até 60 segundos para valer. |
+| 403 | O parceiro está suspenso ou inativo. | Fale com a ClubTrack se o parceiro deveria estar ativo. |
 | 429 | Passou de 1000 chamadas por minuto com a chave. | Espere o tempo do cabeçalho `Retry-After` e repita. |
 
 Os status 401, 403 e 429 valem para qualquer chamada. O corpo é sempre `{"message": "..."}`; o guia de [erros](/guias/erros)
@@ -140,12 +131,6 @@ $parceiro = json_decode((string) $resposta->getBody(), true)['data'];
     "is_hub": true,
     "billing_model": "per_subscription"
   }
-}
-```
-
-```json 400
-{
-  "message": "Usuário tem mais de uma filial — informe qual via header X-Partner-Branch-Id."
 }
 ```
 

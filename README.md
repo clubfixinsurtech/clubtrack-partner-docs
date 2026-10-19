@@ -42,5 +42,6 @@ entre spec e código estão em `.contrato/divergencias/`.
 
 ## Sem ambiente de teste
 
-A API não tem sandbox e o playground está desligado (`api.playground.display = none`). Toda página que descreve escrita,
+A API não tem sandbox. O campo de testes (Try it, `api.playground.display = interactive`) chama a API de produção direto do navegador, sem
+proxy (`proxy = false`; o CORS do core aceita `api/*`) e sem preencher os campos com os exemplos. Toda página que descreve escrita,
 cobrança ou envio de mensagem avisa do efeito real.

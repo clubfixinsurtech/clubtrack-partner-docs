@@ -18,26 +18,18 @@ para que ninguém descubra a existência de aparelhos alheios.
 
 ## Autenticação e permissões
 
-Aceita chave de API ou login de usuário, e qualquer usuário da equipe pode consultar. Parceiro suspenso recebe 403.
+Use a chave de API. Parceiro suspenso recebe 403.
 Veja [Autenticação](/guias/autenticacao).
 
 ## Parâmetros
 
 ### Cabeçalhos
 
-<ParamField header="X-Api-Key" type="string" required>
-  Sua chave de API, que começa com `ttk_`. Também vale `Authorization: Bearer <chave>`. No login de usuário, envie só o
-  `Authorization`.
-</ParamField>
-
-<ParamField header="X-Partner-Branch-Id" type="string (UUID)">
-  Filial em nome da qual o usuário consulta. Só vale no login de usuário e só é obrigatório quando o usuário tem mais de uma
-  filial. Com chave de API é ignorado.
-</ParamField>
+Toda chamada leva a sua chave de API no cabeçalho `X-Api-Key`, que o campo de testes (Try it) pede no campo de autorização. Também vale enviá-la como `Authorization: Bearer <chave>`. Veja [Autenticação](/guias/autenticacao).
 
 ### Caminho
 
-<ParamField path="id" type="string (UUID)" required>
+<ParamField path="id" type="string" placeholder="019a0f3c-4000-7f9e-9687-b620b4389874" required>
   Identificador do dispositivo, o campo `id` que [Listar dispositivos](/referencia/rastreamento/listar-dispositivos) devolve.
   Um valor que não tenha o formato de UUID responde 404.
 </ParamField>
@@ -69,7 +61,7 @@ Status `200`. O dispositivo vem dentro de `data`.
   IMEI do aparelho, com 15 caracteres.
 </ResponseField>
 
-<ResponseField name="data.model" type="string | null">
+<ResponseField name="data.model" type="string">
   Modelo do aparelho. `null` quando não foi cadastrado.
 </ResponseField>
 
@@ -84,7 +76,7 @@ Status `200`. O dispositivo vem dentro de `data`.
   - `inactive`: desativado.
 </ResponseField>
 
-<ResponseField name="data.notes" type="string | null">
+<ResponseField name="data.notes" type="string">
   Observação registrada sobre o aparelho. `null` quando não há.
 </ResponseField>
 
@@ -118,8 +110,8 @@ Status `200`. O dispositivo vem dentro de `data`.
 
 | Status | Quando acontece | O que fazer |
 |---|---|---|
-| 401 | Credencial ausente, inválida, revogada ou expirada. | Confira a chave ou o token. |
-| 403 | Parceiro suspenso ou inativo, ou filial que não é do usuário. | Fale com a ClubTrack se o parceiro deveria estar ativo. |
+| 401 | Credencial ausente, inválida, revogada ou expirada. | Confira a chave. |
+| 403 | Parceiro suspenso ou inativo. | Fale com a ClubTrack se o parceiro deveria estar ativo. |
 | 404 | O aparelho não existe, não é do seu parceiro ou o `id` não tem formato de UUID. As três situações dão a mesma resposta. | Confira o identificador, preferindo o que veio de [Listar dispositivos](/referencia/rastreamento/listar-dispositivos). |
 | 429 | Mais de 1000 chamadas por minuto com a chave. | Espere o tempo de `Retry-After`. |
 

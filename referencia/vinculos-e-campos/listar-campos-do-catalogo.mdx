@@ -23,24 +23,16 @@ com exemplos de uso, está no guia de [campos personalizados](/guias/campos-pers
 
 ## Autenticação e permissões
 
-Aceita chave de API ou login humano. Com login humano, vale o papel de dono ou de operador da equipe do parceiro. Parceiro
+Use a chave de API. Parceiro
 suspenso recebe 403. A funcionalidade de campos personalizados é ligada pela ClubTrack para o parceiro principal: enquanto não
 estiver ligada, esta chamada responde 404 para o hub e para as filiais, sem dizer o motivo. O guia de
-[autenticação](/guias/autenticacao) explica as duas formas de credencial.
+[autenticação](/guias/autenticacao) explica a chave de API.
 
 ## Parâmetros
 
 ### Cabeçalhos
 
-<ParamField header="X-Api-Key" type="string" required>
-  Sua chave de API, no formato `ttk_` seguido de 40 caracteres. Você pode enviá-la também como
-  `Authorization: Bearer <chave>`. Se estiver chamando com o token de um usuário da equipe, envie só o `Authorization`.
-</ParamField>
-
-<ParamField header="X-Partner-Branch-Id" type="string (UUID)">
-  Filial em nome da qual o usuário está consultando. Só tem efeito no login humano, e só é obrigatório quando o usuário
-  pertence a mais de uma filial. Com chave de API, o cabeçalho é ignorado.
-</ParamField>
+Toda chamada leva a sua chave de API no cabeçalho `X-Api-Key`, que o campo de testes (Try it) pede no campo de autorização. Também vale enviá-la como `Authorization: Bearer <chave>`. Veja [Autenticação](/guias/autenticacao).
 
 ### Consulta
 
@@ -92,7 +84,7 @@ inativos também aparecem.
   O valor de campo que o cliente edita é do cliente: você lê, mas não grava pela API.
 </ResponseField>
 
-<ResponseField name="data[].default_value" type="string | null">
+<ResponseField name="data[].default_value" type="string">
   Texto de até 255 caracteres que passa a ser o valor do campo numa Tag quando ela recebe o primeiro valor de qualquer campo
   (pelo parceiro ou pelo cliente), ou `null` quando não há valor padrão. Só o hub recebe este campo; na resposta de uma
   filial ele não existe (nem como `null`).
@@ -119,9 +111,8 @@ inativos também aparecem.
 
 | Status | Quando acontece | O que fazer |
 |---|---|---|
-| 400 | Login humano com usuário que tem mais de uma filial e sem `X-Partner-Branch-Id`. | Envie o cabeçalho com a filial desejada. |
-| 401 | Não há chave, a chave é inválida, foi revogada ou expirou. Com login humano: usuário inativo ou token expirado. | Confira a credencial. Revogação leva até 60 segundos para valer. |
-| 403 | O parceiro está suspenso ou inativo, ou a filial informada não pertence ao usuário. | Fale com a ClubTrack se o parceiro deveria estar ativo. |
+| 401 | Não há chave, a chave é inválida, foi revogada ou expirou. | Confira a credencial. Revogação leva até 60 segundos para valer. |
+| 403 | O parceiro está suspenso ou inativo. | Fale com a ClubTrack se o parceiro deveria estar ativo. |
 | 404 | `Recurso indisponível.`: a funcionalidade de campos personalizados ainda não está ligada para o seu parceiro. A resposta é a mesma para o hub e para a filial e não diz o motivo. | Peça à ClubTrack para ligar a funcionalidade no parceiro principal. |
 | 429 | Passou de 1000 chamadas por minuto com a chave. | Espere o tempo do cabeçalho `Retry-After` e repita. |
 

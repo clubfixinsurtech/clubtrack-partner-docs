@@ -18,27 +18,19 @@ A chamada devolve o último registro, qualquer que seja a qualidade do sinal: a 
 
 ## Autenticação e permissões
 
-Aceita chave de API ou login humano. Qualquer usuário da equipe do parceiro pode consultar. Parceiro suspenso ou inativo recebe 403. O guia de [autenticação](/guias/autenticacao) explica as duas formas e como escolher a filial quando o usuário tem mais de uma.
+Use a chave de API. Parceiro suspenso ou inativo recebe 403. O guia de [autenticação](/guias/autenticacao) explica a chave de API.
 
-O aparelho precisa ter tido ao menos um vínculo com cliente do seu parceiro (da filial ativa, no login humano). A regra vale igual para parceiro cobrado por assinatura e para parceiro de cobrança consolidada pós-paga.
+O aparelho precisa ter tido ao menos um vínculo com cliente do seu parceiro. A regra vale igual para parceiro cobrado por assinatura e para parceiro de cobrança consolidada pós-paga.
 
 ## Parâmetros
 
 ### Cabeçalhos
 
-<ParamField header="X-Api-Key" type="string" required>
-  Sua chave de API, no formato `ttk_` seguido de 40 caracteres. Você pode enviá-la também como
-  `Authorization: Bearer <chave>`. Se estiver chamando com o token de um usuário da equipe, envie só o `Authorization`.
-</ParamField>
-
-<ParamField header="X-Partner-Branch-Id" type="string (UUID)">
-  Filial em nome da qual o usuário está consultando. Só tem efeito no login humano, e só é obrigatório quando o usuário
-  pertence a mais de uma filial. Com chave de API, o cabeçalho é ignorado.
-</ParamField>
+Toda chamada leva a sua chave de API no cabeçalho `X-Api-Key`, que o campo de testes (Try it) pede no campo de autorização. Também vale enviá-la como `Authorization: Bearer <chave>`. Veja [Autenticação](/guias/autenticacao).
 
 ### Caminho
 
-<ParamField path="deviceId" type="string (UUID)" required>
+<ParamField path="deviceId" type="string" placeholder="019a0f3c-4000-7f9e-9687-b620b4389874" required>
   Identificador do aparelho: o `device.id` de uma linha de [Listar Tags](/referencia/rastreamento/listar-tags) ou o `id` de
   [Listar dispositivos](/referencia/rastreamento/listar-dispositivos). Não é o `id` do vínculo. Use o valor como a API o devolveu.
 </ParamField>
@@ -83,11 +75,11 @@ Status `200`. O corpo traz o registro em `data`. Todos os horários estão em UT
   Direção do deslocamento em graus, como o aparelho informa.
 </ResponseField>
 
-<ResponseField name="data.accuracy_meters" type="number | null">
+<ResponseField name="data.accuracy_meters" type="number">
   Precisão da leitura, em metros, quando o aparelho a informa. `null` caso contrário.
 </ResponseField>
 
-<ResponseField name="data.altitude_meters" type="number | null">
+<ResponseField name="data.altitude_meters" type="number">
   Altitude em metros, quando o aparelho a informa. `null` caso contrário.
 </ResponseField>
 
@@ -117,9 +109,8 @@ Status `200`. O corpo traz o registro em `data`. Todos os horários estão em UT
 
 | Status | Quando acontece | O que fazer |
 |---|---|---|
-| 400 | Login humano com usuário que tem mais de uma filial e sem `X-Partner-Branch-Id`. | Envie o cabeçalho com a filial desejada. |
-| 401 | Não há chave, a chave é inválida, foi revogada ou expirou. Com login humano: usuário inativo ou token expirado. | Confira a credencial. Revogação leva até 60 segundos para valer. |
-| 403 | O parceiro está suspenso ou inativo, ou a filial informada não pertence ao usuário. | Fale com a ClubTrack se o parceiro deveria estar ativo. |
+| 401 | Não há chave, a chave é inválida, foi revogada ou expirou. | Confira a credencial. Revogação leva até 60 segundos para valer. |
+| 403 | O parceiro está suspenso ou inativo. | Fale com a ClubTrack se o parceiro deveria estar ativo. |
 | 404 | `Dispositivo não encontrado.` O aparelho não existe ou nunca esteve vinculado a cliente do seu parceiro. O texto é o mesmo nos dois casos. | Confira o `deviceId` em [Listar Tags](/referencia/rastreamento/listar-tags). |
 | 404 | `Nenhuma posição encontrada para este dispositivo.` O aparelho é seu, mas não tem nenhum registro dentro do período do vínculo. | Aguarde o primeiro registro do aparelho dentro do período do vínculo e consulte de novo. |
 | 429 | Passou de 1000 chamadas por minuto com a chave. | Espere o tempo do cabeçalho `Retry-After` e repita. |

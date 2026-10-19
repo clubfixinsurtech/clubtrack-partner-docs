@@ -19,27 +19,19 @@ Só entram posições de períodos em que a Tag esteve vinculada a um cliente do
 
 ## Autenticação e permissões
 
-Aceita chave de API ou login humano. Qualquer usuário da equipe do parceiro pode consultar. Parceiro suspenso ou inativo recebe 403. O guia de [autenticação](/guias/autenticacao) explica as duas formas e como escolher a filial quando o usuário tem mais de uma.
+Use a chave de API. Parceiro suspenso ou inativo recebe 403. O guia de [autenticação](/guias/autenticacao) explica a chave de API.
 
-A Tag precisa ser uma que [Listar Tags](/referencia/rastreamento/listar-tags) mostraria a você: vínculo ativo, de cliente do seu parceiro (da filial ativa, no login humano) e visível pelo seu modelo de cobrança. Qualquer outro caso responde o mesmo 404: vínculo inexistente, de outro parceiro, de outra filial, já encerrado ou escondido porque a assinatura não está ativa.
+A Tag precisa ser uma que [Listar Tags](/referencia/rastreamento/listar-tags) mostraria a você: vínculo ativo, de cliente do seu parceiro e visível pelo seu modelo de cobrança. Qualquer outro caso responde o mesmo 404: vínculo inexistente, de outro parceiro, de outra filial, já encerrado ou escondido porque a assinatura não está ativa.
 
 ## Parâmetros
 
 ### Cabeçalhos
 
-<ParamField header="X-Api-Key" type="string" required>
-  Sua chave de API, no formato `ttk_` seguido de 40 caracteres. Você pode enviá-la também como
-  `Authorization: Bearer <chave>`. Se estiver chamando com o token de um usuário da equipe, envie só o `Authorization`.
-</ParamField>
-
-<ParamField header="X-Partner-Branch-Id" type="string (UUID)">
-  Filial em nome da qual o usuário está consultando. Só tem efeito no login humano, e só é obrigatório quando o usuário
-  pertence a mais de uma filial. Com chave de API, o cabeçalho é ignorado.
-</ParamField>
+Toda chamada leva a sua chave de API no cabeçalho `X-Api-Key`, que o campo de testes (Try it) pede no campo de autorização. Também vale enviá-la como `Authorization: Bearer <chave>`. Veja [Autenticação](/guias/autenticacao).
 
 ### Caminho
 
-<ParamField path="id" type="string (UUID)" required>
+<ParamField path="id" type="string" placeholder="019a0f3c-4000-7f9e-9687-b620b4389874" required>
   Identificador do vínculo da Tag: o `id` de uma linha de [Listar Tags](/referencia/rastreamento/listar-tags). Não é o
   `device.id`. Um valor que não tem a forma de UUID responde 404, como a rota inexistente.
 </ParamField>
@@ -48,7 +40,7 @@ A Tag precisa ser uma que [Listar Tags](/referencia/rastreamento/listar-tags) mo
 
 O período é obrigatório. Os dois limites usam o mesmo formato e entram na resposta já convertidos para UTC.
 
-<ParamField query="filter[from]" type="string (data e hora ISO 8601)" required>
+<ParamField query="filter[from]" type="string" placeholder="2026-10-18T00:00:00-03:00" required>
   Início do período, **incluído**: uma posição registrada exatamente nesse instante entra. Exige data e hora completas,
   com `T` entre elas: `2026-10-18T00:00:00-03:00`, `2026-10-18T03:00:00Z` ou `2026-10-18T03:00:00`. Frações de segundo
   (até seis dígitos) são aceitas. O deslocamento do fuso é convertido para UTC; sem deslocamento, o valor vale como UTC,
@@ -58,7 +50,7 @@ O período é obrigatório. Os dois limites usam o mesmo formato e entram na res
   Exemplo: `filter[from]=2026-10-18T00:00:00-03:00`.
 </ParamField>
 
-<ParamField query="filter[to]" type="string (data e hora ISO 8601)" required>
+<ParamField query="filter[to]" type="string" placeholder="2026-10-18T00:00:00-03:00" required>
   Fim do período, **incluído**. Mesmo formato de `filter[from]`. Não pode ser anterior a `filter[from]`, e a distância entre
   os dois não pode passar de 90 dias: 90 dias exatos cabem, 90 dias e um segundo não. O fim pode estar no futuro; o trajeto
   traz o que existir até o momento. Exemplo: `filter[to]=2026-10-18T23:59:59-03:00`.
@@ -147,7 +139,7 @@ Não há total: você sabe que terminou quando `links.next` vem `null`.
   `per_page` (o tamanho de página usado), `next_cursor` e `generated_at`.
 </ResponseField>
 
-<ResponseField name="meta.next_cursor" type="string | null">
+<ResponseField name="meta.next_cursor" type="string">
   O cursor para pedir a próxima página, ou `null` na última. É o mesmo valor que está dentro de `links.next`.
 </ResponseField>
 
@@ -160,9 +152,8 @@ Não há total: você sabe que terminou quando `links.next` vem `null`.
 | Status | Quando acontece | O que fazer |
 |---|---|---|
 | 400 | Você enviou um filtro além de `filter[from]` e `filter[to]`, ou enviou `sort` ou `include`, que esta rota não tem. A mensagem lista os nomes aceitos, em inglês. | Remova o parâmetro. A rota aceita só `filter[from]`, `filter[to]`, `per_page` e `cursor`. |
-| 400 | Login humano com usuário que tem mais de uma filial e sem `X-Partner-Branch-Id`. | Envie o cabeçalho com a filial desejada. |
-| 401 | Não há chave, a chave é inválida, foi revogada ou expirou. Com login humano: usuário inativo ou token expirado. | Confira a credencial. Revogação leva até 60 segundos para valer. |
-| 403 | O parceiro está suspenso ou inativo, ou a filial informada não pertence ao usuário. | Fale com a ClubTrack se o parceiro deveria estar ativo. |
+| 401 | Não há chave, a chave é inválida, foi revogada ou expirou. | Confira a credencial. Revogação leva até 60 segundos para valer. |
+| 403 | O parceiro está suspenso ou inativo. | Fale com a ClubTrack se o parceiro deveria estar ativo. |
 | 404 | `Tag não encontrada.` A Tag não existe, é de outro parceiro ou filial, o vínculo foi encerrado ou a assinatura não está ativa (parceiro cobrado por assinatura). O texto é o mesmo em todos os casos. Um `id` fora do formato UUID também responde 404, com a mensagem de rota não encontrada. | Confira o `id` em [Listar Tags](/referencia/rastreamento/listar-tags). Se a Tag não aparece na lista, ela não pode ser consultada aqui. |
 | 422 | O período não é válido. Os textos são: `The filter.from field is required.` e `The filter.to field is required.` (limite ausente); `Informe filter[from] em ISO 8601, com data e hora (ex.: 2026-10-01T00:00:00Z).` e o equivalente para `filter[to]`; `filter[to] não pode ser anterior a filter[from].`; `O período da consulta vai até 90 dias. Divida a consulta em períodos menores.` | Corrija o limite indicado em `errors`. Para períodos maiores, divida em consultas de até 90 dias. |
 | 422 | `per_page` fora do intervalo de 1 a 1000, ou não inteiro: `The per page field must be between 1 and 1000.` | Envie um inteiro de 1 a 1000. |

@@ -40,9 +40,9 @@ Leia o detalhe em `errors`, que lista todos.
 
 | Status | O que significa | O que fazer |
 |---|---|---|
-| `400` | A chamada está malformada: filtro, ordenação ou inclusão que a rota não aceita, ou falta o cabeçalho de filial. | Corrija a chamada. A mensagem lista os nomes aceitos. Não repita igual. |
-| `401` | A credencial não foi aceita: ausente, inválida, revogada ou expirada. | Confira a chave ou o token. Não repita igual. |
-| `403` | A credencial é válida, mas não pode fazer isto: parceiro suspenso, filial que não é sua ou operação restrita. | Veja a mensagem e a página da rota. Não repita igual. |
+| `400` | A chamada está malformada: filtro, ordenação ou inclusão que a rota não aceita. | Corrija a chamada. A mensagem lista os nomes aceitos. Não repita igual. |
+| `401` | A credencial não foi aceita: ausente, inválida, revogada ou expirada. | Confira a chave. Não repita igual. |
+| `403` | A credencial é válida, mas não pode fazer isto: parceiro suspenso ou operação restrita. | Veja a mensagem e a página da rota. Não repita igual. |
 | `404` | O recurso não existe, ou não é do seu parceiro. As duas situações dão a mesma resposta. | Confira o identificador e se ele vem do seu parceiro. |
 | `409` | O pedido conflita com o que já existe, por exemplo criar duas vezes o mesmo registro. | Consulte o que existe e continue a partir dele. |
 | `422` | A chamada chegou bem, mas um dado não passou na validação ou uma regra de negócio impediu. | Leia `errors` e corrija os dados. |
@@ -57,12 +57,7 @@ Leia o detalhe em `errors`, que lista todos.
 |---|---|---|
 | `401` | `API key ausente.` | A chamada não trouxe `X-Api-Key` nem `Authorization`. |
 | `401` | `API key inválida ou revogada.` | A chave não existe, foi revogada ou expirou. Revogação leva até 60 segundos para valer. |
-| `401` | `Usuário inativo.` | Login de usuário: a conta está desativada ou o acesso expirou. |
-| `401` | `Usuário sem filial vinculada.` | Login de usuário: o usuário não pertence a nenhuma filial. |
-| `401` | `Credenciais inválidas.` | No login: e-mail ou senha incorretos. A mensagem é a mesma para os dois, de propósito. |
-| `403` | `Parceiro inativo ou suspenso.` | O parceiro, ou o hub dele, está suspenso ou inativo. Vale para chave e para login de usuário. |
-| `403` | `Filial informada não pertence a este usuário.` | O `X-Partner-Branch-Id` enviado não é de uma filial do usuário. |
-| `400` | `Usuário tem mais de uma filial` (a frase continua pedindo o cabeçalho `X-Partner-Branch-Id`) | Login de usuário com mais de uma filial e sem o cabeçalho. |
+| `403` | `Parceiro inativo ou suspenso.` | O parceiro, ou o hub dele, está suspenso ou inativo. |
 | `429` | `Limite de requisições atingido. Tente novamente em Ns.` | Mais de 1000 chamadas por minuto com a chave. |
 
 ### Listas
@@ -90,4 +85,4 @@ Leia o detalhe em `errors`, que lista todos.
 ## Quando falar com a ClubTrack
 
 Se um `500` se repete, ou se a página da rota não explica o seu `403` ou `422`, mande ao seu contato na ClubTrack o dia e a hora
-(em UTC) da chamada, o caminho, o status e o `message` recebido. Não envie a chave nem o token.
+(em UTC) da chamada, o caminho, o status e o `message` recebido. Não envie a chave.

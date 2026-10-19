@@ -24,25 +24,17 @@ Se não houver nenhum dos dois links, a resposta é 422. Acontece, por exemplo, 
 
 ## Autenticação e permissões
 
-Aceita chave de API ou login humano. Qualquer usuário da equipe do parceiro pode reenviar. Parceiro suspenso ou inativo recebe 403. Assinatura de outro parceiro responde 404, igual a assinatura que não existe. O guia de [autenticação](/guias/autenticacao) explica as duas formas e como escolher a filial quando o usuário tem mais de uma.
+Use a chave de API. Parceiro suspenso ou inativo recebe 403. Assinatura de outro parceiro responde 404, igual a assinatura que não existe. O guia de [autenticação](/guias/autenticacao) explica a chave de API.
 
 ## Parâmetros
 
 ### Cabeçalhos
 
-<ParamField header="X-Api-Key" type="string" required>
-  Sua chave de API, no formato `ttk_` seguido de 40 caracteres. Você pode enviá-la também como
-  `Authorization: Bearer <chave>`. Se estiver chamando com o token de um usuário da equipe, envie só o `Authorization`.
-</ParamField>
-
-<ParamField header="X-Partner-Branch-Id" type="string (UUID)">
-  Filial em nome da qual o usuário está reenviando. Só tem efeito no login humano, e só é obrigatório quando o usuário
-  pertence a mais de uma filial. Com chave de API, o cabeçalho é ignorado.
-</ParamField>
+Toda chamada leva a sua chave de API no cabeçalho `X-Api-Key`, que o campo de testes (Try it) pede no campo de autorização. Também vale enviá-la como `Authorization: Bearer <chave>`. Veja [Autenticação](/guias/autenticacao).
 
 ### Caminho
 
-<ParamField path="id" type="string (UUID)" required>
+<ParamField path="id" type="string" placeholder="019a0f3c-4000-7f9e-9687-b620b4389874" required>
   Identificador da assinatura: o `data.id` devolvido por [Criar assinatura](/referencia/comercial/criar-assinatura) ou o `id`
   de uma linha de [Listar assinaturas](/referencia/comercial/listar-assinaturas). A chamada não tem corpo.
   Exemplo: `019a0f3c-e000-7182-a6cd-bb7e5dcde111`.
@@ -60,9 +52,8 @@ Status `200`, sem dados da assinatura. O `200` diz que o envio foi aceito, não 
 
 | Status | Quando acontece | O que fazer |
 |---|---|---|
-| 400 | Login humano com usuário que tem mais de uma filial e sem `X-Partner-Branch-Id`. | Envie o cabeçalho com a filial desejada. |
-| 401 | Não há chave, a chave é inválida, foi revogada ou expirou. Com login humano: usuário inativo ou token expirado. | Confira a credencial. Revogação leva até 60 segundos para valer. |
-| 403 | O parceiro está suspenso ou inativo, ou a filial informada não pertence ao usuário. | Fale com a ClubTrack se o parceiro deveria estar ativo. |
+| 401 | Não há chave, a chave é inválida, foi revogada ou expirou. | Confira a credencial. Revogação leva até 60 segundos para valer. |
+| 403 | O parceiro está suspenso ou inativo. | Fale com a ClubTrack se o parceiro deveria estar ativo. |
 | 404 | `Assinatura não encontrada.`: a assinatura não existe ou é de outro parceiro; a resposta é a mesma nos dois casos. | Confira o `id` em Listar assinaturas. |
 | 422 | `Esta assinatura não tem link de pagamento disponível para reenvio`, seguido de uma explicação. Não há link guardado para reenviar. | Consulte a assinatura em Consultar assinatura. Na cobrança consolidada não há pagamento a fazer. |
 | 429 | Passou de 1000 chamadas por minuto com a chave. | Espere o tempo do cabeçalho `Retry-After` e repita. |

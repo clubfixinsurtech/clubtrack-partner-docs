@@ -24,27 +24,19 @@ Exemplo: o seu parceiro teve um cliente no aparelho de `2026-10-01 12:00:00` a `
 
 ## Autenticação e permissões
 
-Aceita chave de API ou login humano. Qualquer usuário da equipe do parceiro pode consultar. Parceiro suspenso ou inativo recebe 403. O guia de [autenticação](/guias/autenticacao) explica as duas formas e como escolher a filial quando o usuário tem mais de uma.
+Use a chave de API. Parceiro suspenso ou inativo recebe 403. O guia de [autenticação](/guias/autenticacao) explica a chave de API.
 
-O aparelho precisa ter tido ao menos um vínculo com cliente do seu parceiro (da filial ativa, no login humano). Aparelho que não existe e aparelho que nunca foi do seu parceiro recebem a mesma resposta, 404. Um aparelho que já foi do seu parceiro mas não tem posição no período devolve `200` com `data` vazio.
+O aparelho precisa ter tido ao menos um vínculo com cliente do seu parceiro. Aparelho que não existe e aparelho que nunca foi do seu parceiro recebem a mesma resposta, 404. Um aparelho que já foi do seu parceiro mas não tem posição no período devolve `200` com `data` vazio.
 
 ## Parâmetros
 
 ### Cabeçalhos
 
-<ParamField header="X-Api-Key" type="string" required>
-  Sua chave de API, no formato `ttk_` seguido de 40 caracteres. Você pode enviá-la também como
-  `Authorization: Bearer <chave>`. Se estiver chamando com o token de um usuário da equipe, envie só o `Authorization`.
-</ParamField>
-
-<ParamField header="X-Partner-Branch-Id" type="string (UUID)">
-  Filial em nome da qual o usuário está consultando. Só tem efeito no login humano, e só é obrigatório quando o usuário
-  pertence a mais de uma filial. Com chave de API, o cabeçalho é ignorado.
-</ParamField>
+Toda chamada leva a sua chave de API no cabeçalho `X-Api-Key`, que o campo de testes (Try it) pede no campo de autorização. Também vale enviá-la como `Authorization: Bearer <chave>`. Veja [Autenticação](/guias/autenticacao).
 
 ### Caminho
 
-<ParamField path="deviceId" type="string (UUID)" required>
+<ParamField path="deviceId" type="string" placeholder="019a0f3c-4000-7f9e-9687-b620b4389874" required>
   Identificador do aparelho: o `device.id` de uma linha de [Listar Tags](/referencia/rastreamento/listar-tags) ou o `id` de
   [Listar dispositivos](/referencia/rastreamento/listar-dispositivos). Não é o `id` do vínculo. Use o valor como a API o devolveu.
 </ParamField>
@@ -54,14 +46,14 @@ O aparelho precisa ter tido ao menos um vínculo com cliente do seu parceiro (da
 Os filtros se combinam: cada filtro a mais restringe o resultado. Eles nunca ampliam o que você pode ler: o período do vínculo
 vale primeiro, e os filtros atuam dentro dele. Mais detalhes em [Paginação, filtros e ordenação](/guias/paginacao-filtros-ordenacao).
 
-<ParamField query="filter[from]" type="string (data e hora ISO 8601)">
+<ParamField query="filter[from]" type="string" placeholder="2026-10-18T00:00:00-03:00">
   Só registros com hora do aparelho (`recorded_at`) a partir deste instante, **incluído**. Envie em UTC, com `Z` no fim:
   `2026-10-18T03:00:00Z`. Esta chamada não converte o fuso do valor, ao contrário de [Consultar trajeto](/referencia/rastreamento/consultar-trajeto).
   Para o dia 18 em horário de Brasília, o início é `2026-10-18T03:00:00Z`.
   Exemplo: `filter[from]=2026-10-18T03:00:00Z`.
 </ParamField>
 
-<ParamField query="filter[to]" type="string (data e hora ISO 8601)">
+<ParamField query="filter[to]" type="string" placeholder="2026-10-18T00:00:00-03:00">
   Só registros com hora do aparelho até este instante, **incluído**. Mesmas regras de `filter[from]`: UTC, com `Z` no fim.
   Exemplo: `filter[to]=2026-10-19T02:59:59Z`.
 </ParamField>
@@ -154,11 +146,11 @@ estão em UTC, com `+00:00`.
   Direção do deslocamento em graus, como o aparelho informa.
 </ResponseField>
 
-<ResponseField name="data[].accuracy_meters" type="number | null">
+<ResponseField name="data[].accuracy_meters" type="number">
   Precisão da leitura, em metros, quando o aparelho a informa. `null` caso contrário.
 </ResponseField>
 
-<ResponseField name="data[].altitude_meters" type="number | null">
+<ResponseField name="data[].altitude_meters" type="number">
   Altitude em metros, quando o aparelho a informa. `null` caso contrário.
 </ResponseField>
 
@@ -201,9 +193,8 @@ estão em UTC, com `+00:00`.
 | Status | Quando acontece | O que fazer |
 |---|---|---|
 | 400 | Você enviou um filtro, uma ordenação ou uma inclusão que a rota não aceita. A mensagem lista os nomes aceitos, em inglês. | Corrija o nome do parâmetro. Os nomes diferenciam maiúscula de minúscula e usam sublinhado (`min_speed`). |
-| 400 | Login humano com usuário que tem mais de uma filial e sem `X-Partner-Branch-Id`. | Envie o cabeçalho com a filial desejada. |
-| 401 | Não há chave, a chave é inválida, foi revogada ou expirou. Com login humano: usuário inativo ou token expirado. | Confira a credencial. Revogação leva até 60 segundos para valer. |
-| 403 | O parceiro está suspenso ou inativo, ou a filial informada não pertence ao usuário. | Fale com a ClubTrack se o parceiro deveria estar ativo. |
+| 401 | Não há chave, a chave é inválida, foi revogada ou expirou. | Confira a credencial. Revogação leva até 60 segundos para valer. |
+| 403 | O parceiro está suspenso ou inativo. | Fale com a ClubTrack se o parceiro deveria estar ativo. |
 | 404 | `Dispositivo não encontrado.` O aparelho não existe ou nunca esteve vinculado a cliente do seu parceiro. O texto é o mesmo nos dois casos. | Confira o `deviceId` em [Listar Tags](/referencia/rastreamento/listar-tags). |
 | 422 | `per_page` fora do intervalo de 1 a 100, ou não inteiro: `The per page field must be between 1 and 100.` | Envie um inteiro de 1 a 100 e pagine pelos `links`. |
 | 429 | Passou de 1000 chamadas por minuto com a chave. | Espere o tempo do cabeçalho `Retry-After` e repita. |

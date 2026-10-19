@@ -7,18 +7,12 @@ Cada operação tem a sua página, com parâmetros, filtros, respostas, erros e 
 
 Todas as chamadas começam em `https://core.clubtrack.com.br` e usam o caminho `/api/b2b/v1`. Se você ainda não se autenticou, comece por [Autenticação](/guias/autenticacao).
 
-## Conta e equipe
+## Parceiro e filiais
 
 | Chamada | O que faz |
 |---|---|
-| `POST` `/auth/login` | [Entrar com e-mail e senha](/referencia/conta-e-equipe/entrar). Troca o e-mail e a senha de um usuário da equipe do parceiro por um token, que serve de credencial nas demais chamadas. |
-| `POST` `/auth/forgot-password` | [Recuperar acesso por e-mail](/referencia/conta-e-equipe/recuperar-senha). Pede o envio de um link para definir uma senha nova. A resposta é a mesma exista ou não uma conta ativa para o e-mail. |
 | `GET` `/partner` | [Consultar o perfil do parceiro](/referencia/conta-e-equipe/consultar-perfil). Devolve o nome, o logo, o tipo (principal ou filial) e o modelo de cobrança do parceiro em nome do qual você está chamando. |
-| `POST` `/partner/logo` | [Enviar o logo do parceiro](/referencia/conta-e-equipe/enviar-logo). Troca o logo do parceiro principal por uma imagem de até 2 MB. As filiais passam a mostrar o mesmo logo. |
 | `GET` `/branches` | [Listar o hub e as filiais](/referencia/conta-e-equipe/listar-filiais). Devolve o parceiro principal e todas as suas filiais, com identificador, nome e CNPJ, sem paginação. |
-| `GET` `/partner-users` | [Listar usuários da equipe](/referencia/conta-e-equipe/listar-usuarios). Devolve todos os usuários cadastrados no parceiro, ativos e inativos, em ordem alfabética de nome, sem paginação. |
-| `POST` `/partner-users` | [Criar usuário da equipe](/referencia/conta-e-equipe/criar-usuario). Cria um usuário da equipe do parceiro, já ativo e com a senha que você informar. Não envia e-mail de convite. |
-| `POST` `/partner-users/{id}/password` | [Definir senha pelo convite](/referencia/conta-e-equipe/definir-senha-do-usuario). Define a senha de um usuário a partir do link assinado recebido por e-mail. Quem chama é a página do link, e não o seu sistema. |
 
 ## Clientes e endereços
 
@@ -64,5 +58,3 @@ Todas as chamadas começam em `https://core.clubtrack.com.br` e usam o caminho `
 | `GET` `/subscriptions` | [Listar assinaturas](/referencia/comercial/listar-assinaturas). Devolve, em páginas, as assinaturas do seu parceiro, cada uma com o plano e o cliente, e filtros por situação. |
 | `GET` `/subscriptions/{id}` | [Consultar assinatura](/referencia/comercial/consultar-assinatura). Devolve uma assinatura do seu parceiro pelo id, com a situação, a forma de pagamento escolhida e a data da próxima cobrança. |
 | `POST` `/subscriptions/{id}/resend-payment-link` | [Reenviar o link de pagamento](/referencia/comercial/reenviar-link-de-pagamento). Envia de novo ao cliente, por e-mail, o link para ele escolher a forma de pagamento ou concluir o pagamento da assinatura. |
-| `POST` `/device-orders` | [Criar pedido de dispositivo](/referencia/comercial/criar-pedido-de-dispositivo). Registra um pedido de aparelhos à ClubTrack, para o seu parceiro ou para envio direto a um cliente. Exige login de usuário. |
-| `GET` `/device-orders` | [Listar pedidos de dispositivo](/referencia/comercial/listar-pedidos-de-dispositivo). Devolve, em páginas, os pedidos de aparelhos do seu parceiro à ClubTrack, com a situação, o valor e o endereço de pagamento. |

@@ -14,13 +14,15 @@ from pathlib import Path
 
 RAIZ = Path(__file__).resolve().parent.parent
 SPEC = json.loads((RAIZ / '.contrato/openapi-b2b.json').read_text(encoding='utf-8'))
-OPS = json.loads((RAIZ / '.contrato/operacoes.json').read_text(encoding='utf-8'))
+OPS = [o for o in json.loads((RAIZ / '.contrato/operacoes.json').read_text(encoding='utf-8')) if o.get('publicado', True)]
 
 SECOES = ['Quando usar', 'Autenticação e permissões', 'Parâmetros', 'Resposta', 'Erros', 'Exemplos']
 PROIBIDOS = [
     r'src/', r'\bStory\b', r'\bEpic\b', r'\bE24\b', r'middleware', r'Sanctum', r'Spatie', r'Laravel', r'Saloon',
     r'Horizon', r'Forge', r'tagtrack', r'api/admin', r'partner\.access', r'partner\.active', r'\bcore\b(?!\.clubtrack)',
     r'ModelNotFound', r'Src\\', r'\bPartnerModel\b', r'\bRESOLVES', r'clubfix', r'seguradora',
+    # fluxo do painel do parceiro (login de usuário) não é público
+    r'\blogin\b', r'X-Partner-Branch-Id', r'\bowner\b', r'\boperator\b', r'Credenciais inválidas', r'usuário da equipe', r'Bearer <token>', r'Portal do Parceiro',
 ]
 # Vocabulário que a marca evita (DNA): aviso, não erro
 EVITAR = [r'\broubo', r'\bfurto', r'\bperigo', r'\bblindagem', r'\brevolucion', r'\binovador', r'\bdisruptiv',

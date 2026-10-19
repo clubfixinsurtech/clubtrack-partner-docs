@@ -40,7 +40,9 @@
       }
     },
     "playground": {
-      "display": "simple"
+      "display": "interactive",
+      "proxy": false,
+      "credentials": false
     },
     "examples": {
       "languages": [
@@ -48,7 +50,8 @@
         "javascript",
         "python",
         "php"
-      ]
+      ],
+      "prefill": false
     }
   },
   "navigation": {
@@ -109,17 +112,11 @@
                 ]
               },
               {
-                "group": "Conta e equipe",
-                "icon": "users",
+                "group": "Parceiro e filiais",
+                "icon": "building",
                 "pages": [
-                  "referencia/conta-e-equipe/entrar",
-                  "referencia/conta-e-equipe/recuperar-senha",
                   "referencia/conta-e-equipe/consultar-perfil",
-                  "referencia/conta-e-equipe/enviar-logo",
-                  "referencia/conta-e-equipe/listar-filiais",
-                  "referencia/conta-e-equipe/listar-usuarios",
-                  "referencia/conta-e-equipe/criar-usuario",
-                  "referencia/conta-e-equipe/definir-senha-do-usuario"
+                  "referencia/conta-e-equipe/listar-filiais"
                 ]
               },
               {
@@ -168,9 +165,7 @@
                   "referencia/comercial/criar-assinatura",
                   "referencia/comercial/listar-assinaturas",
                   "referencia/comercial/consultar-assinatura",
-                  "referencia/comercial/reenviar-link-de-pagamento",
-                  "referencia/comercial/criar-pedido-de-dispositivo",
-                  "referencia/comercial/listar-pedidos-de-dispositivo"
+                  "referencia/comercial/reenviar-link-de-pagamento"
                 ]
               }
             ]
@@ -210,5 +205,9 @@
       "name": "ClubTrack",
       "url": "https://clubtrack.com.br"
     }
+  },
+  "banner": {
+    "content": "**API em BETA.** Para dúvidas, bugs ou ajuda na integração, fale com a ClubTrack pelos canais que você já conhece.",
+    "dismissible": false
   }
 }

@@ -3,7 +3,7 @@
 Uso: python3 scripts/gerar-indice-referencia.py   (rode de novo quando uma página mudar de título ou descrição)"""
 import json, pathlib, re
 R = pathlib.Path(__file__).resolve().parent.parent
-ops = json.loads((R / '.contrato/operacoes.json').read_text(encoding='utf-8'))
+ops = [o for o in json.loads((R / '.contrato/operacoes.json').read_text(encoding='utf-8')) if o.get('publicado', True)]
 docs = json.loads((R / 'docs.json').read_text(encoding='utf-8'))
 ordem = []
 def varrer(n):

@@ -23,9 +23,7 @@ os campos que não conhece em vez de falhar. Se a ClubTrack precisar de uma muda
 
 | Cabeçalho | Quando enviar | O que coloca |
 |---|---|---|
-| `X-Api-Key` | Em toda chamada feita com chave de API | A chave, que começa com `ttk_`. Também vale `Authorization: Bearer <chave>`. |
-| `Authorization` | Em toda chamada feita com login de usuário | `Bearer <token>`, o token devolvido por [Entrar com e-mail e senha](/referencia/conta-e-equipe/entrar). |
-| `X-Partner-Branch-Id` | Só no login de usuário que pertence a mais de uma filial | O identificador da filial em nome da qual você age. Com chave de API é ignorado. |
+| `X-Api-Key` | Em toda chamada | A chave de API, que começa com `ttk_`. Também vale `Authorization: Bearer <chave>`. |
 | `Accept` | Sempre | `application/json` |
 | `Content-Type` | Nas chamadas com corpo (`POST` e `PATCH`) | `application/json` |
 
@@ -71,6 +69,10 @@ Veja mais em [Limites e boas práticas](/guias/limites-e-boas-praticas).
 
 ## Não há ambiente de teste
 
-A API tem um único ambiente, o de produção, e o campo de testes do site de documentação está desligado de propósito.
-Toda chamada de escrita tem efeito real: cadastra cliente de verdade, cria cobrança de verdade, envia e-mail de verdade.
-Comece suas integrações por chamadas de leitura e só depois passe às de escrita.
+A API tem um único ambiente: o de produção. As páginas de referência trazem um campo de testes (**Try it**), em que você preenche
+a chave, os parâmetros e o corpo e envia a chamada ali mesmo. Ele chama a API de produção, com a sua chave, direto do seu navegador:
+a chamada não passa por nenhum servidor da documentação, e a chave fica só no seu navegador.
+
+Por isso toda chamada de escrita feita no campo de testes tem efeito real: cadastra cliente de verdade, cria cobrança de verdade, envia
+e-mail de verdade. Comece por chamadas de leitura e só depois passe às de escrita. Os campos vêm vazios de propósito: os exemplos
+das páginas são ilustrativos e não são enviados sozinhos.

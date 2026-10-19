@@ -4,33 +4,25 @@ description: "Devolve o parceiro principal e todas as suas filiais, com identifi
 api: "GET /api/b2b/v1/branches"
 ---
 
-Esta chamada devolve o parceiro principal (o hub) e as filiais dele. O principal vem sempre primeiro; as filiais vêm depois, em ordem alfabética de nome. Você a usa para descobrir os identificadores que valem em `X-Partner-Branch-Id` e para saber a quais parceiros dá para atribuir um usuário ou uma operação.
+Esta chamada devolve o parceiro principal (o hub) e as filiais dele. O principal vem sempre primeiro; as filiais vêm depois, em ordem alfabética de nome. Você a usa para conhecer a estrutura da sua rede e os identificadores de cada filial.
 
 A lista é a mesma para quem chama em nome do principal e para quem chama em nome de uma filial: é sempre a do principal ao qual a credencial pertence, e nunca a de outro. A chamada é só de leitura. Criar, editar ou desativar filial não é possível pela API.
 
 ## Quando usar
 
-- Para montar um seletor de filial na tela do seu sistema, antes de enviar `X-Partner-Branch-Id` nas demais chamadas.
+- Para mostrar a estrutura da sua rede, o principal e as filiais, no seu sistema.
 - Para reconhecer qual `id` é o do parceiro principal (`is_hub` igual a `true`).
 - Para conferir o identificador de uma filial antes de [consultar o perfil dela](/referencia/conta-e-equipe/consultar-perfil).
 
 ## Autenticação e permissões
 
-Aceita chave de API ou login humano. Qualquer usuário da equipe pode consultar, `owner` ou `operator`. Parceiro suspenso recebe 403. O guia de [autenticação](/guias/autenticacao) explica as duas formas e como escolher a filial quando o usuário tem mais de uma.
+Use a chave de API. Parceiro suspenso recebe 403. O guia de [autenticação](/guias/autenticacao) explica a chave de API.
 
 ## Parâmetros
 
 ### Cabeçalhos
 
-<ParamField header="X-Api-Key" type="string" required>
-  Sua chave de API, no formato `ttk_` seguido de 40 caracteres. Você pode enviá-la também como
-  `Authorization: Bearer <chave>`. Se estiver chamando com o token de um usuário da equipe, envie só o `Authorization`.
-</ParamField>
-
-<ParamField header="X-Partner-Branch-Id" type="string (UUID)">
-  Filial em nome da qual o usuário está consultando. Só tem efeito no login humano, e só é obrigatório quando o usuário
-  pertence a mais de uma filial. A lista devolvida não muda com o valor enviado. Com chave de API, o cabeçalho é ignorado.
-</ParamField>
+Toda chamada leva a sua chave de API no cabeçalho `X-Api-Key`, que o campo de testes (Try it) pede no campo de autorização. Também vale enviá-la como `Authorization: Bearer <chave>`. Veja [Autenticação](/guias/autenticacao).
 
 Esta chamada não tem parâmetros de consulta. Não há filtro, ordenação nem paginação: a lista inteira vem de uma vez.
 
@@ -43,14 +35,14 @@ Status `200`. O corpo traz a lista em `data`. Não há `links` nem `meta`.
 </ResponseField>
 
 <ResponseField name="data[].id" type="string (UUID)">
-  Identificador do parceiro principal ou da filial. É o valor que você envia em `X-Partner-Branch-Id` para agir em nome daquela filial.
+  Identificador do parceiro principal ou da filial. É o mesmo valor que aparece em `partner_id` nas respostas de clientes, dispositivos e planos.
 </ResponseField>
 
 <ResponseField name="data[].name" type="string">
   Nome do parceiro principal ou da filial, como está cadastrado.
 </ResponseField>
 
-<ResponseField name="data[].cnpj" type="string | null">
+<ResponseField name="data[].cnpj" type="string">
   CNPJ cadastrado, só com os 14 dígitos, sem pontos, barra ou traço. É `null` quando a filial não tem CNPJ próprio. O principal sempre tem.
 </ResponseField>
 
@@ -62,9 +54,8 @@ Status `200`. O corpo traz a lista em `data`. Não há `links` nem `meta`.
 
 | Status | Quando acontece | O que fazer |
 |---|---|---|
-| 400 | Login humano com usuário que tem mais de uma filial e sem `X-Partner-Branch-Id`. | Envie o cabeçalho com a filial desejada. |
-| 401 | Não há chave, a chave é inválida, foi revogada ou expirou. Com login humano: usuário inativo ou token expirado. | Confira a credencial. Revogação leva até 60 segundos para valer. |
-| 403 | O parceiro está suspenso ou inativo, ou a filial informada não pertence ao usuário. | Fale com a ClubTrack se o parceiro deveria estar ativo. |
+| 401 | Não há chave, a chave é inválida, foi revogada ou expirou. | Confira a credencial. Revogação leva até 60 segundos para valer. |
+| 403 | O parceiro está suspenso ou inativo. | Fale com a ClubTrack se o parceiro deveria estar ativo. |
 | 429 | Passou de 1000 chamadas por minuto com a chave. | Espere o tempo do cabeçalho `Retry-After` e repita. |
 
 Os status 401, 403 e 429 valem para qualquer chamada. O corpo é sempre `{"message": "..."}`; o guia de [erros](/guias/erros)
@@ -145,12 +136,6 @@ $filiais = json_decode((string) $resposta->getBody(), true)['data'];
 }
 ```
 
-```json 400
-{
-  "message": "Usuário tem mais de uma filial — informe qual via header X-Partner-Branch-Id."
-}
-```
-
 ```json 401
 {
   "message": "API key inválida ou revogada."
@@ -167,6 +152,6 @@ $filiais = json_decode((string) $resposta->getBody(), true)['data'];
 
 ## Detalhes que ajudam
 
-- A lista traz todas as filiais do principal, inclusive as que o usuário que está chamando não pode acessar. Se você enviar em `X-Partner-Branch-Id` uma filial a que o usuário não tem acesso, a resposta é 403 com `Filial informada não pertence a este usuário.`.
+- A lista traz todas as filiais do principal ao qual a chave pertence.
 - A resposta não informa a situação (ativa ou suspensa) de cada filial. Uma filial suspensa aparece na lista, e as chamadas feitas em nome dela respondem 403.
 - Filtros enviados na consulta, como `filter[parent_partner_id]`, são ignorados: a lista nunca muda de parceiro principal.

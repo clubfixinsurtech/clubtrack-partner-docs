@@ -22,29 +22,21 @@ O que acontece depois depende de como o seu parceiro é cobrado. O modelo do seu
 
 ## Autenticação e permissões
 
-Aceita chave de API ou login humano. Qualquer usuário da equipe do parceiro pode criar. Parceiro suspenso recebe 403. Os vínculos e o plano precisam ser do parceiro em nome do qual você chama: com a chave de uma filial, valem os clientes e os planos dessa filial. O guia de [autenticação](/guias/autenticacao) explica as duas formas de credencial.
+Use a chave de API. Parceiro suspenso recebe 403. Os vínculos e o plano precisam ser do parceiro em nome do qual você chama: com a chave de uma filial, valem os clientes e os planos dessa filial. O guia de [autenticação](/guias/autenticacao) explica a chave de API.
 
 ## Parâmetros
 
 ### Cabeçalhos
 
-<ParamField header="X-Api-Key" type="string" required>
-  Sua chave de API, no formato `ttk_` seguido de 40 caracteres. Você pode enviá-la também como
-  `Authorization: Bearer <chave>`. Se estiver chamando com o token de um usuário da equipe, envie só o `Authorization`.
-</ParamField>
+Toda chamada leva a sua chave de API no cabeçalho `X-Api-Key`, que o campo de testes (Try it) pede no campo de autorização. Também vale enviá-la como `Authorization: Bearer <chave>`. Veja [Autenticação](/guias/autenticacao).
 
-<ParamField header="X-Partner-Branch-Id" type="string (UUID)">
-  Filial em nome da qual o usuário está criando a assinatura. Só tem efeito no login humano, e só é obrigatório quando o
-  usuário pertence a mais de uma filial. Com chave de API, o cabeçalho é ignorado.
-</ParamField>
-
-<ParamField header="Content-Type" type="string" required>
+<ParamField header="Content-Type" type="string" default="application/json">
   Envie `application/json`. O corpo da chamada é um objeto JSON.
 </ParamField>
 
 ### Corpo
 
-<ParamField body="tag_binding_ids" type="string[] (UUID)" required>
+<ParamField body="tag_binding_ids" type="string[]" required>
   Lista com os `id` dos vínculos (as Tags) que a assinatura vai cobrir: o `data.id` devolvido por
   [Vincular dispositivo a um cliente](/referencia/vinculos-e-campos/vincular-dispositivo) ou o `id` de cada linha de
   [Listar Tags](/referencia/rastreamento/listar-tags). Precisa ter pelo menos um item, sem repetição, e no máximo o
@@ -53,7 +45,7 @@ Aceita chave de API ou login humano. Qualquer usuário da equipe do parceiro pod
   Exemplo: `["019a0f3c-a000-7d36-b6e0-c918528fd00a"]`.
 </ParamField>
 
-<ParamField body="plan_id" type="string (UUID)" required>
+<ParamField body="plan_id" type="string" placeholder="019a0f3c-4000-7f9e-9687-b620b4389874" required>
   O plano que o cliente assina: o `id` devolvido por [Listar planos](/referencia/comercial/listar-planos). O plano precisa ser
   do seu parceiro. O preço do plano é gravado na assinatura neste momento e não muda depois. A chamada não confere a situação
   do plano, então envie só planos `active`. Exemplo: `019a0f3c-c000-7f57-9da6-e983620124d1`.
@@ -91,7 +83,7 @@ Status `201`. O corpo traz a assinatura criada em `data`. A resposta de criaçã
   for reajustado depois.
 </ResponseField>
 
-<ResponseField name="data.commission_rate" type="number | null">
+<ResponseField name="data.commission_rate" type="number">
   Percentual de comissão do seu parceiro, de 0 a 100, gravado no momento da criação (por exemplo, `12.5`). Pode vir `null` em
   assinatura antiga sem esse valor gravado.
 </ResponseField>
@@ -103,18 +95,18 @@ Status `201`. O corpo traz a assinatura criada em `data`. A resposta de criaçã
   estornada. Na criação, o valor é `pending` na cobrança por assinatura e `active` na cobrança consolidada.
 </ResponseField>
 
-<ResponseField name="data.payment_method" type="string | null">
+<ResponseField name="data.payment_method" type="string">
   Forma de pagamento que o cliente escolheu na página de pagamento: `card` (cartão), `boleto`, `pix_manual` (Pix) ou
   `pix_automatico` (Pix Automático, em que o cliente autoriza as cobranças). Vem `null` na criação, enquanto o cliente não escolheu, e
   permanece `null` na cobrança consolidada.
 </ResponseField>
 
-<ResponseField name="data.external_reference_id" type="string | null">
+<ResponseField name="data.external_reference_id" type="string">
   Referência da cobrança recorrente no sistema de pagamento. Vem `null` na criação e é preenchida quando a cobrança é registrada.
   Nenhuma chamada desta API pede esse valor.
 </ResponseField>
 
-<ResponseField name="data.payment_checkout_url" type="string | null">
+<ResponseField name="data.payment_checkout_url" type="string">
   Endereço da página de pagamento da cobrança já gerada, que aparece depois que o cliente escolhe a forma de pagamento
   (cartão, boleto ou Pix manual). Vem `null` na criação. Use o endereço exatamente como veio; não monte nem fixe o endereço do servidor.
   Não confunda com `checkout_url`.
@@ -125,7 +117,7 @@ Status `201`. O corpo traz a assinatura criada em `data`. A resposta de criaçã
   a escolha. Entregue ao cliente o endereço exatamente como veio e nunca monte nem fixe esse endereço. Na cobrança consolidada o campo não existe.
 </ResponseField>
 
-<ResponseField name="data.no_charge_kind" type="string | null">
+<ResponseField name="data.no_charge_kind" type="string">
   Indica assinatura ativa sem cobrança. Hoje o único valor é `courtesy` (cortesia concedida pela ClubTrack). `null` na assinatura comum.
 </ResponseField>
 
@@ -133,7 +125,7 @@ Status `201`. O corpo traz a assinatura criada em `data`. A resposta de criaçã
   Quando a cortesia termina, em UTC. `null` quando não há cortesia ou ela não tem data de fim.
 </ResponseField>
 
-<ResponseField name="data.no_charge_reason" type="string | null">
+<ResponseField name="data.no_charge_reason" type="string">
   Motivo registrado para a cortesia. `null` quando não há cortesia.
 </ResponseField>
 
@@ -158,9 +150,8 @@ Status `201`. O corpo traz a assinatura criada em `data`. A resposta de criaçã
 
 | Status | Quando acontece | O que fazer |
 |---|---|---|
-| 400 | Login humano com usuário que tem mais de uma filial e sem `X-Partner-Branch-Id`. | Envie o cabeçalho com a filial desejada. |
-| 401 | Não há chave, a chave é inválida, foi revogada ou expirou. Com login humano: usuário inativo ou token expirado. | Confira a credencial. Revogação leva até 60 segundos para valer. |
-| 403 | O parceiro está suspenso ou inativo, ou a filial informada não pertence ao usuário. | Fale com a ClubTrack se o parceiro deveria estar ativo. |
+| 401 | Não há chave, a chave é inválida, foi revogada ou expirou. | Confira a credencial. Revogação leva até 60 segundos para valer. |
+| 403 | O parceiro está suspenso ou inativo. | Fale com a ClubTrack se o parceiro deveria estar ativo. |
 | 404 | `Um ou mais vínculos de tag não foram encontrados.`: algum `id` de `tag_binding_ids` não existe ou é de cliente de outro parceiro; a resposta é a mesma nos dois casos. `Plano não encontrado.`: o plano não existe ou é de outro parceiro. Os vínculos são conferidos primeiro. | Confira os `id` em Listar Tags e o `plan_id` em Listar planos. |
 | 409 | `Uma ou mais Tags já têm assinatura ativa.`: pelo menos um dos vínculos já está numa assinatura em vigor, em qualquer plano. O corpo traz também `tag_binding_ids` e `plan_id`, que repetem o que você enviou: eles **não** apontam qual vínculo colidiu. Nada foi criado. | Procure em Listar assinaturas a assinatura que já usa os vínculos. Se for a que você queria criar, use essa. |
 | 422 | Formato inválido: `tag_binding_ids` ausente, vazio ou com item que não é UUID ou repetido; `plan_id` ausente ou que não é UUID. As mensagens vêm em inglês, com o nome do campo em `errors`. | Corrija o corpo e envie de novo. |

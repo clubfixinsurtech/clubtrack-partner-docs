@@ -19,22 +19,14 @@ Para ver as Tags de um cliente, use [Listar as Tags de um cliente](/referencia/c
 
 ## Autenticação e permissões
 
-Aceita chave de API ou login humano. Qualquer usuário da equipe do parceiro pode consultar. Parceiro suspenso recebe 403.
-O guia de [autenticação](/guias/autenticacao) explica as duas formas e como escolher a filial quando o usuário tem mais de uma.
+Use a chave de API. Parceiro suspenso recebe 403.
+O guia de [autenticação](/guias/autenticacao) explica a chave de API.
 
 ## Parâmetros
 
 ### Cabeçalhos
 
-<ParamField header="X-Api-Key" type="string" required>
-  Sua chave de API, no formato `ttk_` seguido de 40 caracteres. Você pode enviá-la também como
-  `Authorization: Bearer <chave>`. Se estiver chamando com o token de um usuário da equipe, envie só o `Authorization`.
-</ParamField>
-
-<ParamField header="X-Partner-Branch-Id" type="string (UUID)">
-  Filial em nome da qual o usuário está consultando. Só tem efeito no login humano, e só é obrigatório quando o usuário
-  pertence a mais de uma filial. Com chave de API, o cabeçalho é ignorado.
-</ParamField>
+Toda chamada leva a sua chave de API no cabeçalho `X-Api-Key`, que o campo de testes (Try it) pede no campo de autorização. Também vale enviá-la como `Authorization: Bearer <chave>`. Veja [Autenticação](/guias/autenticacao).
 
 ### Consulta
 
@@ -120,7 +112,7 @@ Status `200`. O corpo traz a lista em `data`, os endereços de navegação em `l
   Parceiro dono do cliente: sempre o seu.
 </ResponseField>
 
-<ResponseField name="data[].external_id" type="string | null">
+<ResponseField name="data[].external_id" type="string">
   O identificador que você deu ao cliente no cadastro. `null` quando não foi informado.
 </ResponseField>
 
@@ -128,19 +120,19 @@ Status `200`. O corpo traz a lista em `data`, os endereços de navegação em `l
   Nome da pessoa ou razão social da empresa, com até 150 caracteres.
 </ResponseField>
 
-<ResponseField name="data[].email" type="string | null">
+<ResponseField name="data[].email" type="string">
   E-mail do cliente. `null` quando não foi informado.
 </ResponseField>
 
-<ResponseField name="data[].phone" type="string | null">
+<ResponseField name="data[].phone" type="string">
   Telefone como foi cadastrado, com até 20 caracteres. `null` quando não foi informado.
 </ResponseField>
 
-<ResponseField name="data[].cpf_cnpj" type="string | null">
+<ResponseField name="data[].cpf_cnpj" type="string">
   CPF ou CNPJ do cliente, como foi cadastrado. `null` quando não foi informado.
 </ResponseField>
 
-<ResponseField name="data[].document_type" type="string | null">
+<ResponseField name="data[].document_type" type="string">
   Tipo do documento: `pessoa_fisica` ou `pessoa_juridica`.
 </ResponseField>
 
@@ -172,9 +164,8 @@ Status `200`. O corpo traz a lista em `data`, os endereços de navegação em `l
 | Status | Quando acontece | O que fazer |
 |---|---|---|
 | 400 | Você enviou um filtro, uma ordenação ou uma inclusão que a rota não aceita. A mensagem lista os nomes aceitos, em inglês. | Corrija o nome do parâmetro. Os nomes diferenciam maiúscula de minúscula, e os filtros de vínculo usam camelCase. |
-| 400 | Login humano com usuário que tem mais de uma filial e sem `X-Partner-Branch-Id`. | Envie o cabeçalho com a filial desejada. |
-| 401 | Não há chave, a chave é inválida, foi revogada ou expirou. Com login humano: usuário inativo ou token expirado. | Confira a credencial. Revogação leva até 60 segundos para valer. |
-| 403 | O parceiro está suspenso ou inativo, ou a filial informada não pertence ao usuário. | Fale com a ClubTrack se o parceiro deveria estar ativo. |
+| 401 | Não há chave, a chave é inválida, foi revogada ou expirou. | Confira a credencial. Revogação leva até 60 segundos para valer. |
+| 403 | O parceiro está suspenso ou inativo. | Fale com a ClubTrack se o parceiro deveria estar ativo. |
 | 429 | Passou de 1000 chamadas por minuto com a chave. | Espere o tempo do cabeçalho `Retry-After` e repita. |
 
 Os status 401, 403 e 429 valem para qualquer chamada. O corpo é sempre `{"message": "..."}`; o guia de [erros](/guias/erros)

@@ -5,6 +5,9 @@ no core (`apps/.worktrees/base-e24-main`). Se achar algo que contradiga este arq
 
 ## Credenciais
 
+> **Interno.** O login de usuário (token, filial por cabeçalho, papéis) é o fluxo do painel do parceiro e **não aparece em nenhuma página pública**
+> (decisão de Sergio, 2026-10-19). Os fatos abaixo servem só para entender o código.
+
 - Duas formas, na mesma rota, sem escolher por rota: **chave de API** (`X-Api-Key: ttk_...` ou `Authorization: Bearer ttk_...`)
   e **login humano** (`Authorization: Bearer <token>`, emitido por `POST /api/b2b/v1/auth/login`). O servidor tenta primeiro
   o token humano; se não for um, trata o valor como chave. Fonte: `PartnerManagement/.../ResolvesPartnerContext.php`

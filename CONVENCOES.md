@@ -51,6 +51,9 @@ Ordem de autoridade: **(1) o código** no commit de produção, **(2) a spec**, 
 - Nomes internos: classes, namespaces, caminhos `src/`, tabelas, filas, nomes de middleware, "Story", "Epic", "E24",
   "Sanctum", "Spatie", "Laravel", "Saloon", "Horizon", "Forge", "core", "tagtrack".
 - Qualquer menção a admin interno, painel do time da ClubTrack ou a rotas `api/admin`.
+- **Login de usuário e tudo que existe para o painel do parceiro**: token de usuário, `X-Partner-Branch-Id`, papéis (`owner`, `operator`),
+  gestão de equipe, envio de logo, recuperação de senha e pedidos feitos no painel. A doc pública fala só de **chave de API**. O verificador
+  recusa esses termos (decisão de Sergio em 2026-10-19). As oito páginas que existiam estão em `.contrato/removidas-do-site/`.
 - Cliente, pessoa, empresa, e-mail, telefone, placa, CNPJ ou CPF reais. Só os dados de `.contrato/fixtures.json`.
 - Segredos: chaves, tokens, senhas. Use sempre `ttk_...` abreviado ou o texto "sua chave".
 - Hosts de painel, portal ou checkout. A API devolve o endereço (`checkout_url`); a página manda usar o que veio.
@@ -84,8 +87,7 @@ Casos reais, em frase corrida ou lista curta.
 
 ## Autenticação e permissões
 
-Qual credencial vale (chave de API, login humano, ou só um dos dois), qual papel é exigido, o que acontece com parceiro
-suspenso. Uma frase de remissão para o guia de autenticação, nunca repetir o guia.
+Use a chave de API. Diga se a rota exige a chave do parceiro principal e o que acontece com parceiro suspenso. Uma frase de remissão para o guia de autenticação, nunca repetir o guia.
 
 ## Parâmetros
 
@@ -141,7 +143,7 @@ Regras do modelo:
   `https://core.clubtrack.com.br`. JSON de requisição e de resposta precisa ser válido e coerente com o esquema.
   Resposta de sucesso completa, sem reticências dentro do JSON. Em lista, dois itens bastam e `links` e `meta` completos.
 - Efeito real: toda chamada que escreve, cobra ou envia mensagem leva `<Warning>` dizendo o efeito, porque não existe
-  ambiente de teste e o playground está desligado.
+  ambiente de teste e o campo de testes do site (Try it) chama a produção.
 - Componentes permitidos: `ParamField`, `ResponseField`, `RequestExample`, `ResponseExample`, `Note`, `Tip`, `Info`,
   `Warning`, `Steps`, `Tabs`, `Accordion`, `Expandable`, `CodeGroup`. Nada de HTML cru, nada de `iframe`.
 - Links internos sempre absolutos a partir da raiz do site: `/guias/erros`, `/referencia/clientes-e-enderecos/consultar-cliente`.

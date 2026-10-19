@@ -27,32 +27,24 @@ mudar o valor padrão, por exemplo, não altera nenhuma Tag que já recebeu um v
 
 ## Autenticação e permissões
 
-Aceita chave de API ou login humano. Com login humano, vale o papel de dono ou de operador. Só o parceiro principal (o hub)
+Use a chave de API. Só o parceiro principal (o hub)
 edita o catálogo: a chave ou o usuário de uma filial recebe 403. Parceiro suspenso também recebe 403. Se a funcionalidade de
 campos personalizados não estiver ligada para o seu parceiro, a resposta é 404, sem dizer o motivo. O guia de
-[autenticação](/guias/autenticacao) explica as duas formas de credencial.
+[autenticação](/guias/autenticacao) explica a chave de API.
 
 ## Parâmetros
 
 ### Cabeçalhos
 
-<ParamField header="X-Api-Key" type="string" required>
-  Sua chave de API, no formato `ttk_` seguido de 40 caracteres. Você pode enviá-la também como
-  `Authorization: Bearer <chave>`. Se estiver chamando com o token de um usuário da equipe, envie só o `Authorization`.
-</ParamField>
+Toda chamada leva a sua chave de API no cabeçalho `X-Api-Key`, que o campo de testes (Try it) pede no campo de autorização. Também vale enviá-la como `Authorization: Bearer <chave>`. Veja [Autenticação](/guias/autenticacao).
 
-<ParamField header="X-Partner-Branch-Id" type="string (UUID)">
-  Filial em nome da qual o usuário está chamando. Só tem efeito no login humano, e só é obrigatório quando o usuário
-  pertence a mais de uma filial. Com chave de API, o cabeçalho é ignorado.
-</ParamField>
-
-<ParamField header="Content-Type" type="string" required>
+<ParamField header="Content-Type" type="string" default="application/json">
   Envie `application/json`. O corpo da chamada é um objeto JSON.
 </ParamField>
 
 ### Caminho
 
-<ParamField path="id" type="string (UUID)" required>
+<ParamField path="id" type="string" placeholder="019a0f3c-4000-7f9e-9687-b620b4389874" required>
   Identificador do campo no catálogo: o `data[].id` de [Listar o catálogo de campos](/referencia/vinculos-e-campos/listar-campos-do-catalogo)
   ou o `data.id` devolvido na criação. Id que não existe no catálogo do seu hub responde 404, igual a id de outro hub. Exemplo:
   `019a0f3d-2000-7021-80e7-961680966262`.
@@ -68,7 +60,7 @@ como está. Enviar `key` com algum valor responde 422 com a mensagem `A chave do
   Novo nome do campo, de 1 a 100 caracteres. Não aceita `null`. Exemplo: `Condutor principal`.
 </ParamField>
 
-<ParamField body="default_value" type="string | null">
+<ParamField body="default_value" type="string">
   Novo valor padrão, até 255 caracteres. `null` remove o valor padrão. A mudança vale só para as Tags que receberem o primeiro
   valor depois dela; as Tags que já têm valor não são alteradas. Exemplo: `Não informado`.
 </ParamField>
@@ -131,7 +123,7 @@ Status `200`. O corpo traz o campo já com as mudanças em `data`, com a mesma f
   Se o cliente pode preencher o campo depois da edição.
 </ResponseField>
 
-<ResponseField name="data.default_value" type="string | null">
+<ResponseField name="data.default_value" type="string">
   O valor padrão atual, ou `null` quando não há.
 </ResponseField>
 
@@ -139,9 +131,8 @@ Status `200`. O corpo traz o campo já com as mudanças em `data`, com a mesma f
 
 | Status | Quando acontece | O que fazer |
 |---|---|---|
-| 400 | Login humano com usuário que tem mais de uma filial e sem `X-Partner-Branch-Id`. | Envie o cabeçalho com a filial desejada. |
-| 401 | Não há chave, a chave é inválida, foi revogada ou expirou. Com login humano: usuário inativo ou token expirado. | Confira a credencial. Revogação leva até 60 segundos para valer. |
-| 403 | O parceiro está suspenso ou inativo (`Parceiro inativo ou suspenso.`), ou a filial informada não pertence ao usuário. Também: chamada feita por filial (`Você não tem permissão para administrar o catálogo.`). | Para editar o catálogo, chame com a credencial do hub. |
+| 401 | Não há chave, a chave é inválida, foi revogada ou expirou. | Confira a credencial. Revogação leva até 60 segundos para valer. |
+| 403 | O parceiro está suspenso ou inativo (`Parceiro inativo ou suspenso.`). Também: chamada feita por filial (`Você não tem permissão para administrar o catálogo.`). | Para editar o catálogo, chame com a credencial do hub. |
 | 404 | `Recurso indisponível.`: a funcionalidade de campos personalizados ainda não está ligada para o seu parceiro. | Peça à ClubTrack para ligar a funcionalidade no parceiro principal. |
 | 404 | `Campo não encontrado.`: o id não existe no catálogo do seu hub (inclui id de outro hub). Se o `id` do caminho nem tem formato de UUID, a própria rota responde 404; não dependa do texto. | Pegue o id na listagem do catálogo. |
 | 422 | Corpo inválido: `key` enviada (`A chave do campo é imutável.`), `label` fora de 1 a 100 caracteres ou nulo, `default_value` com mais de 255, `sort_order` negativo, acima de 1000000 ou não inteiro, ou booleano que não é `true` ou `false`. Fora a mensagem de `key`, o texto vem em inglês, com o nome do campo em `errors`. | Corrija o corpo e envie de novo. |

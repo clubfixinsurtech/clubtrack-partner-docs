@@ -18,10 +18,6 @@ Passou de 1000, a API responde `429` com o texto `Limite de requisições atingi
 A conta é por janela de um minuto, que começa na primeira chamada. Passada a janela, a conta zera. A API não informa
 quantas chamadas ainda restam, então conte no seu lado se precisar chegar perto do teto.
 
-<Note>
-  O limite descrito aqui vale para chamadas feitas com chave de API. As chamadas de login de usuário não passam por essa conta.
-</Note>
-
 ## Como gastar menos chamadas
 
 - **Use filtros em vez de ler tudo e filtrar no seu sistema.** Procurar um cliente por `filter[external_id]` custa uma chamada;
@@ -47,10 +43,10 @@ você o encontra com `filter[external_id]` sem depender da resposta que se perde
 
 - **Guarde a chave em variável de ambiente ou num cofre de segredos.** Nunca no código, no repositório, em aplicativo de
   celular ou em página web: quem tem a chave faz tudo o que o seu parceiro pode fazer.
-- **Não escreva a chave nem o token nos logs.** Registre o caminho, o status e a hora; deixe o cabeçalho de fora.
+- **Não escreva a chave nos logs.** Registre o caminho, o status e a hora; deixe o cabeçalho de fora.
 - **Suspeitou de vazamento, peça a revogação na hora.** A revogação leva até 60 segundos para valer.
-- **Separe quem chama.** Sistema falando com sistema usa chave de API. Pessoa usando um painel seu usa login de usuário.
-  Veja [Autenticação](/guias/autenticacao).
+- **Uma chave por sistema, quando possível.** Peça chaves separadas para sistemas diferentes, assim a revogação de uma não derruba
+  os outros. Veja [Autenticação](/guias/autenticacao).
 
 ## Em produção, sem rede de proteção
 
@@ -59,8 +55,7 @@ Não existe ambiente de teste: o único ambiente é o de produção. Por isso:
 - Comece por chamadas de leitura. Entenda o formato das respostas antes de escrever.
 - Quando for escrever pela primeira vez, faça com um registro seu, que você possa reconhecer depois (um `external_id` com
   prefixo próprio, por exemplo), e confira o resultado com uma leitura.
-- Chamadas que cobram ou enviam mensagem a um cliente (criar assinatura, criar pedido de dispositivo, cadastrar cliente com
-  e-mail) têm efeito real e imediato. As páginas de referência avisam em cada uma.
+- Chamadas que cobram ou enviam mensagem a um cliente (criar assinatura, cadastrar cliente com e-mail) têm efeito real e imediato. As páginas de referência avisam em cada uma.
 
 ## Tempos limite
 

@@ -30,25 +30,17 @@ a localização no ato do vínculo.
 
 ## Autenticação e permissões
 
-Aceita chave de API ou login humano. Qualquer usuário da equipe do parceiro pode vincular. Parceiro suspenso recebe 403.
+Use a chave de API. Parceiro suspenso recebe 403.
 O dispositivo e o cliente precisam ser do mesmo parceiro em nome do qual você chama: com a chave de uma filial, valem o estoque
-e os clientes dessa filial. O guia de [autenticação](/guias/autenticacao) explica as duas formas de credencial.
+e os clientes dessa filial. O guia de [autenticação](/guias/autenticacao) explica a chave de API.
 
 ## Parâmetros
 
 ### Cabeçalhos
 
-<ParamField header="X-Api-Key" type="string" required>
-  Sua chave de API, no formato `ttk_` seguido de 40 caracteres. Você pode enviá-la também como
-  `Authorization: Bearer <chave>`. Se estiver chamando com o token de um usuário da equipe, envie só o `Authorization`.
-</ParamField>
+Toda chamada leva a sua chave de API no cabeçalho `X-Api-Key`, que o campo de testes (Try it) pede no campo de autorização. Também vale enviá-la como `Authorization: Bearer <chave>`. Veja [Autenticação](/guias/autenticacao).
 
-<ParamField header="X-Partner-Branch-Id" type="string (UUID)">
-  Filial em nome da qual o usuário está vinculando. Só tem efeito no login humano, e só é obrigatório quando o usuário
-  pertence a mais de uma filial. Com chave de API, o cabeçalho é ignorado.
-</ParamField>
-
-<ParamField header="Content-Type" type="string" required>
+<ParamField header="Content-Type" type="string" default="application/json">
   Envie `application/json`. O corpo da chamada é um objeto JSON.
 </ParamField>
 
@@ -61,14 +53,14 @@ e os clientes dessa filial. O guia de [autenticação](/guias/autenticacao) expl
   parceiro responde 404, igual a série que não existe. Exemplo: `000000050000001`.
 </ParamField>
 
-<ParamField body="customer_id" type="string (UUID)" required>
+<ParamField body="customer_id" type="string" placeholder="019a0f3c-4000-7f9e-9687-b620b4389874" required>
   Identificador do cliente que vai usar a Tag, o `id` devolvido por
   [Cadastrar cliente](/referencia/clientes-e-enderecos/cadastrar-cliente) ou
   [Listar clientes](/referencia/clientes-e-enderecos/listar-clientes). O cliente precisa ser do seu parceiro. A chamada não
   confere a situação (`active` ou `inactive`) do cliente. Exemplo: `019a0f3c-4000-7f9e-9687-b620b4389874`.
 </ParamField>
 
-<ParamField body="notes" type="string | null">
+<ParamField body="notes" type="string">
   Observação livre sobre o vínculo, até 500 caracteres. Texto vazio equivale a não enviar. Volta na resposta, no campo
   `notes`, e fica `null` quando não é informada. Exemplo: `Entregue em mãos na filial Sul`.
 </ParamField>
@@ -105,19 +97,19 @@ Status `201`. O corpo traz o vínculo criado em `data`. A resposta não traz os 
   Quando o vínculo foi desfeito, em UTC. `null` enquanto o vínculo está `active`, o que vale para um vínculo recém-criado.
 </ResponseField>
 
-<ResponseField name="data.notes" type="string | null">
+<ResponseField name="data.notes" type="string">
   A observação enviada em `notes`, ou `null` quando não foi informada.
 </ResponseField>
 
-<ResponseField name="data.nickname" type="string | null">
+<ResponseField name="data.nickname" type="string">
   Apelido que o cliente dá à própria Tag, com até 100 caracteres. Vem `null` no vínculo novo.
 </ResponseField>
 
-<ResponseField name="data.category" type="string | null">
+<ResponseField name="data.category" type="string">
   Categoria que o cliente escolhe para a própria Tag, com até 50 caracteres. Vem `null` no vínculo novo.
 </ResponseField>
 
-<ResponseField name="data.icon" type="string | null">
+<ResponseField name="data.icon" type="string">
   Identificador do ícone que o cliente escolhe para a própria Tag, com até 50 caracteres. Vem `null` no vínculo novo.
 </ResponseField>
 
@@ -129,9 +121,8 @@ Status `201`. O corpo traz o vínculo criado em `data`. A resposta não traz os 
 
 | Status | Quando acontece | O que fazer |
 |---|---|---|
-| 400 | Login humano com usuário que tem mais de uma filial e sem `X-Partner-Branch-Id`. | Envie o cabeçalho com a filial desejada. |
-| 401 | Não há chave, a chave é inválida, foi revogada ou expirou. Com login humano: usuário inativo ou token expirado. | Confira a credencial. Revogação leva até 60 segundos para valer. |
-| 403 | O parceiro está suspenso ou inativo, ou a filial informada não pertence ao usuário. | Fale com a ClubTrack se o parceiro deveria estar ativo. |
+| 401 | Não há chave, a chave é inválida, foi revogada ou expirou. | Confira a credencial. Revogação leva até 60 segundos para valer. |
+| 403 | O parceiro está suspenso ou inativo. | Fale com a ClubTrack se o parceiro deveria estar ativo. |
 | 404 | `Dispositivo não encontrado.`: nenhum dispositivo do seu parceiro tem essa série (inclui série de outro parceiro). `Cliente não encontrado.`: o cliente não existe ou é de outro parceiro. O dispositivo é conferido primeiro. | Confira a série no seu estoque e o `customer_id` na lista de clientes. |
 | 422 | Formato inválido: `device_serial` ou `customer_id` ausente, `customer_id` que não é UUID, `notes` com mais de 500 caracteres. As mensagens vêm em inglês, com o nome do campo em `errors`. | Corrija o corpo e envie de novo. |
 | 422 | `Série ambígua: '...' corresponde a mais de um Dispositivo.`: a série enviada, depois de completada com zeros, bate com mais de um aparelho do seu estoque. | Envie a série completa, como está gravada no aparelho. |

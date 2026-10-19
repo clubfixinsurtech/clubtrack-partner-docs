@@ -31,24 +31,16 @@ Ela cadastra só o cliente. Endereço e Tags têm chamadas próprias, em
 
 ## Autenticação e permissões
 
-Aceita chave de API ou login humano. Qualquer usuário da equipe do parceiro pode cadastrar. Parceiro suspenso recebe 403.
-O guia de [autenticação](/guias/autenticacao) explica as duas formas e como escolher a filial quando o usuário tem mais de uma.
+Use a chave de API. Parceiro suspenso recebe 403.
+O guia de [autenticação](/guias/autenticacao) explica a chave de API.
 
 ## Parâmetros
 
 ### Cabeçalhos
 
-<ParamField header="X-Api-Key" type="string" required>
-  Sua chave de API, no formato `ttk_` seguido de 40 caracteres. Você pode enviá-la também como
-  `Authorization: Bearer <chave>`. Se estiver chamando com o token de um usuário da equipe, envie só o `Authorization`.
-</ParamField>
+Toda chamada leva a sua chave de API no cabeçalho `X-Api-Key`, que o campo de testes (Try it) pede no campo de autorização. Também vale enviá-la como `Authorization: Bearer <chave>`. Veja [Autenticação](/guias/autenticacao).
 
-<ParamField header="X-Partner-Branch-Id" type="string (UUID)">
-  Filial em nome da qual o usuário está cadastrando. Só tem efeito no login humano, e só é obrigatório quando o usuário
-  pertence a mais de uma filial. Com chave de API, o cabeçalho é ignorado.
-</ParamField>
-
-<ParamField header="Content-Type" type="string" required>
+<ParamField header="Content-Type" type="string" default="application/json">
   Envie `application/json`. O corpo da chamada é um objeto JSON.
 </ParamField>
 
@@ -62,14 +54,14 @@ e de `cpf`: o documento vai em `cpf_cnpj`.
   de [Listar clientes](/referencia/clientes-e-enderecos/listar-clientes) procura. Exemplo: `Marina Souza Exemplo`.
 </ParamField>
 
-<ParamField body="external_id" type="string | null">
+<ParamField body="external_id" type="string">
   O identificador do cliente no **seu** sistema, com até 100 caracteres. Volta na resposta e permite achar o cliente depois com
   `filter[external_id]`. A ClubTrack não confere se ele é único: dois clientes podem ter o mesmo `external_id`, então a
   checagem de duplicidade é sua (veja "Detalhes que ajudam"). Envie como texto: um número JSON, como `184`, é recusado.
   Omitido ou vazio fica `null`. Exemplo: `CLI-000184`.
 </ParamField>
 
-<ParamField body="email" type="string | null">
+<ParamField body="email" type="string">
   E-mail do cliente, com formato válido e até 150 caracteres. Omitido ou vazio fica `null`. Duas coisas dependem dele.
   Primeiro, o convite para definir a senha só é enviado se houver e-mail. Segundo, o e-mail é único em toda a ClubTrack:
   um e-mail que já pertence a um cliente, seu ou de outro parceiro, é recusado com `422`. A comparação é feita com o texto
@@ -77,7 +69,7 @@ e de `cpf`: o documento vai em `cpf_cnpj`.
   minúsculas). Exemplo: `marina@cliente.example`.
 </ParamField>
 
-<ParamField body="phone" type="string | null">
+<ParamField body="phone" type="string">
   Telefone do cliente. A validação aceita até 20 caracteres, mas envie só dígitos, com DDD e sem máscara: `11987654321` (11
   dígitos) ou `5511987654321` (13 dígitos, com o 55 na frente). Não passe de 13 caracteres. A ClubTrack lê este número quando precisa
   mandar um SMS ao cliente, como o aviso de que uma Tag entrou ou saiu de uma cerca, e só envia para celular brasileiro nesses
@@ -85,7 +77,7 @@ e de `cpf`: o documento vai em `cpf_cnpj`.
   Exemplo: `11987654321`.
 </ParamField>
 
-<ParamField body="cpf_cnpj" type="string | null">
+<ParamField body="cpf_cnpj" type="string">
   CPF ou CNPJ do cliente, com até 14 caracteres. A ClubTrack confere os dígitos verificadores, e a regra aplicada depende de
   `document_type`. Com `pessoa_fisica` (ou sem `document_type`), o valor precisa ser um CPF válido: 11 dígitos, e sequências
   como `11111111111` são recusadas. Com `pessoa_juridica`, precisa ser um CNPJ válido de 14 caracteres. O CNPJ pode ser o
@@ -94,7 +86,7 @@ e de `cpf`: o documento vai em `cpf_cnpj`.
   Exemplo: `52998224725`.
 </ParamField>
 
-<ParamField body="document_type" type="string | null" default="pessoa_fisica">
+<ParamField body="document_type" type="string" default="pessoa_fisica">
   Tipo do documento, que diz como `cpf_cnpj` é validado. Valores: `pessoa_fisica` (pessoa, valida como CPF) e
   `pessoa_juridica` (empresa, valida como CNPJ). Omitido ou `null` vale `pessoa_fisica`. Se você enviar um CNPJ sem declarar
   `pessoa_juridica`, ele é validado como CPF e recusado. Outro valor responde `422`. Exemplo: `pessoa_fisica`.
@@ -114,7 +106,7 @@ ou `{id}` de cliente.
   Parceiro dono do cliente: sempre o dono da credencial que fez a chamada.
 </ResponseField>
 
-<ResponseField name="data.external_id" type="string | null">
+<ResponseField name="data.external_id" type="string">
   O `external_id` que você enviou, ou `null` quando não foi informado.
 </ResponseField>
 
@@ -122,15 +114,15 @@ ou `{id}` de cliente.
   O nome ou a razão social enviados, até 150 caracteres.
 </ResponseField>
 
-<ResponseField name="data.email" type="string | null">
+<ResponseField name="data.email" type="string">
   O e-mail enviado, sem alteração, ou `null` quando não foi informado.
 </ResponseField>
 
-<ResponseField name="data.phone" type="string | null">
+<ResponseField name="data.phone" type="string">
   O telefone enviado, sem alteração, ou `null` quando não foi informado.
 </ResponseField>
 
-<ResponseField name="data.cpf_cnpj" type="string | null">
+<ResponseField name="data.cpf_cnpj" type="string">
   O CPF ou CNPJ enviado, exatamente como foi gravado, ou `null` quando não foi informado.
 </ResponseField>
 
@@ -154,9 +146,8 @@ ou `{id}` de cliente.
 
 | Status | Quando acontece | O que fazer |
 |---|---|---|
-| 400 | Login humano com usuário que tem mais de uma filial e sem `X-Partner-Branch-Id`. | Envie o cabeçalho com a filial desejada. |
-| 401 | Não há chave, a chave é inválida, foi revogada ou expirou. Com login humano: usuário inativo ou token expirado. | Confira a credencial. Revogação leva até 60 segundos para valer. |
-| 403 | O parceiro está suspenso ou inativo, ou a filial informada não pertence ao usuário. | Fale com a ClubTrack se o parceiro deveria estar ativo. |
+| 401 | Não há chave, a chave é inválida, foi revogada ou expirou. | Confira a credencial. Revogação leva até 60 segundos para valer. |
+| 403 | O parceiro está suspenso ou inativo. | Fale com a ClubTrack se o parceiro deveria estar ativo. |
 | 422 | Dado inválido. Falta `name`; `name`, `email`, `phone` ou `external_id` passam do tamanho; `email` fora do formato; `document_type` com valor que não existe; `cpf_cnpj` com mais de 14 caracteres ou com dígito verificador errado (`CPF inválido -- confira os dígitos verificadores.` ou `CNPJ inválido -- confira os dígitos verificadores.`). As mensagens de formato vêm em inglês, com o nome do campo em `errors`. | Corrija o campo indicado em `errors` e envie de novo. |
 | 422 | `Já existe um cliente cadastrado com este e-mail.`: o e-mail já pertence a um cliente da ClubTrack. A mensagem é a mesma para cliente seu e para cliente de outro parceiro. | Procure o e-mail em [Listar clientes](/referencia/clientes-e-enderecos/listar-clientes) com `filter[email]`. Se o cliente for seu, use o `id` dele. Se não for, cadastre sem e-mail ou com outro e-mail. |
 | 429 | Passou de 1000 chamadas por minuto com a chave. | Espere o tempo do cabeçalho `Retry-After` e repita. |
@@ -272,12 +263,6 @@ $cliente = json_decode((string) $resposta->getBody(), true);
     "created_at": "2026-10-05T18:22:09+00:00",
     "updated_at": "2026-10-05T18:22:09+00:00"
   }
-}
-```
-
-```json 400
-{
-  "message": "Usuário tem mais de uma filial — informe qual via header X-Partner-Branch-Id."
 }
 ```
 

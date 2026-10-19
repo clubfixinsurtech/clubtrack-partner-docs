@@ -6,7 +6,7 @@ mode: "wide"
 
 <div className="ct-hero">
   <div className="ct-hero-texto">
-    <p className="ct-hero-selo">API B2B · versão 1</p>
+    <p className="ct-hero-selo">API B2B · versão 1 · BETA</p>
     <h1 className="ct-hero-titulo">Os aparelhos dos seus clientes, dentro do seu sistema.</h1>
     <p className="ct-hero-sub">
       Com a API da ClubTrack, o seu sistema cadastra o cliente, vincula o aparelho, cria a assinatura e consulta onde cada
@@ -19,6 +19,12 @@ mode: "wide"
   </div>
   <img className="ct-hero-imagem" src="/images/acompanhe.webp" alt="Mapa em relevo com uma rota azul que termina num pino luminoso" />
 </div>
+
+<Info>
+  **A API está em BETA.** Estamos refinando o contrato junto com os primeiros parceiros, então podem acontecer ajustes. Mudança que
+  quebre a `v1` é avisada antes e fica registrada no [Histórico de mudanças](/historico-de-mudancas). Para ajuda na integração, bugs
+  e dúvidas, a ClubTrack está disponível pelos canais que você já conhece.
+</Info>
 
 ## O que você consegue fazer
 
@@ -76,8 +82,8 @@ O passo a passo completo, do cliente cadastrado à assinatura criada, está em [
 </Steps>
 
 <Warning>
-  A API tem um único ambiente: o de produção. Tudo o que grava, cobra ou envia mensagem tem efeito real. Por isso o campo de
-  testes está desligado neste site. Cada página de referência avisa quando a chamada tem efeito real.
+  A API tem um único ambiente: o de produção. O campo de testes (Try it) das páginas de referência usa a sua chave e chama essa mesma API,
+  direto do seu navegador. Tudo o que grava, cobra ou envia mensagem tem efeito real. Cada página avisa quando a chamada tem efeito real.
 </Warning>
 
 ## Onde encontrar cada coisa

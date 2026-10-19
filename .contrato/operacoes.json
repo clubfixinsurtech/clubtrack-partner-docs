@@ -4,10 +4,13 @@
     "method": "POST",
     "path": "/api/b2b/v1/auth/login",
     "group": "conta-e-equipe",
-    "group_title": "Conta e equipe",
+    "group_title": "Parceiro e filiais",
     "slug": "entrar",
     "title": "Entrar com e-mail e senha",
-    "page": "referencia/conta-e-equipe/entrar.mdx"
+    "page": "referencia/conta-e-equipe/entrar.mdx",
+    "publicado": false,
+    "motivo": "expõe o fluxo do painel do parceiro (login de usuário, equipe, logo, pedidos feitos no painel)",
+    "arquivo_removido": ".contrato/removidas-do-site/conta-e-equipe/entrar.mdx.txt"
   },
   {
     "n": 2,
@@ -17,7 +20,10 @@
     "group_title": "Pedidos, assinaturas e planos",
     "slug": "listar-pedidos-de-dispositivo",
     "title": "Listar pedidos de dispositivo",
-    "page": "referencia/comercial/listar-pedidos-de-dispositivo.mdx"
+    "page": "referencia/comercial/listar-pedidos-de-dispositivo.mdx",
+    "publicado": false,
+    "motivo": "expõe o fluxo do painel do parceiro (login de usuário, equipe, logo, pedidos feitos no painel)",
+    "arquivo_removido": ".contrato/removidas-do-site/comercial/listar-pedidos-de-dispositivo.mdx.txt"
   },
   {
     "n": 3,
@@ -27,7 +33,10 @@
     "group_title": "Pedidos, assinaturas e planos",
     "slug": "criar-pedido-de-dispositivo",
     "title": "Criar pedido de dispositivo",
-    "page": "referencia/comercial/criar-pedido-de-dispositivo.mdx"
+    "page": "referencia/comercial/criar-pedido-de-dispositivo.mdx",
+    "publicado": false,
+    "motivo": "expõe o fluxo do painel do parceiro (login de usuário, equipe, logo, pedidos feitos no painel)",
+    "arquivo_removido": ".contrato/removidas-do-site/comercial/criar-pedido-de-dispositivo.mdx.txt"
   },
   {
     "n": 4,
@@ -274,7 +283,7 @@
     "method": "GET",
     "path": "/api/b2b/v1/branches",
     "group": "conta-e-equipe",
-    "group_title": "Conta e equipe",
+    "group_title": "Parceiro e filiais",
     "slug": "listar-filiais",
     "title": "Listar o hub e as filiais",
     "page": "referencia/conta-e-equipe/listar-filiais.mdx"
@@ -284,30 +293,39 @@
     "method": "GET",
     "path": "/api/b2b/v1/partner-users",
     "group": "conta-e-equipe",
-    "group_title": "Conta e equipe",
+    "group_title": "Parceiro e filiais",
     "slug": "listar-usuarios",
     "title": "Listar usuários da equipe",
-    "page": "referencia/conta-e-equipe/listar-usuarios.mdx"
+    "page": "referencia/conta-e-equipe/listar-usuarios.mdx",
+    "publicado": false,
+    "motivo": "expõe o fluxo do painel do parceiro (login de usuário, equipe, logo, pedidos feitos no painel)",
+    "arquivo_removido": ".contrato/removidas-do-site/conta-e-equipe/listar-usuarios.mdx.txt"
   },
   {
     "n": 34,
     "method": "POST",
     "path": "/api/b2b/v1/partner-users",
     "group": "conta-e-equipe",
-    "group_title": "Conta e equipe",
+    "group_title": "Parceiro e filiais",
     "slug": "criar-usuario",
     "title": "Criar usuário da equipe",
-    "page": "referencia/conta-e-equipe/criar-usuario.mdx"
+    "page": "referencia/conta-e-equipe/criar-usuario.mdx",
+    "publicado": false,
+    "motivo": "expõe o fluxo do painel do parceiro (login de usuário, equipe, logo, pedidos feitos no painel)",
+    "arquivo_removido": ".contrato/removidas-do-site/conta-e-equipe/criar-usuario.mdx.txt"
   },
   {
     "n": 35,
     "method": "POST",
     "path": "/api/b2b/v1/partner-users/{id}/password",
     "group": "conta-e-equipe",
-    "group_title": "Conta e equipe",
+    "group_title": "Parceiro e filiais",
     "slug": "definir-senha-do-usuario",
     "title": "Definir senha pelo convite",
-    "page": "referencia/conta-e-equipe/definir-senha-do-usuario.mdx"
+    "page": "referencia/conta-e-equipe/definir-senha-do-usuario.mdx",
+    "publicado": false,
+    "motivo": "expõe o fluxo do painel do parceiro (login de usuário, equipe, logo, pedidos feitos no painel)",
+    "arquivo_removido": ".contrato/removidas-do-site/conta-e-equipe/definir-senha-do-usuario.mdx.txt"
   },
   {
     "n": 36,
@@ -325,7 +343,7 @@
     "method": "GET",
     "path": "/api/b2b/v1/partner",
     "group": "conta-e-equipe",
-    "group_title": "Conta e equipe",
+    "group_title": "Parceiro e filiais",
     "slug": "consultar-perfil",
     "title": "Consultar o perfil do parceiro",
     "page": "referencia/conta-e-equipe/consultar-perfil.mdx",
@@ -336,21 +354,27 @@
     "method": "POST",
     "path": "/api/b2b/v1/partner/logo",
     "group": "conta-e-equipe",
-    "group_title": "Conta e equipe",
+    "group_title": "Parceiro e filiais",
     "slug": "enviar-logo",
     "title": "Enviar o logo do parceiro",
     "page": "referencia/conta-e-equipe/enviar-logo.mdx",
-    "spec": false
+    "spec": false,
+    "publicado": false,
+    "motivo": "expõe o fluxo do painel do parceiro (login de usuário, equipe, logo, pedidos feitos no painel)",
+    "arquivo_removido": ".contrato/removidas-do-site/conta-e-equipe/enviar-logo.mdx.txt"
   },
   {
     "n": 39,
     "method": "POST",
     "path": "/api/b2b/v1/auth/forgot-password",
     "group": "conta-e-equipe",
-    "group_title": "Conta e equipe",
+    "group_title": "Parceiro e filiais",
     "slug": "recuperar-senha",
     "title": "Recuperar acesso por e-mail",
     "page": "referencia/conta-e-equipe/recuperar-senha.mdx",
-    "spec": false
+    "spec": false,
+    "publicado": false,
+    "motivo": "expõe o fluxo do painel do parceiro (login de usuário, equipe, logo, pedidos feitos no painel)",
+    "arquivo_removido": ".contrato/removidas-do-site/conta-e-equipe/recuperar-senha.mdx.txt"
   }
 ]

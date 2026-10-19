@@ -21,27 +21,19 @@ O conceito completo está no guia de [campos personalizados](/guias/campos-perso
 
 ## Autenticação e permissões
 
-Aceita chave de API ou login humano. Qualquer usuário da equipe do parceiro pode consultar. Parceiro suspenso recebe 403.
+Use a chave de API. Parceiro suspenso recebe 403.
 Você lê apenas as Tags do parceiro em nome do qual chama: o hub não lê o vínculo de uma filial, e uma filial não lê o do hub. O
-guia de [autenticação](/guias/autenticacao) explica as duas formas de credencial e como escolher a filial.
+guia de [autenticação](/guias/autenticacao) explica a chave de API e como escolher a filial.
 
 ## Parâmetros
 
 ### Cabeçalhos
 
-<ParamField header="X-Api-Key" type="string" required>
-  Sua chave de API, no formato `ttk_` seguido de 40 caracteres. Você pode enviá-la também como
-  `Authorization: Bearer <chave>`. Se estiver chamando com o token de um usuário da equipe, envie só o `Authorization`.
-</ParamField>
-
-<ParamField header="X-Partner-Branch-Id" type="string (UUID)">
-  Filial em nome da qual o usuário está consultando. Só tem efeito no login humano, e só é obrigatório quando o usuário
-  pertence a mais de uma filial. Com chave de API, o cabeçalho é ignorado.
-</ParamField>
+Toda chamada leva a sua chave de API no cabeçalho `X-Api-Key`, que o campo de testes (Try it) pede no campo de autorização. Também vale enviá-la como `Authorization: Bearer <chave>`. Veja [Autenticação](/guias/autenticacao).
 
 ### Caminho
 
-<ParamField path="id" type="string (UUID)" required>
+<ParamField path="id" type="string" placeholder="019a0f3c-4000-7f9e-9687-b620b4389874" required>
   Identificador do vínculo (a Tag): o `data.id` devolvido por
   [Vincular dispositivo a um cliente](/referencia/vinculos-e-campos/vincular-dispositivo) ou o `id` de cada vínculo em
   [Listar as Tags de um cliente](/referencia/clientes-e-enderecos/listar-tags-do-cliente). Vínculo que não existe, é de outro
@@ -80,13 +72,13 @@ não está ligada para o seu parceiro. Uma Tag que ainda não recebeu nenhum val
   gravado nele, e ninguém grava um valor novo.
 </ResponseField>
 
-<ResponseField name="data[].value" type="string | null">
+<ResponseField name="data[].value" type="string">
   O texto gravado, com até 255 caracteres, ou `null` quando nenhum valor foi gravado ou o valor foi limpo. É dado pessoal do cliente:
   trate com o mesmo cuidado que o resto da base.
 </ResponseField>
 
-<ResponseField name="data[].written_by" type="string | null">
-  Quem disparou a última gravação: `customer` (o cliente) ou `partner` (o parceiro, por login ou por chave de API). `null`
+<ResponseField name="data[].written_by" type="string">
+  Quem disparou a última gravação: `customer` (o cliente) ou `partner` (o parceiro). `null`
   quando `value` é `null`. O valor padrão do catálogo, copiado quando a Tag recebe o primeiro valor, leva o autor de quem disparou
   essa primeira gravação. Se foi o cliente, um campo que ele nunca viu pode vir como `customer`: a API não separa valor padrão
   de resposta digitada.
@@ -100,9 +92,8 @@ não está ligada para o seu parceiro. Uma Tag que ainda não recebeu nenhum val
 
 | Status | Quando acontece | O que fazer |
 |---|---|---|
-| 400 | Login humano com usuário que tem mais de uma filial e sem `X-Partner-Branch-Id`. | Envie o cabeçalho com a filial desejada. |
-| 401 | Não há chave, a chave é inválida, foi revogada ou expirou. Com login humano: usuário inativo ou token expirado. | Confira a credencial. Revogação leva até 60 segundos para valer. |
-| 403 | O parceiro está suspenso ou inativo, ou a filial informada não pertence ao usuário. | Fale com a ClubTrack se o parceiro deveria estar ativo. |
+| 401 | Não há chave, a chave é inválida, foi revogada ou expirou. | Confira a credencial. Revogação leva até 60 segundos para valer. |
+| 403 | O parceiro está suspenso ou inativo. | Fale com a ClubTrack se o parceiro deveria estar ativo. |
 | 404 | `Vínculo não encontrado.`: o vínculo não existe, é de outro parceiro ou já foi desfeito. Os três casos têm o mesmo corpo. Se o `id` do caminho nem tem formato de UUID, a própria rota responde 404; não dependa do texto. | Confira o `id` e o parceiro em nome do qual você chama. |
 | 429 | Passou de 1000 chamadas por minuto com a chave. | Espere o tempo do cabeçalho `Retry-After` e repita. |
 | 500 | `Não foi possível ler os campos agora.` Falha técnica; nenhum valor é revelado na mensagem. | Tente de novo; se persistir, fale com a ClubTrack. |

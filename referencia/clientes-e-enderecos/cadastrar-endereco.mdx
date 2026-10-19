@@ -20,35 +20,25 @@ Os seguintes nascem como não principais; para trocar, use
 - Logo depois de [cadastrar o cliente](/referencia/clientes-e-enderecos/cadastrar-cliente), porque o cadastro do cliente não
   recebe endereço.
 - Quando o cliente tem um endereço novo, que você cadastra e depois define como principal.
-- Antes de [pedir o envio de dispositivos direto ao cliente](/referencia/comercial/criar-pedido-de-dispositivo): o endereço
-  principal dele precisa ter CEP, rua, número, bairro, cidade e estado. O complemento é opcional.
 
 ## Autenticação e permissões
 
-Aceita chave de API ou login humano. Qualquer usuário da equipe do parceiro pode cadastrar. Parceiro suspenso recebe 403.
-O guia de [autenticação](/guias/autenticacao) explica as duas formas e como escolher a filial quando o usuário tem mais de uma.
+Use a chave de API. Parceiro suspenso recebe 403.
+O guia de [autenticação](/guias/autenticacao) explica a chave de API.
 
 ## Parâmetros
 
 ### Cabeçalhos
 
-<ParamField header="X-Api-Key" type="string" required>
-  Sua chave de API, no formato `ttk_` seguido de 40 caracteres. Você pode enviá-la também como
-  `Authorization: Bearer <chave>`. Se estiver chamando com o token de um usuário da equipe, envie só o `Authorization`.
-</ParamField>
+Toda chamada leva a sua chave de API no cabeçalho `X-Api-Key`, que o campo de testes (Try it) pede no campo de autorização. Também vale enviá-la como `Authorization: Bearer <chave>`. Veja [Autenticação](/guias/autenticacao).
 
-<ParamField header="X-Partner-Branch-Id" type="string (UUID)">
-  Filial em nome da qual o usuário está cadastrando. Só tem efeito no login humano, e só é obrigatório quando o usuário
-  pertence a mais de uma filial. Com chave de API, o cabeçalho é ignorado.
-</ParamField>
-
-<ParamField header="Content-Type" type="string" required>
+<ParamField header="Content-Type" type="string" default="application/json">
   Envie `application/json`. O corpo da chamada é um objeto JSON.
 </ParamField>
 
 ### Caminho
 
-<ParamField path="customerId" type="string (UUID)" required>
+<ParamField path="customerId" type="string" placeholder="019a0f3c-4000-7f9e-9687-b620b4389874" required>
   Identificador do cliente que vai receber o endereço, o `id` devolvido por
   [Cadastrar cliente](/referencia/clientes-e-enderecos/cadastrar-cliente) ou por
   [Listar clientes](/referencia/clientes-e-enderecos/listar-clientes). O cliente precisa ser do seu parceiro. Cliente que não
@@ -62,48 +52,48 @@ Nenhum campo é obrigatório para a validação, e a ClubTrack não confere se o
 aceitam `null` ou ficar de fora. Campo que a chamada não conhece é ignorado. Os campos de texto são gravados exatamente como você
 enviou, sem padronizar CEP, maiúsculas nem acentos.
 
-<ParamField body="label" type="string | null">
+<ParamField body="label" type="string">
   Nome que identifica o endereço, até 150 caracteres. Ajuda a diferenciar endereços do mesmo cliente. Exemplo: `Residência`.
 </ParamField>
 
-<ParamField body="postal_code" type="string | null">
+<ParamField body="postal_code" type="string">
   CEP, até 9 caracteres: `01310-100` (com hífen) e `01310100` (sem) cabem. A ClubTrack não confere se o CEP existe nem
   o formato. Envie como texto. Exemplo: `01310-100`.
 </ParamField>
 
-<ParamField body="street" type="string | null">
+<ParamField body="street" type="string">
   Logradouro (rua, avenida), até 255 caracteres. Exemplo: `Avenida Paulista`.
 </ParamField>
 
-<ParamField body="number" type="string | null">
+<ParamField body="number" type="string">
   Número do imóvel, até 20 caracteres. Envie como **texto**, mesmo que só tenha dígitos: um número JSON, como `1000` sem aspas, é
   recusado com `422`. Aceita valores como `S/N`. Exemplo: `"1000"`.
 </ParamField>
 
-<ParamField body="complement" type="string | null">
+<ParamField body="complement" type="string">
   Complemento (sala, bloco, apartamento), até 255 caracteres. Exemplo: `Sala 42`.
 </ParamField>
 
-<ParamField body="neighborhood" type="string | null">
+<ParamField body="neighborhood" type="string">
   Bairro, até 255 caracteres. Exemplo: `Bela Vista`.
 </ParamField>
 
-<ParamField body="city" type="string | null">
+<ParamField body="city" type="string">
   Cidade, até 255 caracteres. Exemplo: `São Paulo`.
 </ParamField>
 
-<ParamField body="state" type="string | null">
+<ParamField body="state" type="string">
   Sigla do estado, com exatamente 2 caracteres. Mais ou menos que 2 responde `422`. A ClubTrack não confere se a sigla existe nem
   converte para maiúsculas: envie já como `SP`.
 </ParamField>
 
-<ParamField body="latitude" type="number | null">
+<ParamField body="latitude" type="number">
   Latitude do endereço em graus decimais, de -90 a 90, com ponto como separador decimal. São guardadas até 7 casas decimais; o que
   passar disso é arredondado. É opcional e independe da longitude, mas para marcar um ponto no mapa envie as duas.
   Exemplo: `-23.561414`.
 </ParamField>
 
-<ParamField body="longitude" type="number | null">
+<ParamField body="longitude" type="number">
   Longitude do endereço em graus decimais, de -180 a 180, com ponto como separador decimal. Mesmas regras da latitude.
   Exemplo: `-46.655881`.
 </ParamField>
@@ -118,43 +108,43 @@ Status `201`. O corpo traz o endereço criado em `data`, no mesmo formato de
   Identificador do endereço.
 </ResponseField>
 
-<ResponseField name="data.label" type="string | null">
+<ResponseField name="data.label" type="string">
   O nome do endereço enviado, ou `null` quando não foi informado.
 </ResponseField>
 
-<ResponseField name="data.postal_code" type="string | null">
+<ResponseField name="data.postal_code" type="string">
   O CEP enviado, sem alteração, ou `null` quando não foi informado.
 </ResponseField>
 
-<ResponseField name="data.street" type="string | null">
+<ResponseField name="data.street" type="string">
   O logradouro enviado, ou `null` quando não foi informado.
 </ResponseField>
 
-<ResponseField name="data.number" type="string | null">
+<ResponseField name="data.number" type="string">
   O número enviado, ou `null` quando não foi informado.
 </ResponseField>
 
-<ResponseField name="data.complement" type="string | null">
+<ResponseField name="data.complement" type="string">
   O complemento enviado, ou `null` quando não foi informado.
 </ResponseField>
 
-<ResponseField name="data.neighborhood" type="string | null">
+<ResponseField name="data.neighborhood" type="string">
   O bairro enviado, ou `null` quando não foi informado.
 </ResponseField>
 
-<ResponseField name="data.city" type="string | null">
+<ResponseField name="data.city" type="string">
   A cidade enviada, ou `null` quando não foi informada.
 </ResponseField>
 
-<ResponseField name="data.state" type="string | null">
+<ResponseField name="data.state" type="string">
   A sigla do estado enviada, ou `null` quando não foi informada.
 </ResponseField>
 
-<ResponseField name="data.latitude" type="number | null">
+<ResponseField name="data.latitude" type="number">
   A latitude enviada, ou `null` quando não foi informada.
 </ResponseField>
 
-<ResponseField name="data.longitude" type="number | null">
+<ResponseField name="data.longitude" type="number">
   A longitude enviada, ou `null` quando não foi informada.
 </ResponseField>
 
@@ -175,9 +165,8 @@ Status `201`. O corpo traz o endereço criado em `data`, no mesmo formato de
 
 | Status | Quando acontece | O que fazer |
 |---|---|---|
-| 400 | Login humano com usuário que tem mais de uma filial e sem `X-Partner-Branch-Id`. | Envie o cabeçalho com a filial desejada. |
-| 401 | Não há chave, a chave é inválida, foi revogada ou expirou. Com login humano: usuário inativo ou token expirado. | Confira a credencial. Revogação leva até 60 segundos para valer. |
-| 403 | O parceiro está suspenso ou inativo, ou a filial informada não pertence ao usuário. | Fale com a ClubTrack se o parceiro deveria estar ativo. |
+| 401 | Não há chave, a chave é inválida, foi revogada ou expirou. | Confira a credencial. Revogação leva até 60 segundos para valer. |
+| 403 | O parceiro está suspenso ou inativo. | Fale com a ClubTrack se o parceiro deveria estar ativo. |
 | 404 | `Recurso não encontrado.`: o cliente não existe ou é de outro parceiro. A resposta é a mesma nos dois casos. | Confira o `customerId` na lista de clientes do seu parceiro. |
 | 422 | Dado inválido: campo de texto acima do tamanho, `state` que não tem 2 caracteres, `number` ou outro texto enviado como número, `latitude` fora de -90 a 90, `longitude` fora de -180 a 180 ou valor que não é número. As mensagens vêm em inglês, com o nome do campo em `errors`. | Corrija o campo indicado em `errors` e envie de novo. |
 | 429 | Passou de 1000 chamadas por minuto com a chave. | Espere o tempo do cabeçalho `Retry-After` e repita. |
@@ -316,12 +305,6 @@ $endereco = json_decode((string) $resposta->getBody(), true);
     "created_at": "2026-10-05T18:25:40+00:00",
     "updated_at": "2026-10-05T18:25:40+00:00"
   }
-}
-```
-
-```json 400
-{
-  "message": "Usuário tem mais de uma filial — informe qual via header X-Partner-Branch-Id."
 }
 ```
 
