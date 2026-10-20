@@ -1,0 +1,232 @@
+---
+title: "Consultar assinatura"
+description: "Devolve uma assinatura do seu parceiro pelo id, com a situação, a forma de pagamento escolhida e a data da próxima cobrança."
+api: "GET /api/b2b/v1/subscriptions/{id}"
+---
+
+Esta chamada devolve uma assinatura do seu parceiro pelo `id`. Você usa para saber em que situação ela está: se o cliente já pagou (`status` igual a `active`), qual forma de pagamento escolheu e quando vence a próxima cobrança.
+
+A API não envia aviso quando o cliente paga ou quando a assinatura entra em atraso. Quem precisa dessa informação consulta a assinatura. Diferente de [Listar assinaturas](/referencia/comercial/listar-assinaturas), esta resposta **não traz o plano nem o cliente**: `plan` não aparece e `customer` vem `null`. Para esses dados, use `plan_id` com [Listar planos](/referencia/comercial/listar-planos) e a lista de assinaturas.
+
+## Quando usar
+
+- Depois de [criar a assinatura](/referencia/comercial/criar-assinatura), para acompanhar quando o `status` sai de `pending` e vira `active`.
+- Para conferir o `status` antes de [reenviar o link de pagamento](/referencia/comercial/reenviar-link-de-pagamento).
+- Para mostrar ao cliente, no seu sistema, a situação atual e a data da próxima cobrança.
+
+## Autenticação e permissões
+
+Use a chave de API. Parceiro suspenso ou inativo recebe 403. Assinatura de outro parceiro responde 404, igual a assinatura que não existe. O guia de [autenticação](/guias/autenticacao) explica a chave de API.
+
+## Parâmetros
+
+### Cabeçalhos
+
+Toda chamada leva a sua chave de API no cabeçalho `X-Api-Key`, que o campo de testes (Try it) pede no campo de autorização. Também vale enviá-la como `Authorization: Bearer <chave>`. Veja [Autenticação](/guias/autenticacao).
+
+### Caminho
+
+<ParamField path="id" type="string" placeholder="019a0f3c-4000-7f9e-9687-b620b4389874" required>
+  Identificador da assinatura: o `data.id` devolvido por [Criar assinatura](/referencia/comercial/criar-assinatura) ou o `id`
+  de uma linha de [Listar assinaturas](/referencia/comercial/listar-assinaturas). Exemplo: `019a0f3c-e000-7182-a6cd-bb7e5dcde111`.
+</ParamField>
+
+## Resposta
+
+Status `200`. O corpo traz a assinatura em `data`. Os campos são os mesmos de [Criar assinatura](/referencia/comercial/criar-assinatura),
+onde está o significado completo de cada um; aqui valem os desta consulta e o que muda.
+
+<ResponseField name="data.id" type="string (UUID)">
+  Identificador da assinatura.
+</ResponseField>
+
+<ResponseField name="data.tag_binding_ids" type="string[] (UUID)">
+  Todos os vínculos (Tags) já ligados à assinatura, inclusive os que foram desligados depois.
+</ResponseField>
+
+<ResponseField name="data.plan_id" type="string (UUID)">
+  O plano da assinatura. O plano em si não vem nesta resposta.
+</ResponseField>
+
+<ResponseField name="data.price_cents" type="integer">
+  O que a assinatura cobra a cada ciclo, em centavos, gravado quando ela foi criada. Não acompanha reajuste do plano.
+</ResponseField>
+
+<ResponseField name="data.commission_rate" type="number">
+  Percentual de comissão do seu parceiro, de 0 a 100, gravado na criação. `null` quando não há valor gravado.
+</ResponseField>
+
+<ResponseField name="data.status" type="string">
+  `pending` (aguardando o pagamento do primeiro ciclo), `active` (em vigor, com a localização liberada), `past_due` (em
+  atraso), `cancelled` (encerrada) ou `refunded` (estornada).
+</ResponseField>
+
+<ResponseField name="data.payment_method" type="string">
+  Forma que o cliente escolheu na página de pagamento: `card`, `boleto`, `pix_manual` ou `pix_automatico`. `null` enquanto
+  ele não escolheu e na cobrança consolidada.
+</ResponseField>
+
+<ResponseField name="data.external_reference_id" type="string">
+  Referência da cobrança recorrente no sistema de pagamento. `null` até a cobrança ser registrada.
+</ResponseField>
+
+<ResponseField name="data.payment_checkout_url" type="string">
+  Endereço da página de pagamento da cobrança já gerada (cartão, boleto ou Pix manual). `null` quando não há. Use como veio.
+</ResponseField>
+
+<ResponseField name="data.checkout_url" type="string">
+  Endereço em que o cliente escolhe como pagar. Só vem enquanto a assinatura ainda aguarda essa escolha (ou, no Pix Automático,
+  enquanto a autorização do cliente está aberta). O campo some assim que o cliente conclui a escolha, antes mesmo de o pagamento
+  ser confirmado. Use como veio.
+</ResponseField>
+
+<ResponseField name="data.no_charge_kind" type="string">
+  `courtesy` quando é uma cortesia ativa sem cobrança; `null` na assinatura comum.
+</ResponseField>
+
+<ResponseField name="data.no_charge_ends_at" type="string (data e hora ISO 8601) | null">
+  Quando a cortesia termina, em UTC. `null` sem cortesia ou sem data de fim.
+</ResponseField>
+
+<ResponseField name="data.no_charge_reason" type="string">
+  Motivo registrado da cortesia. `null` sem cortesia.
+</ResponseField>
+
+<ResponseField name="data.courtesy_expired" type="boolean">
+  `true` quando é uma cortesia com a data de fim já vencida. A assinatura não muda de situação sozinha.
+</ResponseField>
+
+<ResponseField name="data.next_billing_date" type="string (data) | null">
+  Data da próxima cobrança, no formato `AAAA-MM-DD`. `null` enquanto a assinatura não foi paga e na cobrança consolidada.
+</ResponseField>
+
+<ResponseField name="data.customer" type="object | null">
+  Nesta consulta, sempre `null`. Os dados do cliente vêm em [Listar assinaturas](/referencia/comercial/listar-assinaturas).
+</ResponseField>
+
+<ResponseField name="data.created_at" type="string (data e hora ISO 8601)">
+  Quando a assinatura foi criada, em UTC.
+</ResponseField>
+
+## Erros
+
+| Status | Quando acontece | O que fazer |
+|---|---|---|
+| 401 | Não há chave, a chave é inválida, foi revogada ou expirou. | Confira a credencial. Revogação leva até 60 segundos para valer. |
+| 403 | O parceiro está suspenso ou inativo. | Fale com a ClubTrack se o parceiro deveria estar ativo. |
+| 404 | `Assinatura não encontrada.`: a assinatura não existe ou é de outro parceiro; a resposta é a mesma nos dois casos. | Confira o `id` em Listar assinaturas. |
+| 429 | Passou de 1000 chamadas por minuto com a chave. | Espere o tempo do cabeçalho `Retry-After` e repita. |
+
+Os status 401, 403 e 429 valem para qualquer chamada. O corpo é sempre `{"message": "..."}`; o guia de [erros](/guias/erros)
+traz os textos exatos.
+
+## Exemplos
+
+<RequestExample>
+
+```bash cURL
+curl "https://core.clubtrack.com.br/api/b2b/v1/subscriptions/019a0f3c-e000-7182-a6cd-bb7e5dcde111" \
+  --header "X-Api-Key: $CLUBTRACK_API_KEY" \
+  --header "Accept: application/json"
+```
+
+```javascript JavaScript
+const resposta = await fetch(
+  "https://core.clubtrack.com.br/api/b2b/v1/subscriptions/019a0f3c-e000-7182-a6cd-bb7e5dcde111",
+  {
+    headers: {
+      "X-Api-Key": process.env.CLUBTRACK_API_KEY,
+      Accept: "application/json",
+    },
+  },
+);
+
+const assinatura = await resposta.json();
+```
+
+```python Python
+import os
+import requests
+
+resposta = requests.get(
+    "https://core.clubtrack.com.br/api/b2b/v1/subscriptions/019a0f3c-e000-7182-a6cd-bb7e5dcde111",
+    headers={
+        "X-Api-Key": os.environ["CLUBTRACK_API_KEY"],
+        "Accept": "application/json",
+    },
+    timeout=30,
+)
+
+assinatura = resposta.json()
+```
+
+```php PHP
+use GuzzleHttp\Client;
+
+$http = new Client(['base_uri' => 'https://core.clubtrack.com.br']);
+
+$resposta = $http->get('/api/b2b/v1/subscriptions/019a0f3c-e000-7182-a6cd-bb7e5dcde111', [
+    'headers' => [
+        'X-Api-Key' => getenv('CLUBTRACK_API_KEY'),
+        'Accept' => 'application/json',
+    ],
+]);
+
+$assinatura = json_decode((string) $resposta->getBody(), true);
+```
+
+</RequestExample>
+
+<ResponseExample>
+
+```json 200
+{
+  "data": {
+    "id": "019a0f3c-e000-7182-a6cd-bb7e5dcde111",
+    "tag_binding_ids": [
+      "019a0f3c-a000-7d36-b6e0-c918528fd00a"
+    ],
+    "plan_id": "019a0f3c-c000-7f57-9da6-e983620124d1",
+    "price_cents": 2990,
+    "commission_rate": 12.5,
+    "status": "active",
+    "payment_method": "card",
+    "external_reference_id": "sub_4d7h1n6c0z",
+    "payment_checkout_url": null,
+    "no_charge_kind": null,
+    "no_charge_ends_at": null,
+    "no_charge_reason": null,
+    "courtesy_expired": false,
+    "next_billing_date": "2026-11-19",
+    "customer": null,
+    "created_at": "2026-10-19T17:35:42+00:00"
+  }
+}
+```
+
+```json 401
+{
+  "message": "API key inválida ou revogada."
+}
+```
+
+```json 403
+{
+  "message": "Parceiro inativo ou suspenso."
+}
+```
+
+```json 404
+{
+  "message": "Assinatura não encontrada."
+}
+```
+
+</ResponseExample>
+
+## Detalhes que ajudam
+
+- O exemplo mostra a assinatura criada em [Criar assinatura](/referencia/comercial/criar-assinatura) depois que o cliente pagou no cartão: `status` virou `active`, `payment_method` foi preenchido, `next_billing_date` ganhou a data e `checkout_url` saiu da resposta.
+- Enquanto o cliente não escolheu a forma de pagamento, `payment_method` e `next_billing_date` vêm `null` e `checkout_url` está presente.
+- Depois que o cliente escolhe boleto ou Pix manual, o `status` continua `pending` até a confirmação do pagamento. Nesse intervalo `payment_method` e `payment_checkout_url` já estão preenchidos e `checkout_url` saiu da resposta.
+- Não consulte em intervalo curto demais: o limite é de 1000 chamadas por minuto por parceiro, somando todas as rotas.

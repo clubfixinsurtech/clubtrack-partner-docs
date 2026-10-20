@@ -1,0 +1,69 @@
+---
+title: "Autenticação"
+description: "Como o seu sistema se identifica na API: a chave de API, onde enviá-la, o que ela pode fazer, como ela vence e o que acontece com parceiro suspenso."
+---
+
+Toda chamada da API B2B diz quem você é e em nome de qual parceiro está agindo. Para isso, o seu sistema envia uma **chave de API**
+em cada chamada.
+
+## Chave de API
+
+A chave começa por `ttk_`, seguida de 40 caracteres. Envie-a no cabeçalho `X-Api-Key`:
+
+```bash
+curl "https://core.clubtrack.com.br/api/b2b/v1/devices" \
+  --header "X-Api-Key: $CLUBTRACK_API_KEY"
+```
+
+O mesmo valor também vale como `Authorization: Bearer <chave>`. Use a forma que o seu cliente HTTP facilitar; as duas se
+comportam igual.
+
+**Como conseguir uma.** A chave é emitida pela equipe da ClubTrack, e não existe chamada nem tela para o parceiro gerar a própria.
+Peça ao seu contato na ClubTrack. O texto da chave é mostrado uma única vez, no momento da emissão: a ClubTrack guarda só uma
+impressão digital dela e não consegue mostrá-la de novo. Se perdeu, peça uma nova.
+
+**O que ela pode.** Uma chave equivale ao parceiro inteiro. Tudo que o seu parceiro pode fazer pela API, a chave faz: cadastrar clientes,
+vincular aparelhos, criar assinaturas, ler posições. Não existe chave só de leitura nem chave limitada a algumas rotas.
+Trate-a como a senha do parceiro.
+
+**Limite de chamadas.** 1000 por minuto, contadas por parceiro. Todas as chaves do mesmo parceiro e todas as rotas dividem essa conta.
+Veja [Limites e boas práticas](/guias/limites-e-boas-praticas).
+
+**Validade e revogação.** Uma chave pode ter data de validade, e depois dela passa a responder `401`. A equipe da ClubTrack também
+pode revogá-la a qualquer momento. A revogação e o fim da validade levam **até 60 segundos** para valer: durante esse minuto a
+chave ainda pode ser aceita.
+
+**Onde guardar.** Em variável de ambiente ou num cofre de segredos. Nunca no código, no repositório, num aplicativo de celular ou
+numa página web: quem tem a chave faz tudo o que o parceiro faz. Se suspeitar de vazamento, peça a revogação na hora.
+
+## Parceiro principal e filiais
+
+Um parceiro pode ter um parceiro principal (o hub) e filiais. Cada um tem os próprios clientes, aparelhos e Tags. Cada chave pertence
+a um parceiro, e todas as chamadas feitas com ela agem em nome dele. Para agir em nome de uma filial, use a chave da filial.
+
+[Listar o hub e as filiais](/referencia/conta-e-equipe/listar-filiais) mostra a estrutura da sua rede, e
+[Consultar o perfil do parceiro](/referencia/conta-e-equipe/consultar-perfil) mostra o parceiro dono da chave.
+
+## Parceiro suspenso
+
+Se o parceiro estiver suspenso ou inativo, a API recusa as chamadas dele com `403` e `Parceiro inativo ou suspenso.`, mesmo com a
+chave válida. Suspender o parceiro principal derruba também as suas filiais. Suspender uma filial não afeta o principal nem as
+outras filiais.
+
+## Quando a chave não basta
+
+Uma operação pede mais do que uma chave válida: o catálogo de campos personalizados.
+[Criar campo no catálogo](/referencia/vinculos-e-campos/criar-campo-do-catalogo) e
+[editar campo](/referencia/vinculos-e-campos/editar-campo-do-catalogo) só valem com a chave do **parceiro principal**.
+A chave de uma filial recebe `403`.
+
+## O que a API responde quando a chave não serve
+
+| Status | `message` | O que fazer |
+|---|---|---|
+| `401` | `API key ausente.` | Envie `X-Api-Key` ou `Authorization`. |
+| `401` | `API key inválida ou revogada.` | Confira a chave. Ela pode ter sido revogada ou ter expirado. |
+| `403` | `Parceiro inativo ou suspenso.` | O parceiro, ou o principal dele, está suspenso. Fale com a ClubTrack. |
+| `429` | `Limite de requisições atingido. Tente novamente em Ns.` | Espere o tempo de `Retry-After`. |
+
+Todos os textos exatos de erro estão em [Erros e códigos](/guias/erros).

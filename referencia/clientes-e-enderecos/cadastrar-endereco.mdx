@@ -1,0 +1,353 @@
+---
+title: "Cadastrar endereço"
+description: "Acrescenta um endereço a um cliente seu. O primeiro endereço do cliente vira o principal automaticamente."
+api: "POST /api/b2b/v1/customers/{customerId}/addresses"
+---
+
+Esta chamada acrescenta um endereço à lista de endereços de um cliente do seu parceiro. Um cliente pode ter vários endereços,
+como residência e trabalho, e um deles é o **principal**. O primeiro endereço cadastrado para o cliente já nasce principal.
+Os seguintes nascem como não principais; para trocar, use
+[Definir endereço principal](/referencia/clientes-e-enderecos/definir-endereco-principal).
+
+<Warning>
+  Esta chamada grava de verdade e não existe ambiente de teste. O endereço fica no cadastro do cliente. Esta API não tem chamada
+  para editar nem para remover um endereço, e repetir a chamada cria um segundo endereço igual. Confira os dados antes de enviar.
+  Para corrigir um endereço, fale com a ClubTrack.
+</Warning>
+
+## Quando usar
+
+- Logo depois de [cadastrar o cliente](/referencia/clientes-e-enderecos/cadastrar-cliente), porque o cadastro do cliente não
+  recebe endereço.
+- Quando o cliente tem um endereço novo, que você cadastra e depois define como principal.
+
+## Autenticação e permissões
+
+Use a chave de API. Parceiro suspenso recebe 403.
+O guia de [autenticação](/guias/autenticacao) explica a chave de API.
+
+## Parâmetros
+
+### Cabeçalhos
+
+Toda chamada leva a sua chave de API no cabeçalho `X-Api-Key`, que o campo de testes (Try it) pede no campo de autorização. Também vale enviá-la como `Authorization: Bearer <chave>`. Veja [Autenticação](/guias/autenticacao).
+
+<ParamField header="Content-Type" type="string" default="application/json">
+  Envie `application/json`. O corpo da chamada é um objeto JSON.
+</ParamField>
+
+### Caminho
+
+<ParamField path="customerId" type="string" placeholder="019a0f3c-4000-7f9e-9687-b620b4389874" required>
+  Identificador do cliente que vai receber o endereço, o `id` devolvido por
+  [Cadastrar cliente](/referencia/clientes-e-enderecos/cadastrar-cliente) ou por
+  [Listar clientes](/referencia/clientes-e-enderecos/listar-clientes). O cliente precisa ser do seu parceiro. Cliente que não
+  existe e cliente de outro parceiro dão a mesma resposta, `404`. Exemplo: `019a0f3c-4000-7f9e-9687-b620b4389874`.
+</ParamField>
+
+### Corpo
+
+Nenhum campo é obrigatório para a validação, e a ClubTrack não confere se o endereço está completo: o que você não enviar fica
+`null`. Para um endereço útil, envie ao menos `postal_code`, `street`, `number`, `neighborhood`, `city` e `state`. Todos os campos
+aceitam `null` ou ficar de fora. Campo que a chamada não conhece é ignorado. Os campos de texto são gravados exatamente como você
+enviou, sem padronizar CEP, maiúsculas nem acentos.
+
+<ParamField body="label" type="string">
+  Nome que identifica o endereço, até 150 caracteres. Ajuda a diferenciar endereços do mesmo cliente. Exemplo: `Residência`.
+</ParamField>
+
+<ParamField body="postal_code" type="string">
+  CEP, até 9 caracteres: `01310-100` (com hífen) e `01310100` (sem) cabem. A ClubTrack não confere se o CEP existe nem
+  o formato. Envie como texto. Exemplo: `01310-100`.
+</ParamField>
+
+<ParamField body="street" type="string">
+  Logradouro (rua, avenida), até 255 caracteres. Exemplo: `Avenida Paulista`.
+</ParamField>
+
+<ParamField body="number" type="string">
+  Número do imóvel, até 20 caracteres. Envie como **texto**, mesmo que só tenha dígitos: um número JSON, como `1000` sem aspas, é
+  recusado com `422`. Aceita valores como `S/N`. Exemplo: `"1000"`.
+</ParamField>
+
+<ParamField body="complement" type="string">
+  Complemento (sala, bloco, apartamento), até 255 caracteres. Exemplo: `Sala 42`.
+</ParamField>
+
+<ParamField body="neighborhood" type="string">
+  Bairro, até 255 caracteres. Exemplo: `Bela Vista`.
+</ParamField>
+
+<ParamField body="city" type="string">
+  Cidade, até 255 caracteres. Exemplo: `São Paulo`.
+</ParamField>
+
+<ParamField body="state" type="string">
+  Sigla do estado, com exatamente 2 caracteres. Mais ou menos que 2 responde `422`. A ClubTrack não confere se a sigla existe nem
+  converte para maiúsculas: envie já como `SP`.
+</ParamField>
+
+<ParamField body="latitude" type="number">
+  Latitude do endereço em graus decimais, de -90 a 90, com ponto como separador decimal. São guardadas até 7 casas decimais; o que
+  passar disso é arredondado. É opcional e independe da longitude, mas para marcar um ponto no mapa envie as duas.
+  Exemplo: `-23.561414`.
+</ParamField>
+
+<ParamField body="longitude" type="number">
+  Longitude do endereço em graus decimais, de -180 a 180, com ponto como separador decimal. Mesmas regras da latitude.
+  Exemplo: `-46.655881`.
+</ParamField>
+
+## Resposta
+
+Status `201`. O corpo traz o endereço criado em `data`, no mesmo formato de
+[Listar endereços do cliente](/referencia/clientes-e-enderecos/listar-enderecos). Guarde o `id`: é ele que
+[Definir endereço principal](/referencia/clientes-e-enderecos/definir-endereco-principal) pede.
+
+<ResponseField name="data.id" type="string (UUID)">
+  Identificador do endereço.
+</ResponseField>
+
+<ResponseField name="data.label" type="string">
+  O nome do endereço enviado, ou `null` quando não foi informado.
+</ResponseField>
+
+<ResponseField name="data.postal_code" type="string">
+  O CEP enviado, sem alteração, ou `null` quando não foi informado.
+</ResponseField>
+
+<ResponseField name="data.street" type="string">
+  O logradouro enviado, ou `null` quando não foi informado.
+</ResponseField>
+
+<ResponseField name="data.number" type="string">
+  O número enviado, ou `null` quando não foi informado.
+</ResponseField>
+
+<ResponseField name="data.complement" type="string">
+  O complemento enviado, ou `null` quando não foi informado.
+</ResponseField>
+
+<ResponseField name="data.neighborhood" type="string">
+  O bairro enviado, ou `null` quando não foi informado.
+</ResponseField>
+
+<ResponseField name="data.city" type="string">
+  A cidade enviada, ou `null` quando não foi informada.
+</ResponseField>
+
+<ResponseField name="data.state" type="string">
+  A sigla do estado enviada, ou `null` quando não foi informada.
+</ResponseField>
+
+<ResponseField name="data.latitude" type="number">
+  A latitude enviada, ou `null` quando não foi informada.
+</ResponseField>
+
+<ResponseField name="data.longitude" type="number">
+  A longitude enviada, ou `null` quando não foi informada.
+</ResponseField>
+
+<ResponseField name="data.is_primary" type="boolean">
+  `true` quando este é o primeiro endereço do cliente, que passa a ser o principal. `false` nos endereços seguintes, que não tiram
+  o posto do principal atual.
+</ResponseField>
+
+<ResponseField name="data.created_at" type="string (data e hora ISO 8601)">
+  Quando o endereço foi cadastrado, em UTC.
+</ResponseField>
+
+<ResponseField name="data.updated_at" type="string (data e hora ISO 8601)">
+  Última alteração do endereço, em UTC. Num endereço novo é igual a `created_at`.
+</ResponseField>
+
+## Erros
+
+| Status | Quando acontece | O que fazer |
+|---|---|---|
+| 401 | Não há chave, a chave é inválida, foi revogada ou expirou. | Confira a credencial. Revogação leva até 60 segundos para valer. |
+| 403 | O parceiro está suspenso ou inativo. | Fale com a ClubTrack se o parceiro deveria estar ativo. |
+| 404 | `Recurso não encontrado.`: o cliente não existe ou é de outro parceiro. A resposta é a mesma nos dois casos. | Confira o `customerId` na lista de clientes do seu parceiro. |
+| 422 | Dado inválido: campo de texto acima do tamanho, `state` que não tem 2 caracteres, `number` ou outro texto enviado como número, `latitude` fora de -90 a 90, `longitude` fora de -180 a 180 ou valor que não é número. As mensagens vêm em inglês, com o nome do campo em `errors`. | Corrija o campo indicado em `errors` e envie de novo. |
+| 429 | Passou de 1000 chamadas por minuto com a chave. | Espere o tempo do cabeçalho `Retry-After` e repita. |
+
+Os status 401, 403 e 429 valem para qualquer chamada. O corpo é sempre `{"message": "..."}`, e o 422 acrescenta `errors`;
+o guia de [erros](/guias/erros) traz os textos exatos. Quando há mais de um campo inválido, o `message` do topo mostra o
+primeiro erro e termina com `(and N more errors)`.
+
+## Exemplos
+
+<RequestExample>
+
+```bash cURL
+curl --request POST "https://core.clubtrack.com.br/api/b2b/v1/customers/019a0f3c-4000-7f9e-9687-b620b4389874/addresses" \
+  --header "X-Api-Key: $CLUBTRACK_API_KEY" \
+  --header "Accept: application/json" \
+  --header "Content-Type: application/json" \
+  --data '{
+    "label": "Residência",
+    "postal_code": "01310-100",
+    "street": "Avenida Paulista",
+    "number": "1000",
+    "neighborhood": "Bela Vista",
+    "city": "São Paulo",
+    "state": "SP",
+    "latitude": -23.561414,
+    "longitude": -46.655881
+  }'
+```
+
+```javascript JavaScript
+const clienteId = "019a0f3c-4000-7f9e-9687-b620b4389874";
+
+const resposta = await fetch(
+  `https://core.clubtrack.com.br/api/b2b/v1/customers/${clienteId}/addresses`,
+  {
+    method: "POST",
+    headers: {
+      "X-Api-Key": process.env.CLUBTRACK_API_KEY,
+      Accept: "application/json",
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      label: "Residência",
+      postal_code: "01310-100",
+      street: "Avenida Paulista",
+      number: "1000",
+      neighborhood: "Bela Vista",
+      city: "São Paulo",
+      state: "SP",
+      latitude: -23.561414,
+      longitude: -46.655881,
+    }),
+  },
+);
+
+const endereco = await resposta.json();
+```
+
+```python Python
+import os
+import requests
+
+cliente_id = "019a0f3c-4000-7f9e-9687-b620b4389874"
+
+resposta = requests.post(
+    f"https://core.clubtrack.com.br/api/b2b/v1/customers/{cliente_id}/addresses",
+    headers={
+        "X-Api-Key": os.environ["CLUBTRACK_API_KEY"],
+        "Accept": "application/json",
+    },
+    json={
+        "label": "Residência",
+        "postal_code": "01310-100",
+        "street": "Avenida Paulista",
+        "number": "1000",
+        "neighborhood": "Bela Vista",
+        "city": "São Paulo",
+        "state": "SP",
+        "latitude": -23.561414,
+        "longitude": -46.655881,
+    },
+    timeout=30,
+)
+
+endereco = resposta.json()
+```
+
+```php PHP
+use GuzzleHttp\Client;
+
+$http = new Client(['base_uri' => 'https://core.clubtrack.com.br']);
+
+$clienteId = '019a0f3c-4000-7f9e-9687-b620b4389874';
+
+$resposta = $http->post("/api/b2b/v1/customers/{$clienteId}/addresses", [
+    'headers' => [
+        'X-Api-Key' => getenv('CLUBTRACK_API_KEY'),
+        'Accept' => 'application/json',
+    ],
+    'json' => [
+        'label' => 'Residência',
+        'postal_code' => '01310-100',
+        'street' => 'Avenida Paulista',
+        'number' => '1000',
+        'neighborhood' => 'Bela Vista',
+        'city' => 'São Paulo',
+        'state' => 'SP',
+        'latitude' => -23.561414,
+        'longitude' => -46.655881,
+    ],
+]);
+
+$endereco = json_decode((string) $resposta->getBody(), true);
+```
+
+</RequestExample>
+
+<ResponseExample>
+
+```json 201
+{
+  "data": {
+    "id": "019a0f3c-6000-7fda-ae85-e6b5e5ab3350",
+    "label": "Residência",
+    "postal_code": "01310-100",
+    "street": "Avenida Paulista",
+    "number": "1000",
+    "complement": null,
+    "neighborhood": "Bela Vista",
+    "city": "São Paulo",
+    "state": "SP",
+    "latitude": -23.561414,
+    "longitude": -46.655881,
+    "is_primary": true,
+    "created_at": "2026-10-05T18:25:40+00:00",
+    "updated_at": "2026-10-05T18:25:40+00:00"
+  }
+}
+```
+
+```json 401
+{
+  "message": "API key inválida ou revogada."
+}
+```
+
+```json 403
+{
+  "message": "Parceiro inativo ou suspenso."
+}
+```
+
+```json 404
+{
+  "message": "Recurso não encontrado."
+}
+```
+
+```json 422
+{
+  "message": "The state field must be 2 characters. (and 1 more error)",
+  "errors": {
+    "state": [
+      "The state field must be 2 characters."
+    ],
+    "latitude": [
+      "The latitude field must be between -90 and 90."
+    ]
+  }
+}
+```
+
+</ResponseExample>
+
+## Detalhes que ajudam
+
+- O cadastro de endereço não tem chave de idempotência nem detecta endereço repetido. Se a conexão cair antes da resposta,
+  consulte [Listar endereços do cliente](/referencia/clientes-e-enderecos/listar-enderecos) antes de tentar de novo, para não
+  criar o mesmo endereço duas vezes.
+- O primeiro endereço do cliente é o principal. Se o seu cliente já tem endereço e você quer que o novo passe na frente, chame
+  [Definir endereço principal](/referencia/clientes-e-enderecos/definir-endereco-principal) com o `id` que esta resposta devolveu.
+- Cadastre os endereços de um mesmo cliente um de cada vez, esperando a resposta de uma chamada antes de enviar a próxima.
+- A ClubTrack não busca o endereço pelo CEP e não preenche latitude e longitude. O que você não enviar fica `null`.

@@ -1,0 +1,160 @@
+---
+title: "Reenviar o link de pagamento"
+description: "Envia de novo ao cliente, por e-mail, o link para ele escolher a forma de pagamento ou concluir o pagamento da assinatura."
+api: "POST /api/b2b/v1/subscriptions/{id}/resend-payment-link"
+---
+
+Esta chamada faz a ClubTrack enviar ao cliente da assinatura um e-mail com o link de pagamento que já existe. Você usa quando o cliente perdeu a mensagem, apagou o e-mail ou ainda não pagou depois de [criar a assinatura](/referencia/comercial/criar-assinatura).
+
+A chamada reaproveita o que está guardado na assinatura e **não gera cobrança nova**. O e-mail depende do ponto em que a assinatura está:
+
+- **O cliente ainda não escolheu como pagar.** Ele recebe o e-mail "Escolha como pagar sua assinatura Clubtrack", com um botão "Finalizar assinatura" que abre a página em que ele escolhe cartão, boleto, Pix ou Pix Automático. É o mesmo endereço que `checkout_url` mostra.
+- **O cliente já escolheu e a cobrança foi gerada** (cartão, boleto ou Pix manual): ele recebe o e-mail "Pagamento em aberto da sua assinatura Clubtrack", com o link da página de pagamento daquela cobrança, o mesmo de `payment_checkout_url`.
+
+Se não houver nenhum dos dois links, a resposta é 422. Acontece, por exemplo, na cobrança consolidada pós-paga, em que o cliente não paga nada, e na assinatura em Pix Automático cuja autorização já não está aberta.
+
+<Warning>
+  Esta chamada envia um e-mail de verdade ao cliente a cada vez que é chamada, e não existe ambiente de teste. O e-mail vai para o endereço cadastrado do cliente da assinatura, com o nome do plano e o valor. A API não limita as repetições nem avisa que o cliente já recebeu: chamar três vezes seguidas envia três e-mails.
+</Warning>
+
+## Quando usar
+
+- O cliente diz que não recebeu ou perdeu o link.
+- Uma assinatura `pending` continua sem pagamento alguns dias depois da criação, e você quer lembrar o cliente.
+
+## Autenticação e permissões
+
+Use a chave de API. Parceiro suspenso ou inativo recebe 403. Assinatura de outro parceiro responde 404, igual a assinatura que não existe. O guia de [autenticação](/guias/autenticacao) explica a chave de API.
+
+## Parâmetros
+
+### Cabeçalhos
+
+Toda chamada leva a sua chave de API no cabeçalho `X-Api-Key`, que o campo de testes (Try it) pede no campo de autorização. Também vale enviá-la como `Authorization: Bearer <chave>`. Veja [Autenticação](/guias/autenticacao).
+
+### Caminho
+
+<ParamField path="id" type="string" placeholder="019a0f3c-4000-7f9e-9687-b620b4389874" required>
+  Identificador da assinatura: o `data.id` devolvido por [Criar assinatura](/referencia/comercial/criar-assinatura) ou o `id`
+  de uma linha de [Listar assinaturas](/referencia/comercial/listar-assinaturas). A chamada não tem corpo.
+  Exemplo: `019a0f3c-e000-7182-a6cd-bb7e5dcde111`.
+</ParamField>
+
+## Resposta
+
+Status `200`, sem dados da assinatura. O `200` diz que o envio foi aceito, não que o e-mail chegou: o e-mail sai em segundo plano.
+
+<ResponseField name="message" type="string">
+  Sempre `Link de pagamento reenviado.` quando o envio foi aceito.
+</ResponseField>
+
+## Erros
+
+| Status | Quando acontece | O que fazer |
+|---|---|---|
+| 401 | Não há chave, a chave é inválida, foi revogada ou expirou. | Confira a credencial. Revogação leva até 60 segundos para valer. |
+| 403 | O parceiro está suspenso ou inativo. | Fale com a ClubTrack se o parceiro deveria estar ativo. |
+| 404 | `Assinatura não encontrada.`: a assinatura não existe ou é de outro parceiro; a resposta é a mesma nos dois casos. | Confira o `id` em Listar assinaturas. |
+| 422 | `Esta assinatura não tem link de pagamento disponível para reenvio`, seguido de uma explicação. Não há link guardado para reenviar. | Consulte a assinatura em Consultar assinatura. Na cobrança consolidada não há pagamento a fazer. |
+| 429 | Passou de 1000 chamadas por minuto com a chave. | Espere o tempo do cabeçalho `Retry-After` e repita. |
+
+Os status 401, 403 e 429 valem para qualquer chamada. O corpo é sempre `{"message": "..."}`; o guia de [erros](/guias/erros)
+traz os textos exatos.
+
+## Exemplos
+
+<RequestExample>
+
+```bash cURL
+curl --request POST "https://core.clubtrack.com.br/api/b2b/v1/subscriptions/019a0f3c-e000-7182-a6cd-bb7e5dcde111/resend-payment-link" \
+  --header "X-Api-Key: $CLUBTRACK_API_KEY" \
+  --header "Accept: application/json"
+```
+
+```javascript JavaScript
+const resposta = await fetch(
+  "https://core.clubtrack.com.br/api/b2b/v1/subscriptions/019a0f3c-e000-7182-a6cd-bb7e5dcde111/resend-payment-link",
+  {
+    method: "POST",
+    headers: {
+      "X-Api-Key": process.env.CLUBTRACK_API_KEY,
+      Accept: "application/json",
+    },
+  },
+);
+
+const resultado = await resposta.json();
+```
+
+```python Python
+import os
+import requests
+
+resposta = requests.post(
+    "https://core.clubtrack.com.br/api/b2b/v1/subscriptions/019a0f3c-e000-7182-a6cd-bb7e5dcde111/resend-payment-link",
+    headers={
+        "X-Api-Key": os.environ["CLUBTRACK_API_KEY"],
+        "Accept": "application/json",
+    },
+    timeout=30,
+)
+
+resultado = resposta.json()
+```
+
+```php PHP
+use GuzzleHttp\Client;
+
+$http = new Client(['base_uri' => 'https://core.clubtrack.com.br']);
+
+$resposta = $http->post('/api/b2b/v1/subscriptions/019a0f3c-e000-7182-a6cd-bb7e5dcde111/resend-payment-link', [
+    'headers' => [
+        'X-Api-Key' => getenv('CLUBTRACK_API_KEY'),
+        'Accept' => 'application/json',
+    ],
+]);
+
+$resultado = json_decode((string) $resposta->getBody(), true);
+```
+
+</RequestExample>
+
+<ResponseExample>
+
+```json 200
+{
+  "message": "Link de pagamento reenviado."
+}
+```
+
+```json 401
+{
+  "message": "API key inválida ou revogada."
+}
+```
+
+```json 403
+{
+  "message": "Parceiro inativo ou suspenso."
+}
+```
+
+```json 404
+{
+  "message": "Assinatura não encontrada."
+}
+```
+
+```json 422
+{
+  "message": "Esta assinatura não tem link de pagamento disponível para reenvio -- ou já foi paga, ou o checkout foi concluído sem gerar link hospedado."
+}
+```
+
+</ResponseExample>
+
+## Detalhes que ajudam
+
+- A chamada **não confere o `status` da assinatura**. Se existe um link de pagamento guardado, ele é reenviado mesmo que o cliente já tenha pago. Consulte antes com [Consultar assinatura](/referencia/comercial/consultar-assinatura) e reenvie só quando o `status` for `pending`.
+- O e-mail sai para o endereço cadastrado no cliente. Se o cliente não tem e-mail cadastrado, nenhum e-mail é enviado e a resposta continua `200`. Confira o cadastro em [Consultar cliente](/referencia/clientes-e-enderecos/consultar-cliente).
+- Esta chamada só manda o e-mail. Para entregar o link por outro canal (WhatsApp, a sua própria tela), use o `checkout_url` ou o `payment_checkout_url` da assinatura exatamente como vieram.

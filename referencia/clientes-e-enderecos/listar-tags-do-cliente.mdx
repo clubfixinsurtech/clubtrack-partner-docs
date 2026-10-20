@@ -1,0 +1,371 @@
+---
+title: "Listar as Tags de um cliente"
+description: "Devolve, em páginas, os vínculos (Tags) de um cliente seu, com filtro por situação e aparelho e a opção de trazer os dados do aparelho."
+api: "GET /api/b2b/v1/customers/{customerId}/bindings"
+---
+
+Esta chamada lista as Tags de um cliente do seu parceiro, da mais recente para a mais antiga. Na API, uma Tag é o **vínculo**
+entre um aparelho (`device`) e um cliente. Cada linha da resposta é um vínculo, com a situação dele e as datas em que foi criado e
+desfeito. O `id` do vínculo é o valor que
+[Criar assinatura](/referencia/comercial/criar-assinatura), [Ler campos do vínculo](/referencia/vinculos-e-campos/ler-campos-do-vinculo)
+e [Consultar trajeto](/referencia/rastreamento/consultar-trajeto) pedem.
+
+Sem filtro, a lista traz também os vínculos já desfeitos (`unbound`). A lista mostra o vínculo e, se você pedir, o aparelho.
+Não traz posição nem campos personalizados. Para as Tags de todos os seus clientes de uma vez, use
+[Listar Tags](/referencia/rastreamento/listar-tags).
+
+## Quando usar
+
+- Para saber se um cliente já tem Tag e em que situação, antes de vincular outro aparelho.
+- Para achar o `id` do vínculo que você vai usar na assinatura, nos campos personalizados ou no trajeto.
+- Para conferir se um [vínculo](/referencia/vinculos-e-campos/vincular-dispositivo) foi criado quando a resposta da chamada se perdeu.
+- Para saber se a localização do aparelho já foi liberada: peça `include=device` e leia `device.status`.
+
+## Autenticação e permissões
+
+Use a chave de API. Parceiro suspenso recebe 403.
+O guia de [autenticação](/guias/autenticacao) explica a chave de API.
+
+## Parâmetros
+
+### Cabeçalhos
+
+Toda chamada leva a sua chave de API no cabeçalho `X-Api-Key`, que o campo de testes (Try it) pede no campo de autorização. Também vale enviá-la como `Authorization: Bearer <chave>`. Veja [Autenticação](/guias/autenticacao).
+
+### Caminho
+
+<ParamField path="customerId" type="string" placeholder="019a0f3c-4000-7f9e-9687-b620b4389874" required>
+  Identificador do cliente, o `id` devolvido por [Cadastrar cliente](/referencia/clientes-e-enderecos/cadastrar-cliente) ou por
+  [Listar clientes](/referencia/clientes-e-enderecos/listar-clientes). O cliente precisa ser do seu parceiro. Cliente que não
+  existe e cliente de outro parceiro dão a mesma resposta, `404`. Exemplo: `019a0f3c-4000-7f9e-9687-b620b4389874`.
+</ParamField>
+
+### Consulta
+
+Os filtros se combinam: cada filtro a mais restringe o resultado. Dentro de um mesmo filtro, separe valores por vírgula para
+aceitar qualquer um deles. Mais detalhes em [Paginação, filtros e ordenação](/guias/paginacao-filtros-ordenacao).
+
+<ParamField query="filter[status]" type="string">
+  Situação do vínculo, comparação exata. Valores: `active` (a Tag está em uso, mesmo que a localização ainda não tenha sido
+  liberada) e `unbound` (o vínculo foi desfeito). `filter[status]=active,unbound` aceita os dois e, na prática, não restringe nada.
+</ParamField>
+
+<ParamField query="filter[device_id]" type="string" placeholder="019a0f3c-4000-7f9e-9687-b620b4389874">
+  Devolve só os vínculos de um aparelho. É o `device_id` do vínculo, o mesmo `id` que a consulta de dispositivos devolve.
+  Comparação exata, e aceita vários UUIDs separados por vírgula. Serve para achar o vínculo atual de um aparelho e para ver a
+  história dele com este cliente. Exemplo: `filter[device_id]=019a0f3c-8000-78d6-8995-8bf9b9e561a5`.
+</ParamField>
+
+<ParamField query="filter[active]" type="string">
+  Atalho para os vínculos com situação `active`. O valor que você envia é ignorado (`filter[active]=1` basta), e não existe
+  forma de usar o atalho ao contrário: para ver os desfeitos, use `filter[status]=unbound`.
+</ParamField>
+
+<ParamField query="filter[boundAfter]" type="string" placeholder="2026-10-18T00:00:00-03:00">
+  Devolve os vínculos criados a partir deste momento, inclusive (`bound_at` maior ou igual ao valor). Envie em UTC, com data e
+  hora, como `2026-10-01T00:00:00Z`, ou só a data, como `2026-10-01`, que vale a meia-noite UTC desse dia. Se escrever o fuso como
+  `+00:00`, codifique o sinal de mais como `%2B` na URL, porque o `+` solto vira espaço. Note o nome em camelCase.
+</ParamField>
+
+<ParamField query="filter[boundBefore]" type="string" placeholder="2026-10-18T00:00:00-03:00">
+  Devolve os vínculos criados até este momento, inclusive (`bound_at` menor ou igual ao valor). Mesmo formato de
+  `filter[boundAfter]`. Os dois juntos formam um intervalo: `filter[boundAfter]=2026-10-01&filter[boundBefore]=2026-10-31T23:59:59Z`.
+</ParamField>
+
+<ParamField query="sort" type="string" default="-bound_at">
+  Campo de ordenação. Aceita `bound_at` (quando o vínculo foi criado), `unbound_at` (quando foi desfeito) e `status`. Prefixe com
+  `-` para ordem decrescente: `sort=-bound_at` traz os mais novos primeiro. Aceita mais de um campo separado por vírgula. Os
+  vínculos ainda ativos não têm `unbound_at`: eles vêm por último na ordem crescente e por primeiro na decrescente.
+</ParamField>
+
+<ParamField query="include" type="string">
+  Acrescenta dados relacionados a cada vínculo. `device` traz o objeto `device` com o aparelho (série, IMEI e situação). Para ver
+  se a localização já foi liberada, é o valor que você quer. `statusHistories` é aceito, mas hoje a resposta não traz o histórico
+  de situações, então não muda nada no corpo. Também são aceitas as variações `deviceCount`, `deviceExists`,
+  `statusHistoriesCount` e `statusHistoriesExists`, que não acrescentam campo à resposta. Separe vários valores por vírgula.
+</ParamField>
+
+<ParamField query="per_page" type="integer" default="25">
+  Quantos vínculos vêm por página. Envie um inteiro positivo. Não há teto no servidor, mas páginas grandes ficam lentas:
+  prefira até 100 e vá paginando.
+</ParamField>
+
+<ParamField query="page" type="integer" default="1">
+  Número da página, começando em 1. Para percorrer tudo, siga `links.next` em vez de montar o número à mão.
+</ParamField>
+
+## Resposta
+
+Status `200`. O corpo traz a lista em `data`, os endereços de navegação em `links` e os totais em `meta`.
+
+<ResponseField name="data" type="object[]">
+  Os vínculos da página. Vem vazio (`[]`) quando o cliente não tem vínculo ou nenhum atende aos filtros.
+</ResponseField>
+
+<ResponseField name="data[].id" type="string (UUID)">
+  Identificador do vínculo (a Tag). Se o aparelho for desvinculado e vinculado de novo, o novo vínculo recebe outro `id`.
+  É o valor que as chamadas de assinatura e de campos personalizados pedem.
+</ResponseField>
+
+<ResponseField name="data[].device_id" type="string (UUID)">
+  Identificador do aparelho vinculado, o mesmo `id` que a consulta de dispositivos devolve.
+</ResponseField>
+
+<ResponseField name="data[].customer_id" type="string (UUID)">
+  Identificador do cliente da Tag: sempre o `customerId` da chamada.
+</ResponseField>
+
+<ResponseField name="data[].status" type="string">
+  Situação do vínculo. `active`: o vínculo está em uso, mesmo com a localização ainda não liberada. `unbound`: o vínculo foi
+  desfeito, e não volta a `active`. A situação da localização está no `status` do aparelho (`data[].device.status`), não aqui.
+</ResponseField>
+
+<ResponseField name="data[].bound_at" type="string (data e hora ISO 8601)">
+  Quando o vínculo foi criado, em UTC.
+</ResponseField>
+
+<ResponseField name="data[].unbound_at" type="string (data e hora ISO 8601) | null">
+  Quando o vínculo foi desfeito, em UTC. `null` enquanto o vínculo está `active`.
+</ResponseField>
+
+<ResponseField name="data[].notes" type="string">
+  A observação registrada ao vincular, até 500 caracteres. `null` quando não foi informada.
+</ResponseField>
+
+<ResponseField name="data[].nickname" type="string">
+  Apelido que o cliente deu à própria Tag, com até 100 caracteres. `null` enquanto ele não escolheu um.
+</ResponseField>
+
+<ResponseField name="data[].category" type="string">
+  Categoria que o cliente escolheu para a própria Tag, com até 50 caracteres. É texto livre. `null` enquanto ele não escolheu.
+</ResponseField>
+
+<ResponseField name="data[].icon" type="string">
+  Identificador do ícone que o cliente escolheu para a própria Tag, com até 50 caracteres. `null` enquanto ele não escolheu.
+</ResponseField>
+
+<ResponseField name="data[].device" type="object">
+  O aparelho do vínculo. Só aparece quando a chamada leva `include=device`; sem o `include`, o campo não existe na resposta.
+  Aparece mesmo quando o aparelho já foi devolvido.
+</ResponseField>
+
+<ResponseField name="data[].device.id" type="string (UUID)">
+  Identificador do aparelho. Igual a `data[].device_id`.
+</ResponseField>
+
+<ResponseField name="data[].device.serial" type="string">
+  Número de série do aparelho, com até 50 caracteres. É o valor que
+  [Vincular dispositivo](/referencia/vinculos-e-campos/vincular-dispositivo) pede em `device_serial`.
+</ResponseField>
+
+<ResponseField name="data[].device.imei" type="string">
+  IMEI do aparelho, com 15 caracteres.
+</ResponseField>
+
+<ResponseField name="data[].device.status" type="string">
+  Situação do aparelho. `pending_activation`: vinculado e aguardando o pagamento, com a localização ainda não liberada.
+  `active`: localização liberada. `inactive`: aparelho devolvido, sem vínculo. `assigned_to_partner`: no estoque do parceiro,
+  sem vínculo. `in_stock`: no estoque da ClubTrack. `damaged`: marcado como danificado. `replaced`: substituído por outro.
+</ResponseField>
+
+<ResponseField name="data[].created_at" type="string (data e hora ISO 8601)">
+  Quando o registro do vínculo foi criado, em UTC. Na prática é igual a `bound_at`.
+</ResponseField>
+
+<ResponseField name="links" type="object">
+  Endereços prontos para navegar: `first`, `last`, `prev` e `next`. Já trazem os filtros e a ordenação da chamada atual.
+  `prev` é `null` na primeira página e `next` é `null` na última.
+</ResponseField>
+
+<ResponseField name="meta" type="object">
+  `current_page`, `last_page`, `per_page`, `from`, `to` e `total` (quantos vínculos o cliente tem com esses filtros, somando todas
+  as páginas). `from` e `to` vêm `null` quando a lista está vazia. `meta.links` repete a navegação em formato de botões para
+  interfaces; quem integra por código usa o objeto `links`.
+</ResponseField>
+
+## Erros
+
+| Status | Quando acontece | O que fazer |
+|---|---|---|
+| 400 | Você enviou um filtro, uma ordenação ou uma inclusão que a rota não aceita. A mensagem lista os nomes aceitos, em inglês. | Corrija o nome do parâmetro. Os nomes diferenciam maiúscula de minúscula, e os filtros de data usam camelCase. |
+| 401 | Não há chave, a chave é inválida, foi revogada ou expirou. | Confira a credencial. Revogação leva até 60 segundos para valer. |
+| 403 | O parceiro está suspenso ou inativo. | Fale com a ClubTrack se o parceiro deveria estar ativo. |
+| 404 | `Recurso não encontrado.`: o cliente não existe ou é de outro parceiro. A resposta é a mesma nos dois casos. | Confira o `customerId` na lista de clientes do seu parceiro. |
+| 429 | Passou de 1000 chamadas por minuto com a chave. | Espere o tempo do cabeçalho `Retry-After` e repita. |
+
+Os status 401, 403 e 429 valem para qualquer chamada. O corpo é sempre `{"message": "..."}`; o guia de [erros](/guias/erros)
+traz os textos exatos.
+
+## Exemplos
+
+<RequestExample>
+
+```bash cURL
+curl --get "https://core.clubtrack.com.br/api/b2b/v1/customers/019a0f3c-4000-7f9e-9687-b620b4389874/bindings" \
+  --header "X-Api-Key: $CLUBTRACK_API_KEY" \
+  --header "Accept: application/json" \
+  --data-urlencode "include=device" \
+  --data-urlencode "per_page=2"
+```
+
+```javascript JavaScript
+const clienteId = "019a0f3c-4000-7f9e-9687-b620b4389874";
+const params = new URLSearchParams({ include: "device", per_page: "2" });
+
+const resposta = await fetch(
+  `https://core.clubtrack.com.br/api/b2b/v1/customers/${clienteId}/bindings?${params}`,
+  {
+    headers: {
+      "X-Api-Key": process.env.CLUBTRACK_API_KEY,
+      Accept: "application/json",
+    },
+  },
+);
+
+const tags = await resposta.json();
+```
+
+```python Python
+import os
+import requests
+
+cliente_id = "019a0f3c-4000-7f9e-9687-b620b4389874"
+
+resposta = requests.get(
+    f"https://core.clubtrack.com.br/api/b2b/v1/customers/{cliente_id}/bindings",
+    headers={
+        "X-Api-Key": os.environ["CLUBTRACK_API_KEY"],
+        "Accept": "application/json",
+    },
+    params={"include": "device", "per_page": 2},
+    timeout=30,
+)
+
+tags = resposta.json()
+```
+
+```php PHP
+use GuzzleHttp\Client;
+
+$http = new Client(['base_uri' => 'https://core.clubtrack.com.br']);
+
+$clienteId = '019a0f3c-4000-7f9e-9687-b620b4389874';
+
+$resposta = $http->get("/api/b2b/v1/customers/{$clienteId}/bindings", [
+    'headers' => [
+        'X-Api-Key' => getenv('CLUBTRACK_API_KEY'),
+        'Accept' => 'application/json',
+    ],
+    'query' => [
+        'include' => 'device',
+        'per_page' => 2,
+    ],
+]);
+
+$tags = json_decode((string) $resposta->getBody(), true);
+```
+
+</RequestExample>
+
+<ResponseExample>
+
+```json 200
+{
+  "data": [
+    {
+      "id": "019a0f3c-a000-7d36-b6e0-c918528fd00a",
+      "device_id": "019a0f3c-8000-78d6-8995-8bf9b9e561a5",
+      "customer_id": "019a0f3c-4000-7f9e-9687-b620b4389874",
+      "status": "active",
+      "bound_at": "2026-10-19T17:32:10+00:00",
+      "unbound_at": null,
+      "notes": "Entregue em mãos na filial Sul",
+      "nickname": "Carro da Marina",
+      "category": "Carro",
+      "icon": "car",
+      "device": {
+        "id": "019a0f3c-8000-78d6-8995-8bf9b9e561a5",
+        "serial": "000000050000001",
+        "imei": "860000000000001",
+        "status": "active"
+      },
+      "created_at": "2026-10-19T17:32:10+00:00"
+    },
+    {
+      "id": "019a0f3e-1000-7c1b-9a47-3d5e8f2b6a90",
+      "device_id": "019a0f3e-2000-7e2a-9c45-6b1f8d3a5e27",
+      "customer_id": "019a0f3c-4000-7f9e-9687-b620b4389874",
+      "status": "unbound",
+      "bound_at": "2026-10-06T14:10:22+00:00",
+      "unbound_at": "2026-10-13T19:45:03+00:00",
+      "notes": null,
+      "nickname": null,
+      "category": null,
+      "icon": null,
+      "device": {
+        "id": "019a0f3e-2000-7e2a-9c45-6b1f8d3a5e27",
+        "serial": "000000050000003",
+        "imei": "860000000000003",
+        "status": "inactive"
+      },
+      "created_at": "2026-10-06T14:10:22+00:00"
+    }
+  ],
+  "links": {
+    "first": "https://core.clubtrack.com.br/api/b2b/v1/customers/019a0f3c-4000-7f9e-9687-b620b4389874/bindings?include=device&per_page=2&page=1",
+    "last": "https://core.clubtrack.com.br/api/b2b/v1/customers/019a0f3c-4000-7f9e-9687-b620b4389874/bindings?include=device&per_page=2&page=1",
+    "prev": null,
+    "next": null
+  },
+  "meta": {
+    "current_page": 1,
+    "from": 1,
+    "last_page": 1,
+    "links": [
+      { "url": null, "label": "&laquo; Previous", "active": false },
+      { "url": "https://core.clubtrack.com.br/api/b2b/v1/customers/019a0f3c-4000-7f9e-9687-b620b4389874/bindings?include=device&per_page=2&page=1", "label": "1", "active": true },
+      { "url": null, "label": "Next &raquo;", "active": false }
+    ],
+    "path": "https://core.clubtrack.com.br/api/b2b/v1/customers/019a0f3c-4000-7f9e-9687-b620b4389874/bindings",
+    "per_page": 2,
+    "to": 2,
+    "total": 2
+  }
+}
+```
+
+```json 400
+{
+  "message": "Requested filter(s) `bound_after` are not allowed. Allowed filter(s) are `status, device_id, active, boundAfter, boundBefore`."
+}
+```
+
+```json 401
+{
+  "message": "API key inválida ou revogada."
+}
+```
+
+```json 403
+{
+  "message": "Parceiro inativo ou suspenso."
+}
+```
+
+```json 404
+{
+  "message": "Recurso não encontrado."
+}
+```
+
+</ResponseExample>
+
+## Detalhes que ajudam
+
+- Um aparelho pode aparecer em mais de um vínculo do mesmo cliente: um `unbound` antigo e um `active` atual. Para achar o vínculo em
+  uso de um aparelho, combine `filter[device_id]` com `filter[active]=1`.
+- O vínculo `active` não quer dizer que a localização está liberada. Ela só começa quando o pagamento do primeiro ciclo é
+  confirmado. Peça `include=device` e confira `device.status`: `pending_activation` é aguardando pagamento, `active` é liberada.
+- `nickname`, `category` e `icon` são escolhas do cliente final. Você os lê aqui, mas esta API não tem chamada para gravá-los.
+- Uma lista vazia não é erro: volta `200` com `data` vazio.
+- A mensagem do erro `400` vem em inglês e cita os nomes aceitos. Trate pelo status, não pelo texto.

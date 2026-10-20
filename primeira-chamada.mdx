@@ -1,0 +1,158 @@
+---
+title: "Primeira chamada"
+description: "Da chave de API a uma resposta 200: confira que a credencial funciona e veja os aparelhos que estão livres no seu estoque."
+---
+
+A primeira chamada tem um objetivo só: provar que a sua chave funciona e que você entende o formato das respostas. Ela é uma
+leitura, então não muda nada no seu parceiro nem nos seus clientes. Vamos listar os dispositivos que estão livres no seu
+estoque, os que ainda não foram vinculados a nenhum cliente.
+
+<Steps>
+  <Step title="Guarde a chave num lugar seguro">
+    Coloque a chave numa variável de ambiente do seu computador ou do seu servidor. Nunca no código nem no repositório.
+
+    ```bash
+    export CLUBTRACK_API_KEY="ttk_SUA_CHAVE_AQUI"
+    ```
+
+    Não tem a chave ainda? Peça ao seu contato na ClubTrack. Ela é mostrada uma única vez, na emissão.
+  </Step>
+
+  <Step title="Chame a API">
+    Esta chamada pede, no máximo, 5 aparelhos livres:
+
+    <CodeGroup>
+
+    ```bash cURL
+    curl --get "https://core.clubtrack.com.br/api/b2b/v1/devices" \
+      --header "X-Api-Key: $CLUBTRACK_API_KEY" \
+      --header "Accept: application/json" \
+      --data-urlencode "filter[assignedToPartner]=1" \
+      --data-urlencode "per_page=5"
+    ```
+
+    ```javascript JavaScript
+    const params = new URLSearchParams({
+      "filter[assignedToPartner]": "1",
+      per_page: "5",
+    });
+
+    const resposta = await fetch(
+      `https://core.clubtrack.com.br/api/b2b/v1/devices?${params}`,
+      {
+        headers: {
+          "X-Api-Key": process.env.CLUBTRACK_API_KEY,
+          Accept: "application/json",
+        },
+      },
+    );
+
+    console.log(resposta.status, await resposta.json());
+    ```
+
+    ```python Python
+    import os
+    import requests
+
+    resposta = requests.get(
+        "https://core.clubtrack.com.br/api/b2b/v1/devices",
+        headers={
+            "X-Api-Key": os.environ["CLUBTRACK_API_KEY"],
+            "Accept": "application/json",
+        },
+        params={"filter[assignedToPartner]": "1", "per_page": 5},
+        timeout=30,
+    )
+
+    print(resposta.status_code, resposta.json())
+    ```
+
+    ```php PHP
+    use GuzzleHttp\Client;
+
+    $http = new Client(['base_uri' => 'https://core.clubtrack.com.br', 'http_errors' => false]);
+
+    $resposta = $http->get('/api/b2b/v1/devices', [
+        'headers' => [
+            'X-Api-Key' => getenv('CLUBTRACK_API_KEY'),
+            'Accept' => 'application/json',
+        ],
+        'query' => ['filter' => ['assignedToPartner' => '1'], 'per_page' => 5],
+    ]);
+
+    echo $resposta->getStatusCode(), "\n", $resposta->getBody();
+    ```
+
+    </CodeGroup>
+  </Step>
+
+  <Step title="Leia a resposta">
+    O status `200` quer dizer que a chave foi aceita. O corpo é uma lista paginada:
+
+    ```json
+    {
+      "data": [
+        {
+          "id": "019a0f3c-9000-7bea-ad46-da90612bbeb8",
+          "partner_id": "019a0f3c-0000-7a36-8f98-0b409e8a22c8",
+          "serial": "000000050000002",
+          "imei": "860000000000002",
+          "model": "TT-100",
+          "status": "assigned_to_partner",
+          "notes": null,
+          "replaced_by_id": null,
+          "registered_at": "2026-09-22T12:10:00+00:00",
+          "created_at": "2026-09-22T12:10:00+00:00",
+          "updated_at": "2026-09-23T09:02:41+00:00",
+          "active_tag_binding_id": null
+        }
+      ],
+      "links": {
+        "first": "https://core.clubtrack.com.br/api/b2b/v1/devices?filter%5BassignedToPartner%5D=1&per_page=5&page=1",
+        "last": "https://core.clubtrack.com.br/api/b2b/v1/devices?filter%5BassignedToPartner%5D=1&per_page=5&page=1",
+        "prev": null,
+        "next": null
+      },
+      "meta": {
+        "current_page": 1,
+        "from": 1,
+        "last_page": 1,
+        "links": [
+          { "url": null, "label": "&laquo; Previous", "active": false },
+          { "url": "https://core.clubtrack.com.br/api/b2b/v1/devices?filter%5BassignedToPartner%5D=1&per_page=5&page=1", "label": "1", "active": true },
+          { "url": null, "label": "Next &raquo;", "active": false }
+        ],
+        "path": "https://core.clubtrack.com.br/api/b2b/v1/devices",
+        "per_page": 5,
+        "to": 1,
+        "total": 1
+      }
+    }
+    ```
+
+    Cada item de `data` é um dispositivo. O `status` `assigned_to_partner` quer dizer que o aparelho está com você e ainda não
+    tem cliente. Se `data` vier vazio (`[]`), a chave funciona, mas não há aparelho livre no seu estoque.
+  </Step>
+</Steps>
+
+## Se não deu 200
+
+| Você recebeu | O que quer dizer | O que fazer |
+|---|---|---|
+| `401` com `API key ausente.` | A chamada não levou a chave. | Confira o cabeçalho `X-Api-Key` e a variável de ambiente. |
+| `401` com `API key inválida ou revogada.` | A chave não existe, foi revogada ou expirou. | Confira se copiou a chave inteira. Peça uma nova se ela foi revogada. |
+| `403` com `Parceiro inativo ou suspenso.` | A chave é válida, mas o seu parceiro está suspenso. | Fale com a ClubTrack. |
+| `400` com `Requested filter(s) ... are not allowed` | Um nome de filtro está errado. | Os nomes diferenciam maiúscula de minúscula: `assignedToPartner`, não `assigned_to_partner`. |
+| `429` | Passou de 1000 chamadas por minuto. | Espere o tempo de `Retry-After`. |
+
+## O que fazer em seguida
+
+Com a credencial funcionando, o caminho natural é montar uma venda de ponta a ponta:
+
+1. [Cadastre o cliente](/referencia/clientes-e-enderecos/cadastrar-cliente) com o identificador do seu sistema.
+2. [Vincule o aparelho](/referencia/vinculos-e-campos/vincular-dispositivo) a esse cliente.
+3. [Crie a assinatura](/referencia/comercial/criar-assinatura) e acompanhe o pagamento.
+4. [Consulte a posição](/referencia/rastreamento/listar-tags) da Tag.
+
+O guia de [fluxo de venda](/guias/fluxo-de-venda) conta essa sequência com os detalhes de cada passo, e o de
+[convenções](/guias/convencoes) explica o formato que você acabou de ver.
